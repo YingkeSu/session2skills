@@ -1,0 +1,271 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
+
+  // ====================================================================
+  // ⚠️  WARNING: THIS IS A TEST/REFERENCE CONFIGURATION - DO NOT USE ⚠️
+  // ====================================================================
+  //
+  // This configuration uses ONLY GLM models for ALL agents.
+  // Purpose: Testing GLM model capabilities and fallback behavior.
+  //
+  // This is NOT recommended for production use because:
+  // - No model diversity (all GLM)
+  // - Single point of failure if ZhipuAI has issues
+  // - Missing GPT's unique reasoning capabilities
+  // - No Copilot supplementary models
+  //
+  // For production, use: oh-my-openagent.jsonc (with GLM + GPT + Copilot)
+  //
+  // ====================================================================
+
+  // Agent configurations - ALL using GLM models only
+  //
+  // Model strategy (GLM-only):
+  // - glm-5: Latest, Claude-like behavior, best for complex tasks
+  // - glm-4.7: Balanced performance, general purpose
+  // - glm-4.7-flash: Fastest, for quick tasks and searches
+  //
+  // Fallback priority: GLM-5 → GLM-4.7 → GLM-4.7-flash
+
+  "agents": {
+    // Sisyphus: Main orchestrator
+    // GLM-5 as primary (latest GLM)
+    "sisyphus": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "max",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7",
+        "zhipuai-coding-plan/glm-4.7-flash"
+      ]
+    },
+
+    // Oracle: Architecture/debugging consultation
+    // GLM-5 for deep reasoning (GLM-only alternative)
+    "oracle": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "zhipuai-coding-plan/glm-5",
+          "variant": "medium"
+        },
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Explore: Fast codebase grep/search
+    // GLM-4.7-flash for speed
+    "explore": {
+      "model": "zhipuai-coding-plan/glm-4.7-flash",
+      "variant": "low",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Librarian: Documentation and code search
+    // GLM-4.7-flash for fast doc search
+    "librarian": {
+      "model": "zhipuai-coding-plan/glm-4.7-flash",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Prometheus: Strategic planner
+    // GLM-5 for comprehensive planning
+    "prometheus": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Hephaestus: Deep autonomous worker
+    // GLM-5 for complex execution tasks
+    "hephaestus": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "high",
+      "fallback_models": [
+        {
+          "model": "zhipuai-coding-plan/glm-5",
+          "variant": "medium"
+        },
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Multimodal-Looker: Vision/screenshots
+    // GLM-5 if it supports vision, else GLM-4.7
+    "multimodal-looker": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "medium",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7",
+        "zhipuai-coding-plan/glm-4.7-flash"
+      ]
+    },
+
+    // Metis: Plan consultant
+    // GLM-5 for consultation
+    "metis": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Momus: Plan reviewer - Ruthless reviewer
+    // GLM-5 with xhigh for high-accuracy verification
+    "momus": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "xhigh",
+      "fallback_models": [
+        {
+          "model": "zhipuai-coding-plan/glm-5",
+          "variant": "high"
+        },
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Atlas: Todo orchestrator - lightweight coordination
+    // GLM-4.7-flash for speed
+    "atlas": {
+      "model": "zhipuai-coding-plan/glm-4.7-flash",
+      "variant": "medium",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    }
+  },
+
+  // Category configurations - ALL using GLM models only
+  "categories": {
+    // Quick: Trivial tasks - single file changes, typos
+    "quick": {
+      "model": "zhipuai-coding-plan/glm-4.7-flash",
+      "variant": "low",
+      "description": "Trivial tasks - single file changes, typo fixes",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Deep: Autonomous research + execution
+    "deep": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "medium",
+      "description": "Autonomous problem-solving, thorough research",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Ultrabrain: Hard logic, architecture decisions
+    "ultrabrain": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "xhigh",
+      "description": "Hard logic, architecture decisions, algorithms",
+      "fallback_models": [
+        {
+          "model": "zhipuai-coding-plan/glm-5",
+          "variant": "high"
+        },
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Visual-engineering: Frontend, UI/UX, design
+    "visual-engineering": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "description": "Frontend, UI/UX, design, styling, animation",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Unspecified-low: General tasks, low effort
+    "unspecified-low": {
+      "model": "zhipuai-coding-plan/glm-4.7-flash",
+      "variant": "low",
+      "description": "General tasks, low effort",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Unspecified-high: General tasks, high effort
+    "unspecified-high": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "high",
+      "description": "General tasks, high effort",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7"
+      ]
+    },
+
+    // Writing: Documentation, prose
+    "writing": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "variant": "low",
+      "description": "Documentation, prose, technical writing",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7",
+        "zhipuai-coding-plan/glm-4.7-flash"
+      ]
+    },
+
+    // Artistry: Creative approaches
+    "artistry": {
+      "model": "zhipuai-coding-plan/glm-5",
+      "description": "Creative/unconventional approaches",
+      "fallback_models": [
+        "zhipuai-coding-plan/glm-4.7",
+        "zhipuai-coding-plan/glm-4.7-flash"
+      ]
+    }
+  },
+
+  // Background task concurrency limits - GLM provider only
+  "background_task": {
+    "providerConcurrency": {
+      "zhipuai-coding-plan": 10
+    },
+    "modelConcurrency": {
+      "zhipuai-coding-plan/glm-5": 5,
+      "zhipuai-coding-plan/glm-4.7": 10,
+      "zhipuai-coding-plan/glm-4.7-flash": 10
+    }
+  },
+
+  // Enable runtime fallback for resilience
+  "runtime_fallback": {
+    "enabled": true,
+    "retry_on_errors": [400, 429, 503, 529],
+    "max_fallback_attempts": 3,
+    "cooldown_seconds": 60,
+    "notify_on_fallback": true
+  },
+
+  // Experimental features
+  "experimental": {
+    "aggressive_truncation": true,
+    "task_system": true
+  },
+
+  // Sisyphus agent configuration
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "replace_plan": true
+  },
+
+  // LSP configuration for Python project
+  "lsp": {
+    "pylsp": {
+      "command": ["pylsp"],
+      "extensions": [".py"],
+      "priority": 10
+    }
+  }
+}

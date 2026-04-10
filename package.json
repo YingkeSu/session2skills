@@ -1,0 +1,26 @@
+{
+  "name": "session2skills",
+  "version": "0.1.0",
+  "description": "Analyze OpenCode sessions and generate personalized workflow skills.",
+  "type": "module",
+  "bin": {
+    "session2skills": "./dist/cli/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "tsx src/cli/main.ts",
+    "start": "node dist/cli/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "1.4.0",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

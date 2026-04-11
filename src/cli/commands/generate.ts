@@ -251,14 +251,18 @@ function resolveHybridLlmProvider() {
     );
   }
 
+  const providerName = process.env.SESSION2SKILLS_LLM_PROVIDER ?? HYBRID_LLM_PROVIDER;
+  const preferJsonObject = providerName === "deepseek" || providerName === "zhipuai";
+
   const provider = new OpenAiCompatibleProvider({
-    provider: process.env.SESSION2SKILLS_LLM_PROVIDER ?? HYBRID_LLM_PROVIDER,
+    provider: providerName,
     baseUrl,
     apiKey: process.env.SESSION2SKILLS_LLM_API_KEY,
     defaultModel: {
       model,
       version: process.env.SESSION2SKILLS_LLM_MODEL_VERSION,
     },
+    preferJsonObject,
   });
 
   return new LlmProviderRegistry([{ provider }]).resolve(provider.provider);

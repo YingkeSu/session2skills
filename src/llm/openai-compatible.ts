@@ -23,6 +23,8 @@ export type OpenAiCompatibleProviderConfig = {
   retry?: LlmCallOptions["retry"];
   fetch?: typeof fetch;
   path?: string;
+  /** When true, use `response_format: { type: "json_object" }` instead of `json_schema`. */
+  preferJsonObject?: boolean;
 };
 
 type OpenAiCompatibleChatCompletionRequest = {
@@ -160,7 +162,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       const response = await this.fetchImplementation(buildUrl(this.config), {
         method: "POST",
         headers: buildHeaders(this.config),
-        body: JSON.stringify(buildRequestBody(request)),
+        body: JSON.stringify(buildRequestBody(request, this.config)),
         signal,
       });
 
@@ -183,6 +185,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
 function buildRequestBody(
   request: LlmTextGenerationRequest | LlmStructuredGenerationRequest<unknown>,
+  config: OpenAiCompatibleProviderConfig,
 ): OpenAiCompatibleChatCompletionRequest {
   const body: OpenAiCompatibleChatCompletionRequest = {
     model: request.model.model,
@@ -202,20 +205,36 @@ function buildRequestBody(
   }
 
   if ("schema" in request) {
-    body.response_format = request.schema.schema
-      ? {
-          type: "json_schema",
-          json_schema: {
-            name: request.schema.name,
-            description: request.schema.description,
-            schema: request.schema.schema,
-            strict: true,
-          },
-        }
-      : { type: "json_object" };
+    if (config.preferJsonObject || !request.schema.schema) {
+      body.response_format = { type: "json_object" };
+      body.messages = ensureJsonHint(body.messages);
+    } else {
+      body.response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: request.schema.name,
+          description: request.schema.description,
+          schema: request.schema.schema,
+          strict: true,
+        },
+      };
+    }
   }
 
   return body;
+}
+
+function ensureJsonHint(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string; name?: string }>,
+): typeof messages {
+  const hasJson = messages.some((m) => /\bjson\b/i.test(m.content));
+  if (hasJson) {
+    return messages;
+  }
+  return [
+    ...messages,
+    { role: "user" as const, content: "Respond with valid JSON only. No markdown fences, no commentary." },
+  ];
 }
 
 function buildHeaders(config: OpenAiCompatibleProviderConfig): Record<string, string> {

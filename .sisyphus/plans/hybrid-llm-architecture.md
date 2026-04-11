@@ -63,12 +63,12 @@
 - backward-safe CLI integration to existing `analyze` / `generate`
 
 ### Definition of Done
-- [ ] `analyze` 能在 5-20 个 sessions 上产出完整 hybrid 工件集
-- [ ] 所有 LLM claims 都引用有效 `evidenceID`
-- [ ] merge 阶段能 deterministic 地接受/暂挂/拒绝 claims
-- [ ] `summary.md` 能作为 debug artifact 审计 claims 来源
-- [ ] `SKILL.md` 明显比当前模板化输出更具体、更可操作
-- [ ] `npm run typecheck && npm test && npm run build` 全部通过
+- [x] `analyze` 能在 5-20 个 sessions 上产出完整 hybrid 工件集
+- [x] 所有 LLM claims 都引用有效 `evidenceID`
+- [x] merge 阶段能 deterministic 地接受/暂挂/拒绝 claims
+- [x] `summary.md` 能作为 debug artifact 审计 claims 来源
+- [x] `SKILL.md` 明显比当前模板化输出更具体、更可操作
+- [x] `npm run typecheck && npm test && npm run build` 全部通过
 
 ### Must Have
 - evidence-first pipeline
@@ -259,9 +259,9 @@ Wave FINAL:
   - `src/shared/errors.ts` - error typing conventions to preserve
 
   **Acceptance Criteria**:
-  - [ ] Core business layers depend only on provider-neutral interfaces
-  - [ ] Structured JSON generation and plain text generation are separate methods
-  - [ ] Provider/model/version metadata can be persisted into traces
+   - [x] Core business layers depend only on provider-neutral interfaces
+   - [x] Structured JSON generation and plain text generation are separate methods
+   - [x] Provider/model/version metadata can be persisted into traces
 
   **QA Scenarios**:
   ```
@@ -310,9 +310,9 @@ Wave FINAL:
   - `tests/normalize-session.test.ts` - behavior that must remain stable
 
   **Acceptance Criteria**:
-  - [ ] `normalize-session.ts` no longer imports OpenCode-specific session-message result types
-  - [ ] Existing normalization tests still pass
-  - [ ] OpenCode adapter remains functional through translation layer
+   - [x] `normalize-session.ts` no longer imports OpenCode-specific session-message result types
+   - [x] Existing normalization tests still pass
+   - [x] OpenCode adapter remains functional through translation layer
 
   **QA Scenarios**:
   ```
@@ -360,9 +360,9 @@ Wave FINAL:
   - `src/persist/generated-artifacts.ts` - current generate artifact layout
 
   **Acceptance Criteria**:
-  - [ ] Expanded hybrid artifact set writes atomically enough for current CLI expectations
-  - [ ] Existing overwrite refusal/force flows still work
-  - [ ] Artifact paths are deterministic
+   - [x] Expanded hybrid artifact set writes atomically enough for current CLI expectations
+   - [x] Existing overwrite refusal/force flows still work
+   - [x] Artifact paths are deterministic
 
   **QA Scenarios**:
   ```
@@ -411,8 +411,8 @@ Wave FINAL:
   - `package.json` - current CLI/runtime environment
 
   **Acceptance Criteria**:
-  - [ ] Every LLM call can be traced back to prompt version, provider, model, and input artifact
-  - [ ] Trace policy distinguishes safe persisted metadata from optional raw text
+   - [x] Every LLM call can be traced back to prompt version, provider, model, and input artifact
+   - [x] Trace policy distinguishes safe persisted metadata from optional raw text
 
   **QA Scenarios**:
   ```
@@ -496,9 +496,9 @@ Wave FINAL:
   - **Blocked By**: 1,3
 
   **Acceptance Criteria**:
-  - [ ] Existing heuristic knowledge is preserved but emitted in unified claim shape
-  - [ ] Validation-habit extraction remains deterministic and strong
-  - [ ] Rule outputs are merge-ready and traceable
+   - [x] Existing heuristic knowledge is preserved but emitted in unified claim shape
+   - [x] Validation-habit extraction remains deterministic and strong
+   - [x] Rule outputs are merge-ready and traceable
 
 - [x] 8. Build prompt packet builder for map-reduce extraction
 
@@ -583,9 +583,9 @@ Wave FINAL:
   - **Blocked By**: 1,6,7,9,10
 
   **Acceptance Criteria**:
-  - [ ] Merging is deterministic on repeated runs with same inputs and cached model outputs
-  - [ ] Contradictions are surfaced, not hidden
-  - [ ] Unsupported or invalid claims are rejected cleanly
+   - [x] Merging is deterministic on repeated runs with same inputs and cached model outputs
+   - [x] Contradictions are surfaced, not hidden
+   - [x] Unsupported or invalid claims are rejected cleanly
 
   **QA Scenarios**:
   ```
@@ -605,7 +605,7 @@ Wave FINAL:
     Evidence: .sisyphus/evidence/task-11-invalid-citation.txt
   ```
 
-- [ ] 12. Build ProfileV2 and unresolved/confidence model
+- [x] 12. Build ProfileV2 and unresolved/confidence model
 
   **What to do**:
   - Replace thin current profile with claim-backed `ProfileV2`
@@ -668,7 +668,7 @@ Wave FINAL:
   - [x] Summary exposes merged claims and traceability clearly
   - [x] Summary remains deterministic given same merged claims
 
-- [ ] 15. Build constrained LLM SKILL composer with fallback path
+- [x] 15. Build constrained LLM SKILL composer with fallback path
 
   **What to do**:
   - Generate `SKILL.md` from `skill-plan.json` plus allowed claims only
@@ -727,9 +727,9 @@ Wave FINAL:
   - **Blocked By**: 2,3,4,11,12,13,14,15
 
   **Acceptance Criteria**:
-  - [ ] CLI can produce full hybrid artifact sets in analyze mode
-  - [ ] CLI can generate summary/skill from hybrid artifacts or profile as designed
-  - [ ] Existing user mental model (`inspect` → `analyze` → `generate`) remains intact
+   - [x] CLI can produce full hybrid artifact sets in analyze mode
+   - [x] CLI can generate summary/skill from hybrid artifacts or profile as designed
+   - [x] Existing user mental model (`inspect` → `analyze` → `generate`) remains intact
 
 - [x] 17. Add caching, traces, and failure fallback
 
@@ -749,9 +749,9 @@ Wave FINAL:
   - **Blocked By**: 2,4,5,9,10,15,16
 
   **Acceptance Criteria**:
-  - [ ] repeated identical runs can reuse cached LLM artifacts
-  - [ ] malformed/timeout paths are visible in warnings/traces
-  - [ ] analyze/generate still complete when fallback policy allows
+   - [x] repeated identical runs can reuse cached LLM artifacts
+   - [x] malformed/timeout paths are visible in warnings/traces
+   - [x] analyze/generate still complete when fallback policy allows
 
 - [x] 18. Add tests, fixtures, snapshots, and mock-provider coverage
 
@@ -771,9 +771,9 @@ Wave FINAL:
   - **Blocked By**: 2,4,5,9,10,11,12,13,14,15,16,17
 
   **Acceptance Criteria**:
-  - [ ] hybrid core has deterministic automated test coverage
-  - [ ] snapshots/goldens exist for merged claims and final artifacts
-  - [ ] mock provider tests cover malformed output, timeout, and fallback
+   - [x] hybrid core has deterministic automated test coverage
+   - [x] snapshots/goldens exist for merged claims and final artifacts
+   - [x] mock provider tests cover malformed output, timeout, and fallback
 
 - [x] 19. Update docs and artifact interpretation guide
 
@@ -793,8 +793,8 @@ Wave FINAL:
   - **Blocked By**: 4,14,15,16,17
 
   **Acceptance Criteria**:
-  - [ ] README/docs let a technical user understand and inspect hybrid artifacts end-to-end
-  - [ ] privacy/provider defaults are explicitly documented
+   - [x] README/docs let a technical user understand and inspect hybrid artifacts end-to-end
+   - [x] privacy/provider defaults are explicitly documented
 
 ---
 
@@ -839,10 +839,10 @@ node dist/cli/main.js generate --directory <project> --recent 5 --output generat
 ```
 
 ### Final Checklist
-- [ ] All hybrid artifacts are persisted with version metadata
-- [ ] All LLM claims cite valid evidence IDs
-- [ ] Merge engine deterministically accepts/rejects/tentatively holds claims
-- [ ] `summary.md` is debug-friendly and provenance-rich
-- [ ] `SKILL.md` is more actionable than current template output
-- [ ] Existing CLI flow remains understandable to technical users
-- [ ] No v1 scope creep beyond agreed boundaries
+- [x] All hybrid artifacts are persisted with version metadata
+- [x] All LLM claims cite valid evidence IDs
+- [x] Merge engine deterministically accepts/rejects/tentatively holds claims
+- [x] `summary.md` is debug-friendly and provenance-rich
+- [x] `SKILL.md` is more actionable than current template output
+- [x] Existing CLI flow remains understandable to technical users
+- [x] No v1 scope creep beyond agreed boundaries

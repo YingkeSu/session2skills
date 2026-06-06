@@ -16,8 +16,18 @@ describe("harness verifier stage", () => {
   it("passes when all directives reference valid claims", async () => {
     const manifest = makeClaimManifest({
       claims: [
-        makeManifestClaim({ id: "c1", dimension: "work-style", label: "analysis-first" }),
-        makeManifestClaim({ id: "c2", dimension: "constraint", label: "minimal-diff" }),
+        makeManifestClaim({
+          id: "c1",
+          dimension: "work-style",
+          label: "analysis-first",
+          rationale: "The user begins with code inspection before making changes.",
+        }),
+        makeManifestClaim({
+          id: "c2",
+          dimension: "constraint",
+          label: "minimal-diff",
+          rationale: "The user asks for minimal, focused changes.",
+        }),
       ],
     });
     const provider = new MockLlmProvider({
@@ -28,7 +38,7 @@ describe("harness verifier stage", () => {
             pass: true,
             checkedItems: [
               { directive: "Begin with code inspection", claimId: "c1", status: "verified" },
-              { directive: "Make minimal changes", claimId: "c2", status: "verified" },
+              { directive: "Make minimal, focused changes", claimId: "c2", status: "verified" },
             ],
             issues: [],
           },
@@ -48,7 +58,12 @@ describe("harness verifier stage", () => {
 
   it("fails when directives reference non-existent claims", async () => {
     const manifest = makeClaimManifest({
-      claims: [makeManifestClaim({ id: "c1" })],
+      claims: [
+        makeManifestClaim({
+          id: "c1",
+          rationale: "The user begins with analysis.",
+        }),
+      ],
     });
     const provider = new MockLlmProvider({
       structuredScenarios: [
@@ -72,7 +87,7 @@ describe("harness verifier stage", () => {
 
     expect(result.report.pass).toBe(false);
     expect(result.report.checkedItems[1]!.status).toBe("unreferenced");
-    expect(result.report.issues).toHaveLength(1);
+    expect(result.report.issues.length).toBeGreaterThanOrEqual(1);
   });
 
   it("flags fabricated claims not in manifest", async () => {
@@ -115,6 +130,28 @@ describe("harness verifier stage", () => {
 
     expect(result.report.pass).toBe(true);
     expect(result.report.checkedItems).toHaveLength(0);
+  });
+
+  it("fails when verifier skips directives rendered in markdown", async () => {
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "c1",
+          rationale: "The user begins with code inspection before making changes.",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { pass: true, checkedItems: [], issues: [] } },
+      ],
+    });
+
+    const result = await runVerifierStage(SAMPLE_SKILL, manifest, provider.toResolved());
+
+    expect(result.report.pass).toBe(false);
+    expect(result.report.metadata.directiveCount).toBeGreaterThan(0);
+    expect(result.report.issues.some((issue) => issue.description.includes("did not check"))).toBe(true);
   });
 
   it("handles LLM error", async () => {

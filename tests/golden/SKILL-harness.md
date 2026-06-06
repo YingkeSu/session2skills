@@ -1,37 +1,41 @@
+---
+name: personalized-workflow
+description: "Use when adapting an AI coding assistant to this user's observed work-style, communication-style, validation-habit, constraint, token-efficiency, delegation-pattern patterns."
+---
+
 # Personalized Workflow Skill
 
-## work-style
-- analysis-first (confidence: 0.90)
-  Developer starts with extensive exploration (running tests, reading files) before implementing fixes. They use explore agents in parallel to gather information, then synthesize findings to create a work plan. This indicates an analysis-first approach.
+Use this skill when adapting coding-agent behavior to this user's observed workflow preferences. Treat these instructions as operating guidance, not as a report about the underlying evidence.
 
-## communication-style
-- explanatory (confidence: 0.85)
-  The developer provides detailed explanations of their reasoning and plans, e.g., 'I detect 调查+修复 intent... my approach is...', and synthesizes findings with clear summaries. This suggests an explanatory style.
+## Work Style
+Adapt this part of the workflow toward: analysis first.
 
-## validation-habit
-- run-tests (confidence: 1.00)
-  Developer consistently runs unit tests, type checks, and builds after making changes. They explicitly check pass/fail status and fix regressions. They also run e2e tests. This shows a strong habit of running tests for validation.
+- Prefer analysis first behavior for work style decisions. Ground this in the observed pattern: Developer starts with extensive exploration (running tests, reading files) before implementing fixes.
 
-## validation-habit
-- run-diagnostics (confidence: 0.90)
-  Developer runs diagnostic checks like `npx tsc` for type checking and `npx vitest` for tests. They also check git status and diff to verify changes. This indicates a habit of running diagnostics to validate output.
+## Communication Style
+Adapt this part of the workflow toward: explanatory.
 
-## constraint
-- type-safety (confidence: 0.90)
-  Developer identifies and fixes unsafe type casts (e.g., 'unsafe `as` cast' in generate.ts) and ensures type correctness. They prioritize type safety in their fixes.
+- Prefer explanatory behavior for communication style decisions. Ground this in the observed pattern: The developer provides detailed explanations of their reasoning and plans, e.g., 'I detect 调查+修复 intent... my approach is...', and synthesizes findings with clear summaries.
 
-## constraint
-- preserve-patterns (confidence: 0.80)
-  Developer ensures evidence ID format matches existing pattern ('ev:${ref.sourceType}:...' format). They check that fixes adhere to project conventions and patterns.
+## Validation Habit
+Adapt this part of the workflow toward: run tests, run diagnostics.
 
-## token-efficiency
-- explorer (confidence: 0.80)
-  Developer conducts extensive exploration before implementing, using multiple parallel explore agents. This indicates a high exploration-to-implementation ratio, characteristic of an explorer pattern.
+- Prefer run tests behavior for validation habit decisions. Ground this in the observed pattern: Developer consistently runs unit tests, type checks, and builds after making changes.
+- Prefer run diagnostics behavior for validation habit decisions. Ground this in the observed pattern: Developer runs diagnostic checks like `npx tsc` for type checking and `npx vitest` for tests.
 
-## delegation-pattern
-- parallelizer (confidence: 1.00)
-  Developer consistently fires multiple background agents in parallel (e.g., 5 explore agents, 6 fix agents). They wait for completion notifications and collect results. This shows a strong preference for parallel delegation.
+## Constraint
+Adapt this part of the workflow toward: type safety, preserve patterns.
 
-## delegation-pattern
-- trusting (confidence: 0.90)
-  Developer delegates tasks to agents with specific instructions and trusts them to execute. They only verify after completion, not micromanaging. This indicates a trusting delegation style.
+- Prefer type safety behavior for constraint decisions. Ground this in the observed pattern: Developer identifies and fixes unsafe type casts (e.g., 'unsafe `as` cast' in generate.ts) and ensures type correctness.
+- Prefer preserve patterns behavior for constraint decisions. Ground this in the observed pattern: Developer ensures evidence ID format matches existing pattern ('ev:${ref.sourceType}:...' format).
+
+## Token Efficiency
+Adapt this part of the workflow toward: explorer.
+
+- Prefer explorer behavior for token efficiency decisions. Ground this in the observed pattern: Developer conducts extensive exploration before implementing, using multiple parallel explore agents.
+
+## Delegation Pattern
+Adapt this part of the workflow toward: parallelizer, trusting.
+
+- Prefer parallelizer behavior for delegation pattern decisions. Ground this in the observed pattern: Developer consistently fires multiple background agents in parallel (e.g., 5 explore agents, 6 fix agents).
+- Prefer trusting behavior for delegation pattern decisions. Ground this in the observed pattern: Developer delegates tasks to agents with specific instructions and trusts them to execute.

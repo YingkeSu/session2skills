@@ -122,15 +122,18 @@ const FALLBACK_SKEPTIC_SYSTEM = [
 
 const FALLBACK_WRITER_SYSTEM = [
   "You are writing a SKILL.md document from a claim manifest.",
+  "The markdown must be an installable-style skill: YAML frontmatter with name and description, then concise agent-facing instructions.",
   "Every directive must reference a manifest claim ID.",
   "Do not add information not in the manifest.",
+  "Return structured sections whose directives exactly correspond to checkable instructions in the markdown.",
   "Output valid JSON.",
 ].join("\n");
 
 const FALLBACK_VERIFIER_SYSTEM = [
   "You are a Verifier cross-checking SKILL.md against a claim manifest.",
-  "Verify every directive maps to a valid claim.",
+  "Verify every directive in the rendered markdown maps to a valid claim.",
   "Flag fabricated or unreferenced directives.",
+  "Returning pass=true with zero checked directives is invalid when the markdown contains instructions.",
   "Output valid JSON.",
 ].join("\n");
 
@@ -337,8 +340,11 @@ export function buildWriterPacket(
     `## Tone: ${tone}`,
     "",
     "## Instructions",
-    "Write SKILL.md guidance using ONLY the claims above.",
+    "Write installable-style SKILL.md guidance using ONLY the claims above.",
+    "The markdown must start with YAML frontmatter containing name and description.",
+    "The markdown body must be agent-facing operating instructions, not a claim/confidence report.",
     "Each directive must have a sourceClaimId matching a claim id in the manifest.",
+    "Each structured directive must appear as a checkable instruction in the markdown body.",
     "Group by dimension into sections.",
     "Write imperative, actionable prose.",
   ].join("\n");
@@ -393,9 +399,11 @@ export function buildVerifierPacket(
     "```",
     "",
     "## Instructions",
-    "Cross-check every directive in SKILL.md against the manifest claims.",
+    "Cross-check every directive or instruction line in SKILL.md against the manifest claims.",
+    "Every checkedItems entry must correspond to text that actually appears in the rendered markdown.",
     "Mark each directive as: verified, unreferenced, or fabricated.",
-    "Set pass=true only if there are NO fabricated directives.",
+    "Set pass=true only if every rendered directive was checked and every checked directive is verified.",
+    "If SKILL.md contains directives but checkedItems is empty, pass must be false.",
   ].join("\n");
 
   return {

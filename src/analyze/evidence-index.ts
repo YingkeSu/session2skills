@@ -7,6 +7,7 @@ import type {
   ToolInvocation,
   WorkflowSignalKind,
 } from "../normalize/models.js";
+import { redactSecretsFromString } from "../shared/redaction.js";
 
 export const EVIDENCE_ITEM_SCHEMA_VERSION: EvidenceItemSchemaVersion = "evidence-item/v1";
 
@@ -50,7 +51,7 @@ export function makeEvidenceID(
 }
 
 export function makeExcerpt(text: string, maxChars = MAX_EXCERPT_CHARS): string {
-  const trimmed = text.trim();
+  const trimmed = redactSecretsFromString(text).trim();
   if (trimmed.length <= maxChars) return trimmed;
   const cutoff = trimmed.lastIndexOf(" ", maxChars - 3);
   const sliceEnd = cutoff > maxChars * 0.6 ? cutoff : maxChars - 3;

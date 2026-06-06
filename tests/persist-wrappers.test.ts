@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { writeGeneratedArtifacts, writeHarnessGeneratedArtifacts, writeHybridGeneratedArtifacts } from "../src/persist/generated-artifacts.js";
 import { writeRunArtifacts, writeHybridRunArtifacts } from "../src/persist/run-store.js";
+import { CliUsageError } from "../src/shared/errors.js";
 import type { LLMTrace, NormalizedSession, PreferenceProfile, RunManifest } from "../src/normalize/models.js";
 
 async function tmpDir(): Promise<string> {
@@ -104,6 +105,14 @@ const MINIMAL_VERIFIER_REPORT = {
   },
 };
 
+const VALID_SKILL = `---
+name: workflow-style
+description: Use when adapting to this user's observed coding workflow.
+---
+
+# Workflow Style
+`;
+
 describe("writeRunArtifacts", () => {
   it("writes normalized.json and profile.json", async () => {
     const dir = await tmpDir();
@@ -132,11 +141,11 @@ describe("writeHybridRunArtifacts", () => {
       outputDirectory: dir,
       normalizedSessions: [MINIMAL_SESSION],
       profile: MINIMAL_PROFILE,
-      evidenceIndex: [],
+      evidenceIndex: [{ summaryText: "OPENAI_API_KEY=sk-secretvalue" }],
       ruleClaims: [],
       llmSessionClaims: [],
       llmCategoryClaims: [],
-      mergedClaims: [],
+      mergedClaims: [{ rationale: "OPENAI_API_KEY=sk-secretvalue" }],
       skillPlan: {},
       llmTraces: [],
       manifest: MINIMAL_MANIFEST,
@@ -153,6 +162,12 @@ describe("writeHybridRunArtifacts", () => {
     expect(result.skillPlanPath).toContain("skill-plan.json");
     expect(result.llmTracesPath).toContain("llm-traces.json");
     expect(result.manifestPath).toContain("manifest.json");
+
+    const evidenceIndex = await readFile(result.evidenceIndexPath, "utf8");
+    const mergedClaims = await readFile(result.mergedClaimsPath, "utf8");
+    expect(evidenceIndex).not.toContain("sk-secretvalue");
+    expect(mergedClaims).not.toContain("sk-secretvalue");
+    expect(mergedClaims).toContain("[REDACTED_SECRET]");
   });
 
   it("redacts trace prompt content and raw output by default", async () => {
@@ -187,7 +202,7 @@ describe("writeGeneratedArtifacts", () => {
     const result = await writeGeneratedArtifacts({
       outputDirectory: dir,
       summary: "# Summary",
-      skill: "# Skill",
+      skill: VALID_SKILL,
       force: false,
     });
 
@@ -197,6 +212,16 @@ describe("writeGeneratedArtifacts", () => {
     const summary = await readFile(result.summaryPath, "utf8");
     expect(summary).toBe("# Summary");
   });
+
+  it("refuses to write invalid skill markdown", async () => {
+    const dir = await tmpDir();
+    await expect(writeGeneratedArtifacts({
+      outputDirectory: dir,
+      summary: "# Summary",
+      skill: "# Skill",
+      force: false,
+    })).rejects.toThrow(CliUsageError);
+  });
 });
 
 describe("writeHybridGeneratedArtifacts", () => {
@@ -205,8 +230,8 @@ describe("writeHybridGeneratedArtifacts", () => {
     const result = await writeHybridGeneratedArtifacts({
       outputDirectory: dir,
       summary: "# Summary",
-      skill: "# Skill",
-      mergedClaims: [],
+      skill: VALID_SKILL,
+      mergedClaims: [{ citation: { excerpt: "OPENAI_API_KEY=sk-secretvalue" } }],
       skillPlan: { schemaVersion: "skill-plan/v1" },
       force: false,
     });
@@ -218,6 +243,9 @@ describe("writeHybridGeneratedArtifacts", () => {
 
     const plan = JSON.parse(await readFile(result.skillPlanPath, "utf8"));
     expect(plan.schemaVersion).toBe("skill-plan/v1");
+
+    const claims = await readFile(result.mergedClaimsPath, "utf8");
+    expect(claims).not.toContain("sk-secretvalue");
   });
 });
 
@@ -227,7 +255,7 @@ describe("writeHarnessGeneratedArtifacts", () => {
     const result = await writeHarnessGeneratedArtifacts({
       outputDirectory: dir,
       summary: "# Summary",
-      skill: "# Skill",
+      skill: VALID_SKILL,
       claimManifest: MINIMAL_CLAIM_MANIFEST,
       skepticReport: MINIMAL_SKEPTIC_REPORT,
       verifierReport: MINIMAL_VERIFIER_REPORT,

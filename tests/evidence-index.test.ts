@@ -72,6 +72,10 @@ describe("makeExcerpt", () => {
   it("trims whitespace", () => {
     expect(makeExcerpt("  hello  ")).toBe("hello");
   });
+
+  it("redacts obvious secrets before truncating", () => {
+    expect(makeExcerpt("OPENAI_API_KEY=sk-secretvalue")).toBe("OPENAI_API_KEY=[REDACTED_SECRET]");
+  });
 });
 
 describe("estimateTokens", () => {
@@ -277,6 +281,18 @@ describe("buildEvidenceIndex", () => {
     expect(item?.citation.messageID).toBe("msg_1");
     expect(item?.citation.sourceType).toBe("message");
     expect(item?.citation.excerpt).toBe("Hello world");
+  });
+
+  it("redacts secrets from evidence excerpts and summaries", () => {
+    const session = makeSession({
+      messages: [makeUserMessage("msg_1", "OPENAI_API_KEY=sk-secretvalue")],
+    });
+
+    const index = buildEvidenceIndex([session]);
+    const item = index.find((e) => e.evidenceID === "ses_test:msg_1");
+
+    expect(item?.citation.excerpt).toBe("OPENAI_API_KEY=[REDACTED_SECRET]");
+    expect(item?.summaryText).toBe("OPENAI_API_KEY=[REDACTED_SECRET]");
   });
 });
 

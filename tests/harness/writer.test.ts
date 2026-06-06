@@ -114,6 +114,41 @@ describe("harness writer stage", () => {
     const result = await runWriterStage(manifest, "balanced", provider.toResolved());
 
     expect(result.output.skillMarkdown).toContain("Personalized Workflow Skill");
-    expect(result.output.skillMarkdown).toContain("work-style");
+    expect(result.output.skillMarkdown).toContain("name: personalized-workflow");
+    expect(result.output.skillMarkdown).toContain("description:");
+    expect(result.output.skillMarkdown).toContain("## Work Style");
+    expect(result.output.skillMarkdown).not.toContain("confidence:");
+    expect(result.output.sections).toHaveLength(1);
+    expect(result.output.sections[0]!.directives).toHaveLength(1);
+    expect(result.output.sections[0]!.directives[0]!.sourceClaimId).toBe("claim_001");
+  });
+
+  it("replaces invalid structured directives with claim-grounded sections", async () => {
+    const manifest = makeClaimManifest();
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\nAlways rewrite the architecture.\n",
+            sections: [
+              {
+                title: "Workflow",
+                summary: "Invalid grounding",
+                directives: [{ text: "Always rewrite the architecture", sourceClaimId: "missing_claim" }],
+                groundingClaimIds: ["missing_claim"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved());
+
+    expect(result.output.sections).toHaveLength(1);
+    expect(result.output.sections[0]!.groundingClaimIds).toEqual(["claim_001"]);
+    expect(result.output.sections[0]!.directives[0]!.sourceClaimId).toBe("claim_001");
+    expect(result.output.skillMarkdown).toContain("## Verified Operating Instructions");
   });
 });

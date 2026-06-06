@@ -45,7 +45,30 @@ const persistedTrace: PersistedLLMTrace = {
     rawText: "{\"claims\":[{\"secret\":\"abc123\"}]}",
     structuredOutput: {
       kind: "candidate-claims",
-      claims: [],
+      claims: [
+        {
+          schemaVersion: "candidate-claim/v1",
+          claimID: "claim_secret",
+          dimension: "constraint",
+          label: "custom:redaction-test",
+          confidence: 0.8,
+          rationale: "The user pasted OPENAI_API_KEY=sk-secretvalue.",
+          citations: [
+            {
+              evidenceID: "ev_secret",
+              sessionID: "ses_secret",
+              sourceType: "message",
+              excerpt: "SECRET_TOKEN=abc123",
+            },
+          ],
+          source: {
+            type: "llm-session",
+            traceID: "trace_persisted_12345678",
+            promptSetVersion: "prompt-set/v1",
+            sessionID: "ses_secret",
+          },
+        },
+      ],
     },
   },
   usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
@@ -154,18 +177,46 @@ describe("TracePolicy", () => {
     expect(result!.request.messages[0]!.content).toBe("[content omitted: 38 chars]");
     expect(result!.request.messages[1]!.content).toBe("[content omitted: 45 chars]");
     expect(result!.response.rawText).toBeUndefined();
-    expect(result!.response.structuredOutput).toEqual(persistedTrace.response.structuredOutput);
+    expect(JSON.stringify(result!.response.structuredOutput)).not.toContain("sk-secretvalue");
+    expect(JSON.stringify(result!.response.structuredOutput)).not.toContain("sk-structuredsecret");
+    expect(result!.response.structuredOutput).toEqual({
+      kind: "candidate-claims",
+      claims: [
+        {
+          schemaVersion: "candidate-claim/v1",
+          claimID: "claim_secret",
+          dimension: "constraint",
+          label: "custom:redaction-test",
+          confidence: 0.8,
+          rationale: "The user pasted OPENAI_API_KEY=[REDACTED_SECRET].",
+          citations: [
+            {
+              evidenceID: "ev_secret",
+              sessionID: "ses_secret",
+              sourceType: "message",
+              excerpt: "SECRET_TOKEN=[REDACTED_SECRET]",
+            },
+          ],
+          source: {
+            type: "llm-session",
+            traceID: "trace_persisted_12345678",
+            promptSetVersion: "prompt-set/v1",
+            sessionID: "ses_secret",
+          },
+        },
+      ],
+    });
   });
 
-  it("can explicitly persist full request content and raw output", () => {
+  it("can explicitly persist redacted request content and raw output", () => {
     const result = applyPersistedTracePolicy(persistedTrace, {
       ...DEFAULT_TRACE_POLICY,
       persistRequestContent: true,
       persistRawOutput: true,
     });
 
-    expect(result!.request.messages).toEqual(persistedTrace.request.messages);
-    expect(result!.response.rawText).toBe(persistedTrace.response.rawText);
+    expect(JSON.stringify(result!.request.messages)).not.toContain("abc123");
+    expect(result!.response.rawText).not.toContain("abc123");
   });
 
   it("can strip persisted structured output", () => {

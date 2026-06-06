@@ -2,6 +2,8 @@ import { writeDirectoryArtifacts } from "./staged-directory-write.js";
 import type { ClaimManifest, SkepticReport, VerifierReport } from "../harness/types.js";
 import { sanitizePersistedTraces } from "../llm/trace.js";
 import type { LLMTrace } from "../normalize/models.js";
+import { assertValidSkillMarkdown } from "../generate/skill-lint.js";
+import { redactSecretsFromString, stringifyRedactedJson } from "../shared/redaction.js";
 
 export async function writeGeneratedArtifacts(input: {
   outputDirectory: string;
@@ -12,11 +14,13 @@ export async function writeGeneratedArtifacts(input: {
   summaryPath: string;
   skillPath: string;
 }> {
+  assertValidSkillMarkdown(input.skill);
+
   const paths = await writeDirectoryArtifacts({
     outputDirectory: input.outputDirectory,
     force: input.force,
     files: {
-      "summary.md": input.summary,
+      "summary.md": redactSecretsFromString(input.summary),
       "SKILL.md": input.skill,
     },
   });
@@ -40,14 +44,16 @@ export async function writeHybridGeneratedArtifacts(input: {
   mergedClaimsPath: string;
   skillPlanPath: string;
 }> {
+  assertValidSkillMarkdown(input.skill);
+
   const paths = await writeDirectoryArtifacts({
     outputDirectory: input.outputDirectory,
     force: input.force,
     files: {
-      "summary.md": input.summary,
+      "summary.md": redactSecretsFromString(input.summary),
       "SKILL.md": input.skill,
-      "merged-claims.json": JSON.stringify(input.mergedClaims, null, 2),
-      "skill-plan.json": JSON.stringify(input.skillPlan, null, 2),
+      "merged-claims.json": stringifyRedactedJson(input.mergedClaims),
+      "skill-plan.json": stringifyRedactedJson(input.skillPlan),
     },
   });
 
@@ -76,16 +82,18 @@ export async function writeHarnessGeneratedArtifacts(input: {
   verifierReportPath: string;
   tracesPath: string | null;
 }> {
+  assertValidSkillMarkdown(input.skill);
+
   const files: Record<string, string> = {
-    "summary.md": input.summary,
+    "summary.md": redactSecretsFromString(input.summary),
     "SKILL.md": input.skill,
-    "claim-manifest.json": JSON.stringify(input.claimManifest, null, 2),
-    "skeptic-report.json": JSON.stringify(input.skepticReport, null, 2),
-    "verifier-report.json": JSON.stringify(input.verifierReport, null, 2),
+    "claim-manifest.json": stringifyRedactedJson(input.claimManifest),
+    "skeptic-report.json": stringifyRedactedJson(input.skepticReport),
+    "verifier-report.json": stringifyRedactedJson(input.verifierReport),
   };
 
   if (input.traces && input.traces.length > 0) {
-    files["llm-traces.json"] = JSON.stringify(sanitizePersistedTraces(input.traces), null, 2);
+    files["llm-traces.json"] = stringifyRedactedJson(sanitizePersistedTraces(input.traces));
   }
 
   const paths = await writeDirectoryArtifacts({

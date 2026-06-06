@@ -3,6 +3,7 @@ import type {
   LLMTrace as PersistedLLMTrace,
   LLMTraceMessage,
 } from "../normalize/models.js";
+import { redactSecretsDeep, redactSecretsFromString } from "../shared/redaction.js";
 
 /**
  * Trace payload for a single LLM call.
@@ -68,11 +69,11 @@ export function applyTracePolicy(
     inputArtifactRef: trace.inputArtifactRef,
     latencyMs: trace.latencyMs,
     usage: trace.usage,
-    parsedOutput: policy.persistParsedOutput ? trace.parsedOutput : undefined,
+    parsedOutput: policy.persistParsedOutput ? redactSecretsDeep(trace.parsedOutput) : undefined,
   };
 
   if (policy.persistRawOutput && trace.rawOutput !== undefined) {
-    safe.rawOutput = trace.rawOutput;
+    safe.rawOutput = redactSecretsFromString(trace.rawOutput);
   }
 
   return safe;
@@ -93,16 +94,16 @@ export function applyPersistedTracePolicy(
     request: {
       ...trace.request,
       messages: policy.persistRequestContent
-        ? structuredClone(trace.request.messages)
+        ? redactSecretsDeep(trace.request.messages)
         : trace.request.messages.map(redactTraceMessage),
     },
     response: {
       ...responseMetadata,
       ...(policy.persistParsedOutput && structuredOutput !== undefined
-        ? { structuredOutput }
+        ? { structuredOutput: redactSecretsDeep(structuredOutput) }
         : {}),
       ...(policy.persistRawOutput && rawText !== undefined
-        ? { rawText }
+        ? { rawText: redactSecretsFromString(rawText) }
         : {}),
     },
   };

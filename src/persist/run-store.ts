@@ -7,6 +7,7 @@ import type {
 } from "../normalize/models.js";
 import type { ClaimManifest, SkepticReport, VerifierReport } from "../harness/types.js";
 import { sanitizePersistedTraces } from "../llm/trace.js";
+import { stringifyRedactedJson } from "../shared/redaction.js";
 import { writeDirectoryArtifacts } from "./staged-directory-write.js";
 
 export async function writeRunArtifacts(input: {
@@ -22,8 +23,8 @@ export async function writeRunArtifacts(input: {
     outputDirectory: input.outputDirectory,
     force: input.force,
     files: {
-      "normalized.json": JSON.stringify(input.normalizedSessions, null, 2),
-      "profile.json": JSON.stringify(input.profile, null, 2),
+      "normalized.json": stringifyRedactedJson(input.normalizedSessions),
+      "profile.json": stringifyRedactedJson(input.profile),
     },
   });
 
@@ -62,16 +63,16 @@ export async function writeHybridRunArtifacts(input: {
     outputDirectory: input.outputDirectory,
     force: input.force,
     files: {
-      "normalized.json": JSON.stringify(input.normalizedSessions, null, 2),
-      "profile.json": JSON.stringify(input.profile, null, 2),
-      "evidence-index.json": JSON.stringify(input.evidenceIndex, null, 2),
-      "rule-claims.json": JSON.stringify(input.ruleClaims, null, 2),
-      "llm-session-claims.json": JSON.stringify(input.llmSessionClaims, null, 2),
-      "llm-category-claims.json": JSON.stringify(input.llmCategoryClaims, null, 2),
-      "merged-claims.json": JSON.stringify(input.mergedClaims, null, 2),
-      "skill-plan.json": JSON.stringify(input.skillPlan, null, 2),
-      "llm-traces.json": JSON.stringify(sanitizePersistedTraces(input.llmTraces), null, 2),
-      "manifest.json": JSON.stringify(input.manifest, null, 2),
+      "normalized.json": stringifyRedactedJson(input.normalizedSessions),
+      "profile.json": stringifyRedactedJson(input.profile),
+      "evidence-index.json": stringifyRedactedJson(input.evidenceIndex),
+      "rule-claims.json": stringifyRedactedJson(input.ruleClaims),
+      "llm-session-claims.json": stringifyRedactedJson(input.llmSessionClaims),
+      "llm-category-claims.json": stringifyRedactedJson(input.llmCategoryClaims),
+      "merged-claims.json": stringifyRedactedJson(input.mergedClaims),
+      "skill-plan.json": stringifyRedactedJson(input.skillPlan),
+      "llm-traces.json": stringifyRedactedJson(sanitizePersistedTraces(input.llmTraces)),
+      "manifest.json": stringifyRedactedJson(input.manifest),
     },
   });
 
@@ -116,15 +117,15 @@ export async function writeHarnessRunArtifacts(input: {
     outputDirectory: input.outputDirectory,
     force: input.force,
     files: {
-      "normalized.json": JSON.stringify(input.normalizedSessions, null, 2),
-      "profile.json": JSON.stringify(input.profile, null, 2),
-      "evidence-index.json": JSON.stringify(input.evidenceIndex, null, 2),
-      "rule-claims.json": JSON.stringify(input.ruleClaims, null, 2),
-      "claim-manifest.json": JSON.stringify(input.claimManifest, null, 2),
-      "skeptic-report.json": JSON.stringify(input.skepticReport, null, 2),
-      "verifier-report.json": JSON.stringify(input.verifierReport, null, 2),
-      "llm-traces.json": JSON.stringify(sanitizePersistedTraces(input.llmTraces), null, 2),
-      "manifest.json": JSON.stringify(input.manifest, null, 2),
+      "normalized.json": stringifyRedactedJson(input.normalizedSessions),
+      "profile.json": stringifyRedactedJson(input.profile),
+      "evidence-index.json": stringifyRedactedJson(input.evidenceIndex),
+      "rule-claims.json": stringifyRedactedJson(input.ruleClaims),
+      "claim-manifest.json": stringifyRedactedJson(input.claimManifest),
+      "skeptic-report.json": stringifyRedactedJson(input.skepticReport),
+      "verifier-report.json": stringifyRedactedJson(input.verifierReport),
+      "llm-traces.json": stringifyRedactedJson(sanitizePersistedTraces(input.llmTraces)),
+      "manifest.json": stringifyRedactedJson(input.manifest),
     },
   });
 

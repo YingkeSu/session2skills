@@ -55,6 +55,22 @@ export const DEFAULT_WORKFLOW_SIGNAL_TAXONOMY = {
     "type-safety",
     "avoid-destructive-actions",
   ],
+  "token-efficiency": [
+    "explorer",
+    "implementer",
+    "analytical",
+    "context-reuser",
+  ],
+  "model-selection": [
+    "cost-conscious",
+    "quality-focused",
+    "adaptive",
+  ],
+  "delegation-pattern": [
+    "hands-on",
+    "trusting",
+    "parallelizer",
+  ],
 } as const satisfies WorkflowSignalTaxonomy;
 
 const VALID_DIMENSIONS = new Set<WorkflowSignalKind>([
@@ -62,6 +78,9 @@ const VALID_DIMENSIONS = new Set<WorkflowSignalKind>([
   "communication-style",
   "validation-habit",
   "constraint",
+  "token-efficiency",
+  "model-selection",
+  "delegation-pattern",
 ]);
 
 const VALID_SOURCE_TYPES = new Set(["rule", "llm-session", "llm-category"] as const);

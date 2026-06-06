@@ -1,8 +1,8 @@
 import { Command } from "commander";
 
-import { listRecentSessions } from "../../adapters/opencode/sessions.js";
+import { createSessionProvider } from "../../adapters/registry.js";
 import { parsePositiveInteger } from "../../shared/cli.js";
-import { resolveProjectDirectory } from "../../shared/paths.js";
+import { resolveProjectDirectory, validateProjectDirectory } from "../../shared/paths.js";
 
 type InspectOptions = {
   directory?: string;
@@ -18,25 +18,26 @@ export function registerInspectCommand(program: Command): void {
     .option("-w, --workspace <id>", "Optional OpenCode workspace id")
     .option("-r, --recent <number>", "Number of recent sessions to inspect", parsePositiveInteger, 10)
     .action(async (options: InspectOptions) => {
-      const directory = resolveProjectDirectory(options.directory);
-      const sessions = await listRecentSessions(
-        {
-          directory,
-          workspace: options.workspace,
-        },
-        options.recent,
-      );
+      const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
+      const providerOpts = { directory, workspace: options.workspace };
+      const { provider, close } = await createSessionProvider(providerOpts);
 
-      if (sessions.length === 0) {
-        console.log(`No OpenCode sessions found for ${directory}.`);
-        return;
-      }
+      try {
+        const sessions = await provider.listRecentSessions(providerOpts, options.recent);
 
-      console.log("sessionID\tupdatedAt\tworkspaceID\tprojectID\tdirectory\ttitle");
+        if (sessions.length === 0) {
+          console.log(`No OpenCode sessions found for ${directory}.`);
+          return;
+        }
 
-      for (const session of sessions) {
-        const updatedAt = new Date(session.updatedAt).toISOString();
-        console.log(`${session.id}\t${updatedAt}\t${session.workspaceID ?? "-"}\t${session.projectID}\t${session.directory}\t${session.title}`);
+        console.log("sessionID\tupdatedAt\tworkspaceID\tprojectID\tdirectory\ttitle");
+
+        for (const session of sessions) {
+          const updatedAt = new Date(session.updatedAt).toISOString();
+          console.log(`${session.id}\t${updatedAt}\t${session.workspaceID ?? "-"}\t${session.projectID}\t${session.directory}\t${session.title}`);
+        }
+      } finally {
+        await close();
       }
     });
 }

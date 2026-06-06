@@ -39,7 +39,12 @@ class InMemoryLlmCache<TClaim extends CandidateClaim = CandidateClaim> implement
     }
 
     const expiresAt = Date.parse(value.timestamp) + this.ttlMs;
-    if (Number.isFinite(expiresAt) && Date.now() > expiresAt) {
+    if (Number.isFinite(expiresAt)) {
+      if (Date.now() > expiresAt) {
+        this.entries.delete(key);
+        return undefined;
+      }
+    } else {
       this.entries.delete(key);
       return undefined;
     }
@@ -50,8 +55,9 @@ class InMemoryLlmCache<TClaim extends CandidateClaim = CandidateClaim> implement
   }
 
   set(key: string, value: LLMCacheValue<TClaim>): void {
+    const cloned = structuredClone(value);
     this.entries.delete(key);
-    this.entries.set(key, structuredClone(value));
+    this.entries.set(key, cloned);
     this.prune();
   }
 

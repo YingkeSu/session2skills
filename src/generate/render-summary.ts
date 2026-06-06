@@ -29,6 +29,9 @@ const DIMENSION_ORDER: ReadonlyArray<WorkflowSignalKind> = [
   "communication-style",
   "validation-habit",
   "constraint",
+  "token-efficiency",
+  "model-selection",
+  "delegation-pattern",
 ];
 
 const DIMENSION_LABEL: Record<WorkflowSignalKind, string> = {
@@ -36,6 +39,9 @@ const DIMENSION_LABEL: Record<WorkflowSignalKind, string> = {
   "communication-style": "Communication style",
   "validation-habit": "Validation habits",
   constraint: "Constraints",
+  "token-efficiency": "Token efficiency",
+  "model-selection": "Model selection",
+  "delegation-pattern": "Delegation patterns",
 };
 
 const DEFAULT_TOP_N = 3;

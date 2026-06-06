@@ -7,8 +7,8 @@ import { allPrompts } from "../../llm/prompts/index.js";
 import { RUN_MANIFEST_SCHEMA_VERSION, type RunArtifact, type RunManifest } from "../../normalize/models.js";
 import { writeHybridRunArtifacts, writeRunArtifacts } from "../../persist/run-store.js";
 import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../shared/cli.js";
-import { CliUsageError } from "../../shared/errors.js";
-import { resolveProjectDirectory, resolveRunsDirectory } from "../../shared/paths.js";
+import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../../shared/errors.js";
+import { resolveProjectDirectory, resolveRunsDirectory, validateProjectDirectory } from "../../shared/paths.js";
 
 type AnalyzeOptions = {
   directory?: string;
@@ -34,7 +34,7 @@ export function registerAnalyzeCommand(program: Command): void {
     .option("--hybrid", "Enable hybrid LLM extraction/merge and write inspectable hybrid run artifacts", false)
     .option("--force", "Allow overwriting existing analyze outputs", false)
     .action(async (options: AnalyzeOptions) => {
-      const directory = resolveProjectDirectory(options.directory);
+      const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
       const outDirectory = resolveRunsDirectory(directory, options.out);
       if (options.hybrid) {
         const resolved = resolveHybridLlmProvider();
@@ -176,7 +176,7 @@ function resolveHybridLlmProvider() {
 
   if (!baseUrl || !model) {
     throw new CliUsageError(
-      "Hybrid mode requires SESSION2SKILLS_LLM_BASE_URL and SESSION2SKILLS_LLM_MODEL environment variables.",
+      HYBRID_LLM_ENV_REQUIRED,
     );
   }
 

@@ -54,6 +54,9 @@ describe("skill composition", () => {
       communicationStyle: [],
       validationHabits: [],
       constraints: [],
+      tokenEfficiency: [],
+      modelSelection: [],
+      delegationPattern: [],
       confidenceNotes: [],
     };
     const client = makeClient({

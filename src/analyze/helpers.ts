@@ -11,7 +11,7 @@ import type {
   WorkflowSignalLabelMap,
 } from "../normalize/models.js";
 
-const CANDIDATE_CLAIM_SCHEMA_VERSION: CandidateClaimSchemaVersion = "candidate-claim/v1";
+export const CANDIDATE_CLAIM_SCHEMA_VERSION: CandidateClaimSchemaVersion = "candidate-claim/v1";
 
 let claimCounter = 0;
 
@@ -73,12 +73,12 @@ export function createRuleClaim<K extends WorkflowSignalKind>(
 
 /**
  * Convert raw EvidenceRef[] into EvidenceCitation[] with generated evidenceIDs.
- * Uses a stable format: `ev:<sourceType>:<sessionID>:<messageID?>:<partID?>`.
+ * Uses the same format as makeEvidenceID() in evidence-index.ts: `<sessionID>:<messageID?>:<partID?>`.
  */
 export function toCitations(evidence: Array<EvidenceRef>): Array<EvidenceCitation> {
   return dedupeEvidence(evidence).map((ref) => ({
     ...ref,
-    evidenceID: `ev:${ref.sourceType}:${ref.sessionID}:${ref.messageID ?? ""}:${ref.partID ?? ""}`,
+    evidenceID: `${ref.sessionID}:${ref.messageID ?? ""}:${ref.partID ?? ""}`,
   }));
 }
 

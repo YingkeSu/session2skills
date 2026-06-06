@@ -23,6 +23,9 @@ describe("buildSkillPlan", () => {
       "communication-style",
       "validation-habit",
       "constraint",
+      "token-efficiency",
+      "model-selection",
+      "delegation-pattern",
       "summary",
     ]);
     expect(plan.directives["work-style"]).toEqual([
@@ -61,6 +64,9 @@ describe("buildSkillPlan", () => {
     expect(Object.keys(plan.fallbackDirectives).sort()).toEqual([
       "communication-style",
       "constraint",
+      "delegation-pattern",
+      "model-selection",
+      "token-efficiency",
       "validation-habit",
       "work-style",
     ]);
@@ -69,6 +75,9 @@ describe("buildSkillPlan", () => {
       "No strong evidence detected for communication-style.",
       "No strong evidence detected for validation-habit.",
       "No strong evidence detected for constraint.",
+      "No strong evidence detected for token-efficiency.",
+      "No strong evidence detected for model-selection.",
+      "No strong evidence detected for delegation-pattern.",
     ]);
   });
 

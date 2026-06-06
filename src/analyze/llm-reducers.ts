@@ -19,13 +19,13 @@ import type {
 } from "../normalize/models.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import { LlmProviderError, toErrorMessage } from "../shared/errors.js";
+import { buildEvidenceIDSet, buildEvidenceLookup } from "./evidence-index.js";
+import { CANDIDATE_CLAIM_SCHEMA_VERSION } from "./helpers.js";
+import { classifyLlmFailure, getCauseMessage, normalizeFinishReason, toPromptSetVersion } from "./llm-common.js";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-const CANDIDATE_CLAIM_SCHEMA_VERSION: CandidateClaimSchemaVersion =
-  "candidate-claim/v1";
 
 export type ReduceBudget = {
   tokenBudget: number;
@@ -329,22 +329,6 @@ export async function reduceAllCategories(
 // Validation helpers
 // ---------------------------------------------------------------------------
 
-function buildEvidenceIDSet(
-  evidence: ReadonlyArray<EvidenceItem>,
-): Set<string> {
-  return new Set(evidence.map((e) => e.evidenceID));
-}
-
-function buildEvidenceLookup(
-  evidence: ReadonlyArray<EvidenceItem>,
-): Map<string, EvidenceItem> {
-  const map = new Map<string, EvidenceItem>();
-  for (const item of evidence) {
-    map.set(item.evidenceID, item);
-  }
-  return map;
-}
-
 function validateReduceOutput(
   raw: RawReduceOutput,
   expectedDimension: WorkflowSignalKind,
@@ -498,13 +482,6 @@ function convertTraceToModel(
   };
 }
 
-function toPromptSetVersion(packetVersion: string): PromptSetVersion {
-  if (packetVersion.startsWith("prompt-set/")) {
-    return packetVersion as PromptSetVersion;
-  }
-  return `prompt-set/${packetVersion}` as PromptSetVersion;
-}
-
 function buildCacheKey(
   cache: LLMCache | undefined,
   packet: CategoryReducePacket,
@@ -549,52 +526,6 @@ function materializeCachedTrace(
     storedAt: cachedAt,
   };
   return cachedTrace;
-}
-
-function classifyLlmFailure(error: unknown): { message: string; warning: LLMTraceWarning } {
-  const message = toErrorMessage(error);
-  const normalized = message.toLowerCase();
-  const cause = getCauseMessage(error);
-
-  if (normalized.includes("timed out") || normalized.includes("timeout")) {
-    return { message, warning: { code: "provider-timeout", message } };
-  }
-
-  if (
-    normalized.includes("invalid json")
-    || normalized.includes("malformed")
-    || normalized.includes("empty structured response")
-    || normalized.includes("must be a json object")
-  ) {
-    return { message, warning: { code: "provider-malformed-output", message } };
-  }
-
-  if (cause.includes("fetch") || cause.includes("network") || cause.includes("connect") || cause.includes("socket")) {
-    return { message, warning: { code: "provider-connection-error", message } };
-  }
-
-  return { message, warning: { code: "provider-error", message } };
-}
-
-function getCauseMessage(error: unknown): string {
-  if (!(error instanceof LlmProviderError) || !("cause" in error)) {
-    return "";
-  }
-
-  const cause = (error as { cause?: unknown }).cause;
-  return toErrorMessage(cause).toLowerCase();
-}
-
-function normalizeFinishReason(reason: string | undefined): LLMFinishReason {
-  switch (reason) {
-    case "stop":
-    case "length":
-    case "content-filter":
-    case "tool-call":
-      return reason;
-    default:
-      return reason ? "unknown" : "unknown";
-  }
 }
 
 function buildEmptyCachedTrace(dimension: WorkflowSignalKind): LLMTrace {

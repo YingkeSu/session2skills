@@ -31,12 +31,11 @@ import type { PromptRegistry } from "../llm/prompts/registry.js";
 import { generateTraceID } from "../llm/trace.js";
 import type { LLMTrace as InternalLLMTrace } from "../llm/trace.js";
 import { LlmProviderError, toErrorMessage } from "../shared/errors.js";
+import { buildEvidenceIDSet, buildEvidenceLookup } from "./evidence-index.js";
+import { CANDIDATE_CLAIM_SCHEMA_VERSION } from "./helpers.js";
+import { classifyLlmFailure, getCauseMessage, normalizeFinishReason, toPromptSetVersion } from "./llm-common.js";
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-const CANDIDATE_CLAIM_SCHEMA_VERSION: CandidateClaimSchemaVersion = "candidate-claim/v1";
 
 /**
  * Raw claim as returned by the LLM before validation.
@@ -114,28 +113,6 @@ export function resetSessionClaimCounter(): void {
 // ---------------------------------------------------------------------------
 // Evidence ID validation
 // ---------------------------------------------------------------------------
-
-/**
- * Build a lookup set of valid evidence IDs from the evidence index.
- */
-function buildEvidenceIDSet(evidence: ReadonlyArray<EvidenceItem>): Set<string> {
-  const ids = new Set<string>();
-  for (const item of evidence) {
-    ids.add(item.evidenceID);
-  }
-  return ids;
-}
-
-/**
- * Build a lookup map from evidenceID → EvidenceItem for citation construction.
- */
-function buildEvidenceLookup(evidence: ReadonlyArray<EvidenceItem>): Map<string, EvidenceItem> {
-  const map = new Map<string, EvidenceItem>();
-  for (const item of evidence) {
-    map.set(item.evidenceID, item);
-  }
-  return map;
-}
 
 // ---------------------------------------------------------------------------
 // Raw LLM claim validation
@@ -234,19 +211,6 @@ function buildCandidateClaim(
     citations,
     source,
   };
-}
-
-// ---------------------------------------------------------------------------
-// PromptSetVersion derivation
-// ---------------------------------------------------------------------------
-
-function toPromptSetVersion(packetVersion: string): PromptSetVersion {
-  // Packet versions are bare semver like "1.0.0" or "0.0.0"
-  // PromptSetVersion expects "prompt-set/..." format
-  if (packetVersion.startsWith("prompt-set/")) {
-    return packetVersion as PromptSetVersion;
-  }
-  return `prompt-set/${packetVersion}` as PromptSetVersion;
 }
 
 // ---------------------------------------------------------------------------
@@ -616,64 +580,6 @@ function buildCacheKey(
       ...resolved.model,
     },
   });
-}
-
-function classifyLlmFailure(error: unknown): { message: string; warning: LLMTraceWarning } {
-  const message = toErrorMessage(error);
-  const normalized = message.toLowerCase();
-  const cause = getCauseMessage(error);
-
-  if (normalized.includes("timed out") || normalized.includes("timeout")) {
-    return {
-      message,
-      warning: { code: "provider-timeout", message },
-    };
-  }
-
-  if (
-    normalized.includes("invalid json")
-    || normalized.includes("malformed")
-    || normalized.includes("empty structured response")
-    || normalized.includes("must be a json object")
-  ) {
-    return {
-      message,
-      warning: { code: "provider-malformed-output", message },
-    };
-  }
-
-  if (cause.includes("fetch") || cause.includes("network") || cause.includes("connect") || cause.includes("socket")) {
-    return {
-      message,
-      warning: { code: "provider-connection-error", message },
-    };
-  }
-
-  return {
-    message,
-    warning: { code: "provider-error", message },
-  };
-}
-
-function getCauseMessage(error: unknown): string {
-  if (!(error instanceof LlmProviderError) || !("cause" in error)) {
-    return "";
-  }
-
-  const cause = (error as { cause?: unknown }).cause;
-  return toErrorMessage(cause).toLowerCase();
-}
-
-function normalizeFinishReason(reason: string | undefined): LLMFinishReason {
-  switch (reason) {
-    case "stop":
-    case "length":
-    case "content-filter":
-    case "tool-call":
-      return reason;
-    default:
-      return reason ? "unknown" : "unknown";
-  }
 }
 
 function buildEmptyCachedTrace(): LLMTrace {

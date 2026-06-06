@@ -84,6 +84,19 @@ node dist/cli/main.js generate \
 
 Writes `summary.md`, `SKILL.md`, `merged-claims.json`, and `skill-plan.json`.
 
+**Harness** (multi-stage LLM pipeline, inspired by Anthropic's Harness):
+
+```bash
+node dist/cli/main.js generate \
+  --directory /absolute/project/path \
+  --recent 10 \
+  --output generated-skills/my-skill \
+  --harness \
+  --tone balanced
+```
+
+Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`. The harness pipeline runs 4 stages: Analyst → Skeptic → Writer → Verifier. Each claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier stages. Mutually exclusive with `--hybrid`.
+
 **From a saved profile:**
 
 ```bash
@@ -93,7 +106,16 @@ node dist/cli/main.js generate \
   --tone concise
 ```
 
-If the profile was produced by `analyze --hybrid` (a `profile/v2` artifact), `generate` will detect it and use the hybrid rendering path automatically. You can point `--profile` at a directory that contains sibling artifacts like `skill-plan.json` and `merged-claims.json`, and they'll be reused instead of recomputed.
+You can also pass the analyze output directory itself:
+
+```bash
+node dist/cli/main.js generate \
+  --profile .session2skills/runs/latest \
+  --output generated-skills/from-profile \
+  --tone concise
+```
+
+If the profile was produced by `analyze --hybrid` (a `profile/v2` artifact), `generate` will detect it and use the hybrid rendering path automatically. Sibling artifacts such as `skill-plan.json` and `manifest.json` are reused when present.
 
 Use `--force` to overwrite existing output files.
 
@@ -112,6 +134,8 @@ Hybrid mode reads these environment variables:
 ### Privacy note
 
 Hybrid mode sends your **raw session evidence** (message text, tool invocations, diffs) to the LLM endpoint you configure. By default, that endpoint is whatever you set in `SESSION2SKILLS_LLM_BASE_URL`. Nothing is sent to any server maintained by the session2skills authors.
+
+Generated artifacts such as `normalized.json`, `evidence-index.json`, and claim files can still contain session evidence. `llm-traces.json` is safer by default: request message content and raw model text are redacted before writing, while model/provider metadata, token usage, and parsed structured output are retained for auditing.
 
 If your sessions contain sensitive code or credentials, you should:
 - Point `SESSION2SKILLS_LLM_BASE_URL` at a self-hosted or private endpoint, or
@@ -142,10 +166,21 @@ See [docs/hybrid-artifacts.md](docs/hybrid-artifacts.md) for the full guide. Qui
 | `llm-category-claims.json` | Claims synthesized by the LLM per dimension |
 | `merged-claims.json` | Final claims after cross-source reconciliation |
 | `skill-plan.json` | Structured directives derived from accepted claims |
-| `llm-traces.json` | Every LLM call: prompts, responses, token usage |
+| `llm-traces.json` | Every LLM call: redacted prompt messages, parsed responses, token usage |
 | `manifest.json` | Run metadata: schema versions, timestamps, config |
 | `summary.md` | Debug-friendly audit summary with evidence excerpts |
 | `SKILL.md` | Final skill file |
+
+### Harness artifacts
+
+| File | Description |
+|------|-------------|
+| `summary.md` | Human-readable audit summary |
+| `SKILL.md` | Final skill file with evidence-grounded claims |
+| `claim-manifest.json` | Canonical claim manifest with evidence refs (`claim-manifest/v1` schema) |
+| `skeptic-report.json` | Skeptic critique: issues found, overall score (`skeptic-report/v1` schema) |
+| `verifier-report.json` | Verifier cross-check: pass/fail, fabricated directive detection (`verifier-report/v1` schema) |
+| `llm-traces.json` | Every LLM call across all 4 pipeline stages with redacted prompt/raw response text |
 
 ## Tone presets
 

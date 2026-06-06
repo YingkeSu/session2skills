@@ -17,7 +17,7 @@ A hybrid `analyze` run writes to the directory you pass with `--out`. A typical 
   llm-category-claims.json     # claims produced by LLM dimension synthesis
   merged-claims.json           # final reconciled claims (accepted/tentative/rejected)
   skill-plan.json              # structured skill directives
-  llm-traces.json              # every LLM call with full prompt/response
+  llm-traces.json              # every LLM call with redacted prompt/raw response text
 ```
 
 A hybrid `generate` run writes to the directory you pass with `--output`:
@@ -182,7 +182,7 @@ An array of `CandidateClaim` objects. Each one was produced by sending a single 
 
 **What to look for:**
 - `source.type` is `"llm-session"`.
-- `source.traceID` links to a specific entry in `llm-traces.json` so you can see the exact prompt and response.
+- `source.traceID` links to a specific entry in `llm-traces.json` so you can see the prompt metadata, redacted message sizes, parsed structured output, and usage.
 - These claims are session-local. They get cross-referenced with rule claims and category claims in the merge step.
 
 ### llm-category-claims.json
@@ -292,7 +292,7 @@ A `SkillPlan` object. This is the bridge between merged claims and the final `SK
 
 ### llm-traces.json
 
-An array of `LLMTrace` objects. Every LLM call the pipeline made is recorded here.
+An array of `LLMTrace` objects. Every LLM call the pipeline made is recorded here with safe-by-default persistence: request message contents and raw model text are redacted before writing, while structured outputs, provider/model metadata, and token usage remain available for audit.
 
 ```json
 {
@@ -305,14 +305,13 @@ An array of `LLMTrace` objects. Every LLM call the pipeline made is recorded her
   "request": {
     "promptName": "extract-session-claims",
     "messages": [
-      { "role": "system", "content": "..." },
-      { "role": "user", "content": "..." }
+      { "role": "system", "content": "[content omitted: 421 chars]" },
+      { "role": "user", "content": "[content omitted: 6820 chars]" }
     ],
     "parameters": { "tone": "balanced", "temperature": 0.15 }
   },
   "response": {
     "finishReason": "stop",
-    "rawText": "...",
     "structuredOutput": {
       "kind": "candidate-claims",
       "claims": [...]
@@ -328,8 +327,8 @@ An array of `LLMTrace` objects. Every LLM call the pipeline made is recorded her
 
 **What to look for:**
 - `stage` tells you which pipeline step made the call: `"session-claims"`, `"category-claims"`, `"merge-claims"`, or `"skill-plan"`.
-- `request.messages` contains the full prompt sent to the LLM, including the system prompt and the evidence payload.
-- `response.rawText` is the raw model output before parsing.
+- `request.messages` contains redacted placeholders by default, including the omitted character count for each prompt message.
+- `response.rawText` is omitted by default because raw model text may echo sensitive evidence.
 - `response.structuredOutput` is the parsed result.
 - `usage` shows token counts for cost tracking.
 - If `finishReason` is anything other than `"stop"`, the output may be truncated or unreliable.
@@ -367,7 +366,7 @@ To trace a claim:
 
 1. Find the claim in `merged-claims.json` by `claimID`.
 2. Look at `sources` to see where it came from.
-3. For LLM sources, use `source.traceID` to find the exact prompt in `llm-traces.json`.
+3. For LLM sources, use `source.traceID` to find the redacted prompt metadata and parsed response in `llm-traces.json`.
 4. Look at `citations` on the source claim. Each citation has `sessionID`, `messageID`, `sourceType`, and `excerpt`.
 5. Open `normalized.json` and find the session/message with those IDs to see the full context.
 
@@ -382,7 +381,16 @@ node dist/cli/main.js generate \
   --tone balanced
 ```
 
-The `generate` command checks the profile schema version. If it's `profile/v2`, the hybrid rendering path is activated automatically. It also looks for sibling artifacts in the same directory:
+You can also pass the analyze output directory directly:
+
+```bash
+node dist/cli/main.js generate \
+  --profile .session2skills/runs/latest \
+  --output generated-skills/from-profile \
+  --tone balanced
+```
+
+The `generate` command resolves directories to `profile.json`, then checks the profile schema version. If it's `profile/v2`, the hybrid rendering path is activated automatically. It also looks for sibling artifacts in the same directory:
 
 - If `skill-plan.json` exists next to `profile.json`, it is loaded instead of recomputed.
 - If `manifest.json` exists, its path is included in the output metadata.

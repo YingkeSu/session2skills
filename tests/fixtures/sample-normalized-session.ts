@@ -56,5 +56,6 @@ export const sampleNormalizedSessions: Array<NormalizedSession> = [
         },
       },
     ],
+    steps: [],
   },
 ];

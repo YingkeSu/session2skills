@@ -244,24 +244,13 @@ describe("error scenarios", () => {
     );
 
     it(
-      "records the current behavior of --recent 0",
+      "rejects --recent 0",
       () => {
         const result = runCLI(["inspect", "-d", projectDir, "--recent", "0"]);
 
-        console.log(
-          "inspect --recent 0 behavior",
-          JSON.stringify(
-            {
-              status: result.status,
-              stderr: result.stderr,
-              stdout: result.stdout,
-            },
-            null,
-            2,
-          ),
-        );
-
-        expect(result.status).not.toBeNull();
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/Expected a positive integer/);
+        expect(result.stdout).toBe("");
       },
       60000,
     );

@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { Command } from "commander";
 
 import { registerAnalyzeCommand } from "./commands/analyze.js";
@@ -7,13 +10,23 @@ import { registerGenerateCommand } from "./commands/generate.js";
 import { registerInspectCommand } from "./commands/inspect.js";
 import { CliUsageError, toErrorMessage } from "../shared/errors.js";
 
+const packageVersion: string = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
+).version;
+
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE") {
+    process.exit(0);
+  }
+});
+
 async function main(): Promise<void> {
   const program = new Command();
 
   program
     .name("session2skills")
     .description("Analyze local OpenCode sessions and generate a personalized workflow skill")
-    .version("0.1.0");
+    .version(packageVersion);
 
   registerInspectCommand(program);
   registerAnalyzeCommand(program);
@@ -27,10 +40,8 @@ main().catch((error: unknown) => {
 
   if (error instanceof CliUsageError) {
     console.error(message);
-    process.exitCode = 1;
-    return;
+  } else {
+    console.error(`Error: ${message}`);
   }
-
-  console.error(message);
   process.exitCode = 1;
 });

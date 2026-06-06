@@ -1,6 +1,6 @@
 # Hybrid Test Known Issues
 
-Last updated: 2026-04-11
+Last updated: 2026-04-12
 
 ## Critical (blocks test execution)
 
@@ -29,14 +29,9 @@ Fixes applied:
 - `generate-hybrid.test.ts`: reads the flat array directly.
 - Removed the `status` field assertion entirely.
 
-### 3. `inspect.test.ts` import missing `.js` extension — OPEN
+### 3. ~~`inspect.test.ts` import missing `.js` extension~~ — FIXED
 
-```ts
-// inspect.test.ts:10
-import { ... } from "./helpers";    // no .js
-```
-
-All other e2e files use `"./helpers.js"`. ESM resolution may fail on certain Node versions.
+Changed `inspect.test.ts:10` from `from "./helpers"` to `from "./helpers.js"` to match all other E2E test files.
 
 ## Moderate (reliability / maintainability)
 
@@ -44,47 +39,34 @@ All other e2e files use `"./helpers.js"`. ESM resolution may fail on certain Nod
 
 Removed the preflight probe from `beforeAll`. Only basic checks (`preflightChecks()` + `getHybridEnv()`) remain.
 
-### 5. No `vitest.config.ts` — OPEN
+### 5. ~~No `vitest.config.ts`~~ — FIXED
 
-Configuration is split between `package.json` CLI args (`--pool=forks --poolOptions.forks.singleFork=true`) and per-test inline timeouts (`300000`, `120000`, `60000`). A shared config file would centralise timeout, pool, and coverage settings.
+Created `vitest.config.ts` with `pool: "forks"`, `singleFork: true`, and centralized timeouts. Simplified `package.json` `test:e2e` script to just `vitest run tests/e2e/`.
 
-### 6. Helpers hardcode the model name — OPEN
+### 6. ~~Helpers hardcode the model name~~ — FIXED
 
-```ts
-// tests/e2e/helpers.ts:81
-vars["SESSION2SKILLS_LLM_MODEL"] = "deepseek-chat";
-```
+`helpers.ts` now reads `SESSION2SKILLS_LLM_MODEL` and `SESSION2SKILLS_LLM_PROVIDER` from environment variables with `glm-4.7` / `zhipuai` as fallback defaults.
 
-Cannot override the model via environment variable; editing source is required.
+### 7. ~~`killOrphanedOpenCodeServers()` may kill user processes~~ — FIXED
 
-### 7. `killOrphanedOpenCodeServers()` may kill user processes — OPEN
-
-```ts
-// tests/e2e/helpers.ts:92
-spawnSync("pkill", ["-f", "opencode serve"]);
-```
-
-`pkill -f` matches any process whose command line contains "opencode serve", including non-test instances.
+Replaced `pkill -f "opencode serve"` with PID-tracked cleanup:
+- `runCLI()` snapshots OpenCode server PIDs before and after each CLI invocation.
+- `killOrphanedOpenCodeServers()` kills only tracked PIDs via `process.kill()`.
+- Removed `killOrphanedOpenCodeServers()` from `afterEach` in `inspect.test.ts` and `tone-presets.test.ts` (kept only in `afterAll`).
 
 ## Minor (code quality)
 
-### 8. `parseGenerateOutput` relies on fragile stdout scanning — OPEN
+### 8. ~~`parseGenerateOutput` relies on fragile stdout scanning~~ — FIXED
 
-```ts
-// generate-hybrid.test.ts:37-39
-const jsonStart = trimmed.lastIndexOf("\n{");
-```
+Replaced single `lastIndexOf("\n{")` with iterative fallback: walks backward through candidate JSON starting positions, attempting `JSON.parse` at each. Falls through to full-string parse as last resort.
 
-Breaks if the CLI changes log output format or the JSON payload contains a leading newline.
+### 9. ~~`generate-profile.test.ts` mutates shared preflight data in-place~~ — FIXED
 
-### 9. `generate-profile.test.ts` mutates shared preflight data in-place — OPEN
+The sentinel test now copies `skill-plan.json`, `merged-claims.json`, and `profile.json` to an isolated temp directory before mutating, and points `--profile` at the copy.
 
-Line 197 writes a sentinel `planID` into `hybridAnalyzeDir/skill-plan.json`. If Vitest reorders test execution, later tests may see the mutated data.
+### 10. ~~Error messages differ between commands~~ — FIXED
 
-### 10. Error messages differ between commands — OPEN
-
-- `analyze-hybrid.test.ts:211` — `"Hybrid mode requires..."`
-- `generate-hybrid.test.ts:200` — `"Hybrid generation requires..."`
+Extracted `HYBRID_LLM_ENV_REQUIRED` constant to `src/shared/errors.ts`. Both `analyze.ts` and `generate.ts` now use the same message. Updated `generate-hybrid.test.ts` assertion to match.
 
 ## LLM provider compatibility notes
 

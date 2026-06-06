@@ -28,11 +28,18 @@ const COMMUNICATION_STYLE_LABELS = new Set(["concise", "explanatory", "consultat
 const VALIDATION_HABIT_LABELS = new Set(["run-tests", "run-diagnostics", "check-git-state"] as const);
 const CONSTRAINT_LABELS = new Set(["minimal-diff", "preserve-patterns", "type-safety", "avoid-destructive-actions"] as const);
 
+const TOKEN_EFFICIENCY_LABELS = new Set(["explorer", "implementer", "analytical", "context-reuser"] as const);
+const MODEL_SELECTION_LABELS = new Set(["cost-conscious", "quality-focused", "adaptive"] as const);
+const DELEGATION_PATTERN_LABELS = new Set(["hands-on", "trusting", "parallelizer"] as const);
+
 const WORKFLOW_SIGNAL_KINDS = [
   "work-style",
   "communication-style",
   "validation-habit",
   "constraint",
+  "token-efficiency",
+  "model-selection",
+  "delegation-pattern",
 ] as const satisfies ReadonlyArray<WorkflowSignalKind>;
 
 export function buildProfileV2(
@@ -64,6 +71,9 @@ export function buildProfileV2(
       VALIDATION_HABIT_LABELS,
     ),
     constraints: toProfileSignals("constraint", strongestSignals.constraint, orderedClaims, CONSTRAINT_LABELS),
+    tokenEfficiency: toProfileSignals("token-efficiency", strongestSignals["token-efficiency"], orderedClaims, TOKEN_EFFICIENCY_LABELS),
+    modelSelection: toProfileSignals("model-selection", strongestSignals["model-selection"], orderedClaims, MODEL_SELECTION_LABELS),
+    delegationPattern: toProfileSignals("delegation-pattern", strongestSignals["delegation-pattern"], orderedClaims, DELEGATION_PATTERN_LABELS),
     strongestSignals,
     acceptedClaims: orderedClaims
       .filter((claim) => claim.confidence > acceptedThreshold)
@@ -96,6 +106,15 @@ function buildStrongestSignals(
       .slice(0, strongestSignalsPerDimension),
     constraint: mergedClaims
       .filter((claim) => claim.dimension === "constraint")
+      .slice(0, strongestSignalsPerDimension),
+    "token-efficiency": mergedClaims
+      .filter((claim) => claim.dimension === "token-efficiency")
+      .slice(0, strongestSignalsPerDimension),
+    "model-selection": mergedClaims
+      .filter((claim) => claim.dimension === "model-selection")
+      .slice(0, strongestSignalsPerDimension),
+    "delegation-pattern": mergedClaims
+      .filter((claim) => claim.dimension === "delegation-pattern")
       .slice(0, strongestSignalsPerDimension),
   };
 }
@@ -236,6 +255,12 @@ function toDimensionLabel(kind: WorkflowSignalKind): string {
       return "validation habits";
     case "constraint":
       return "constraints";
+    case "token-efficiency":
+      return "token efficiency";
+    case "model-selection":
+      return "model selection";
+    case "delegation-pattern":
+      return "delegation patterns";
   }
 }
 
@@ -249,5 +274,11 @@ function toDimensionKey(kind: WorkflowSignalKind): string {
       return "validationHabits";
     case "constraint":
       return "constraints";
+    case "token-efficiency":
+      return "tokenEfficiency";
+    case "model-selection":
+      return "modelSelection";
+    case "delegation-pattern":
+      return "delegationPattern";
   }
 }

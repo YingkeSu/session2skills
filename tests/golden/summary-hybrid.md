@@ -26,6 +26,15 @@ claims: 4
 - **type-safety** (confidence: 0.720, status: accepted, sources: rule)
   > 1 supporting claim(s) (1 rule, 0 llm) with 1 evidence citation(s) across 1 session(s). No cross-source agreement bonus applied. No contradictory label pair was detected.
 
+### Token efficiency
+- No claims.
+
+### Model selection
+- No claims.
+
+### Delegation patterns
+- No claims.
+
 ## Confidence Notes
 
 - Work style derived from 2 sessions with cross-source agreement.

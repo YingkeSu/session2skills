@@ -7,7 +7,7 @@ import {
   killOrphanedOpenCodeServers,
   preflightChecks,
   runCLI,
-} from "./helpers";
+} from "./helpers.js";
 
 describe("inspect command", () => {
   const projectDir = getProjectDir();

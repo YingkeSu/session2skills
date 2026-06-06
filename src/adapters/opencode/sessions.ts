@@ -1,7 +1,7 @@
 import type { Message, OpencodeClient, Part, Session, SnapshotFileDiff } from "@opencode-ai/sdk/v2";
 
 import { OpenCodeAdapterError, toErrorMessage } from "../../shared/errors.js";
-import type { RawPart, RawSession, RawSessionDiff, RawSessionMessages, RawToolState } from "../../normalize/raw-session.js";
+import type { RawPart, RawSession, RawSessionDiff, RawSessionMessages, RawTokenUsage, RawToolState } from "../../normalize/raw-session.js";
 import { createTypedOpenCodeClient, toSessionQuery, type OpenCodeConnectionOptions } from "./client.js";
 
 export type SessionMessagesResult = RawSessionMessages;
@@ -162,6 +162,9 @@ export async function getSessionDiff(
 }
 
 function toRawSession(session: Session): RawSession {
+  const sessionRecord = session as unknown as Record<string, unknown>;
+  const modelData = sessionRecord.model as { id: string; providerID: string; variant?: string } | undefined;
+
   return {
     id: session.id,
     projectID: session.projectID,
@@ -176,19 +179,44 @@ function toRawSession(session: Session): RawSession {
           deletions: session.summary.deletions,
         }
       : undefined,
+    parentID: (session as unknown as { parentID?: string }).parentID,
+    slug: session.slug,
+    createdAt: session.time.created,
+    agent: sessionRecord.agent as string | undefined,
+    model: modelData
+      ? { id: modelData.id, providerID: modelData.providerID, variant: modelData.variant }
+      : undefined,
   };
 }
 
 function toRawMessage(message: { info: Message; parts: Array<Part> }): RawSessionMessages[number] {
+  const info = message.info as Record<string, unknown>;
+  const isAssistant = message.info.role === "assistant";
+
   return {
     info: {
       id: message.info.id,
       sessionID: message.info.sessionID,
       role: message.info.role,
       createdAt: message.info.time.created,
+      agent: isAssistant ? info.agent as string | undefined : undefined,
+      mode: isAssistant ? info.mode as string | undefined : undefined,
+      modelID: isAssistant ? info.modelID as string | undefined : undefined,
+      providerID: isAssistant ? info.providerID as string | undefined : undefined,
+      cost: isAssistant ? info.cost as number | undefined : undefined,
+      tokens: isAssistant && info.tokens
+        ? mapTokens(info.tokens as { input: number; output: number; reasoning: number; cache: { read: number; write: number } })
+        : undefined,
+      path: isAssistant ? info.path as { cwd: string; root: string } | undefined : undefined,
+      variant: isAssistant ? info.variant as string | undefined : undefined,
+      completedAt: isAssistant ? (message.info.time as Record<string, unknown>).completed as number | undefined : undefined,
     },
     parts: message.parts.map(toRawPart),
   };
+}
+
+function mapTokens(t: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }): RawTokenUsage {
+  return { input: t.input, output: t.output, reasoning: t.reasoning, cache: t.cache };
 }
 
 function toRawPart(part: Part): RawPart {

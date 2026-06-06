@@ -3,9 +3,13 @@ import { CliUsageError } from "./errors.js";
 export type TonePreset = "concise" | "balanced" | "detailed";
 
 export function parsePositiveInteger(value: string): number {
-  const parsed = Number.parseInt(value, 10);
+  if (!/^\d+$/.test(value)) {
+    throw new CliUsageError(`Expected a positive integer, received: ${value}`);
+  }
 
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const parsed = Number(value);
+
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new CliUsageError(`Expected a positive integer, received: ${value}`);
   }
 

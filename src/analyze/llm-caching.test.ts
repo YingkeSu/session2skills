@@ -283,6 +283,7 @@ function makeSession(): NormalizedSession {
     },
     messages: [],
     toolInvocations: [],
+    steps: [],
   };
 }
 

@@ -23,5 +23,20 @@ Summary-only observation(s): concise.
 
 - Make minimal, focused changes that solve the immediate problem
 
+## Token Efficiency
+No strong evidence detected for token-efficiency.
+
+- Default to balanced token usage unless specific efficiency patterns are detected
+
+## Model Selection
+No strong evidence detected for model-selection.
+
+- Use the default model unless cost or quality signals suggest otherwise
+
+## Delegation
+No strong evidence detected for delegation-pattern.
+
+- Delegate when appropriate but verify sub-agent results
+
 ## Summary-only insights
 communication-style: concise (0.48)

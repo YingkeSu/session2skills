@@ -9,18 +9,26 @@ import type {
 
 import { extractCommunicationStyleClaims } from "../analyze/extract-communication-style.js";
 import { extractConstraintClaims } from "../analyze/extract-constraints.js";
+import { extractDelegationPatternClaims } from "../analyze/extract-delegation-pattern.js";
+import { extractModelSelectionClaims } from "../analyze/extract-model-selection.js";
+import { extractTokenEfficiencyClaims } from "../analyze/extract-token-efficiency.js";
 import { extractValidationHabitClaims } from "../analyze/extract-validation-habits.js";
 import { extractWorkStyleClaims } from "../analyze/extract-work-style.js";
 
 export { buildProfileV2, type BuildProfileV2Options } from "./profile-v2.js";
 
 export function extractAllRuleClaims(sessions: Array<NormalizedSession>): Array<CandidateClaim> {
-  return [
+  const claims = [
     ...extractWorkStyleClaims(sessions),
     ...extractCommunicationStyleClaims(sessions),
     ...extractValidationHabitClaims(sessions),
     ...extractConstraintClaims(sessions),
+    ...extractTokenEfficiencyClaims(sessions),
+    ...extractModelSelectionClaims(sessions),
+    ...extractDelegationPatternClaims(sessions),
   ];
+
+  return claims.sort((a, b) => b.confidence - a.confidence);
 }
 
 export function buildPreferenceProfile(sessions: Array<NormalizedSession>): PreferenceProfile {
@@ -29,17 +37,27 @@ export function buildPreferenceProfile(sessions: Array<NormalizedSession>): Pref
   const validationHabitsClaims = extractValidationHabitClaims(sessions);
   const constraintsClaims = extractConstraintClaims(sessions);
 
+  const tokenEfficiencyClaims = extractTokenEfficiencyClaims(sessions);
+  const modelSelectionClaims = extractModelSelectionClaims(sessions);
+  const delegationPatternClaims = extractDelegationPatternClaims(sessions);
+
   const workStyle = claimsToLegacySignals(workStyleClaims);
   const communicationStyle = claimsToLegacySignals(communicationStyleClaims);
   const validationHabits = claimsToLegacySignals(validationHabitsClaims);
   const constraints = claimsToLegacySignals(constraintsClaims);
+  const tokenEfficiency = claimsToLegacySignals(tokenEfficiencyClaims);
+  const modelSelection = claimsToLegacySignals(modelSelectionClaims);
+  const delegationPattern = claimsToLegacySignals(delegationPatternClaims);
 
   return {
     workStyle,
     communicationStyle,
     validationHabits,
     constraints,
-    confidenceNotes: buildConfidenceNotes({ workStyle, communicationStyle, validationHabits, constraints }),
+    tokenEfficiency,
+    modelSelection,
+    delegationPattern,
+    confidenceNotes: buildConfidenceNotes({ workStyle, communicationStyle, validationHabits, constraints, tokenEfficiency, modelSelection, delegationPattern }),
   };
 }
 

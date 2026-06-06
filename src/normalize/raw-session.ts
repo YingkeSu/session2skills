@@ -4,6 +4,27 @@ export type RawSessionSummary = {
   deletions: number;
 };
 
+export type RawSessionModel = {
+  id: string;
+  providerID: string;
+  variant?: string;
+};
+
+export type RawTokenUsage = {
+  input: number;
+  output: number;
+  reasoning: number;
+  cache: {
+    read: number;
+    write: number;
+  };
+};
+
+export type RawMessagePath = {
+  cwd: string;
+  root: string;
+};
+
 export type RawSession = {
   id: string;
   projectID?: string;
@@ -12,6 +33,13 @@ export type RawSession = {
   directory: string;
   updatedAt: number;
   summary?: RawSessionSummary;
+  parentID?: string;
+  slug?: string;
+  createdAt?: number;
+  agent?: string;
+  model?: RawSessionModel;
+  cost?: number;
+  tokens?: RawTokenUsage;
 };
 
 export type RawSessionDiff = {
@@ -25,6 +53,15 @@ export type RawMessageInfo = {
   sessionID: string;
   role: string;
   createdAt: number;
+  agent?: string;
+  mode?: string;
+  modelID?: string;
+  providerID?: string;
+  cost?: number;
+  tokens?: RawTokenUsage;
+  path?: RawMessagePath;
+  variant?: string;
+  completedAt?: number;
 };
 
 export type RawToolState = {
@@ -52,6 +89,10 @@ export type RawPart = {
   state?: RawToolState;
   files?: Array<string>;
   name?: string;
+  snapshot?: string;
+  reason?: string;
+  stepCost?: number;
+  stepTokens?: RawTokenUsage;
 };
 
 export type RawMessage = {

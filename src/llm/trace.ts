@@ -1,4 +1,8 @@
 import type { LlmGenerationMetadata } from "./types.js";
+import type {
+  LLMTrace as PersistedLLMTrace,
+  LLMTraceMessage,
+} from "../normalize/models.js";
 
 /**
  * Trace payload for a single LLM call.
@@ -28,6 +32,8 @@ export type LLMTrace = {
 export type TracePolicy = {
   persistMetadata: boolean;
   persistParsedOutput: boolean;
+  /** Full prompt/message content may include raw user code or secrets. Default false. */
+  persistRequestContent?: boolean;
   /** Unbounded, potentially sensitive. Default false. */
   persistRawOutput: boolean;
 };
@@ -35,6 +41,7 @@ export type TracePolicy = {
 export const DEFAULT_TRACE_POLICY: TracePolicy = {
   persistMetadata: true,
   persistParsedOutput: true,
+  persistRequestContent: false,
   persistRawOutput: false,
 };
 
@@ -71,10 +78,56 @@ export function applyTracePolicy(
   return safe;
 }
 
+export function applyPersistedTracePolicy(
+  trace: PersistedLLMTrace,
+  policy: TracePolicy = DEFAULT_TRACE_POLICY,
+): PersistedLLMTrace | null {
+  if (!policy.persistMetadata) {
+    return null;
+  }
+
+  const { rawText, structuredOutput, ...responseMetadata } = trace.response;
+
+  return {
+    ...trace,
+    request: {
+      ...trace.request,
+      messages: policy.persistRequestContent
+        ? structuredClone(trace.request.messages)
+        : trace.request.messages.map(redactTraceMessage),
+    },
+    response: {
+      ...responseMetadata,
+      ...(policy.persistParsedOutput && structuredOutput !== undefined
+        ? { structuredOutput }
+        : {}),
+      ...(policy.persistRawOutput && rawText !== undefined
+        ? { rawText }
+        : {}),
+    },
+  };
+}
+
+export function sanitizePersistedTraces(
+  traces: ReadonlyArray<PersistedLLMTrace>,
+  policy: TracePolicy = DEFAULT_TRACE_POLICY,
+): Array<PersistedLLMTrace> {
+  return traces
+    .map((trace) => applyPersistedTracePolicy(trace, policy))
+    .filter((trace): trace is PersistedLLMTrace => trace !== null);
+}
+
 export function generateTraceID(): string {
   const random = Math.random().toString(36).slice(2, 10);
   const ts = Date.now().toString(36);
   return `trace_${ts}_${random}`;
+}
+
+function redactTraceMessage(message: LLMTraceMessage): LLMTraceMessage {
+  return {
+    ...message,
+    content: `[content omitted: ${message.content.length} chars]`,
+  };
 }
 
 export function createTrace(input: {

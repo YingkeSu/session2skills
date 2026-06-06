@@ -33,6 +33,9 @@ export const sampleProfile: PreferenceProfile = {
       evidence: [{ sessionID: "ses_1", sourceType: "message", excerpt: "Follow existing patterns" }],
     },
   ],
+  tokenEfficiency: [],
+  modelSelection: [],
+  delegationPattern: [],
   confidenceNotes: [
     "workStyle: strongest signal `analysis-first` with weight 3",
     "communicationStyle: strongest signal `explanatory` with weight 2",

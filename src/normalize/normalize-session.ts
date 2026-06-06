@@ -4,6 +4,7 @@ import type {
   NormalizedMessage,
   NormalizedPart,
   NormalizedSession,
+  NormalizedStep,
   ToolInvocation,
 } from "./models.js";
 import type { RawPart, RawSession, RawSessionDiff, RawSessionMessages } from "./raw-session.js";
@@ -12,11 +13,14 @@ type NormalizeSessionInput = {
   session: RawSession;
   messages: RawSessionMessages;
   diff?: Array<RawSessionDiff>;
+  maxToolOutputChars?: number;
 };
 
 export function normalizeSession(input: NormalizeSessionInput): NormalizedSession {
-  const normalizedMessages = input.messages.map(normalizeMessage);
+  const maxToolOutput = input.maxToolOutputChars ?? 10000;
+  const normalizedMessages = input.messages.map((m) => normalizeMessage(m, maxToolOutput));
   const toolInvocations = normalizedMessages.flatMap((message) => message.toolInvocations);
+  const steps = buildSteps(input.messages);
 
   return {
     id: input.session.id,
@@ -27,11 +31,17 @@ export function normalizeSession(input: NormalizeSessionInput): NormalizedSessio
     diffSummary: input.diff ? summarizeDiffs(input.diff) : undefined,
     messages: normalizedMessages,
     toolInvocations,
+    steps,
+    parentID: input.session.parentID,
+    agent: input.session.agent,
+    model: input.session.model,
+    cost: input.session.cost,
+    tokens: input.session.tokens,
   };
 }
 
-function normalizeMessage(messageBundle: RawSessionMessages[number]): NormalizedMessage {
-  const parts = messageBundle.parts.map(normalizePart);
+function normalizeMessage(messageBundle: RawSessionMessages[number], maxToolOutput: number): NormalizedMessage {
+  const parts = messageBundle.parts.map((p) => normalizePart(p, maxToolOutput));
   const toolInvocations = messageBundle.parts.flatMap(normalizeToolInvocation);
 
   return {
@@ -45,20 +55,19 @@ function normalizeMessage(messageBundle: RawSessionMessages[number]): Normalized
       sessionID: messageBundle.info.sessionID,
       messageID: messageBundle.info.id,
       sourceType: "message",
-      excerpt: extractMessageText(messageBundle.parts).slice(0, 280) || undefined,
+      excerpt: extractMessageText(messageBundle.parts).slice(0, 600) || undefined,
     },
+    agent: messageBundle.info.agent,
+    modelID: messageBundle.info.modelID,
+    providerID: messageBundle.info.providerID,
+    cost: messageBundle.info.cost,
+    tokens: messageBundle.info.tokens,
   };
 }
 
-function normalizePart(part: RawPart): NormalizedPart {
+function normalizePart(part: RawPart, maxToolOutput: number): NormalizedPart {
   switch (part.type) {
     case "text":
-      return {
-        id: part.id,
-        type: part.type,
-        text: part.text ?? "",
-        evidence: createPartEvidence(part, part.text ?? ""),
-      };
     case "reasoning":
       return {
         id: part.id,
@@ -85,7 +94,7 @@ function normalizePart(part: RawPart): NormalizedPart {
         status: part.state?.status,
         title: part.state?.status === "running" || part.state?.status === "completed" ? part.state.title : undefined,
         text: part.state?.status === "completed"
-          ? part.state.output?.slice(0, 500)
+          ? part.state.output?.slice(0, maxToolOutput)
           : part.state?.status === "error"
             ? part.state.error
             : undefined,
@@ -104,6 +113,13 @@ function normalizePart(part: RawPart): NormalizedPart {
         type: part.type,
         text: part.name ?? "",
         evidence: createPartEvidence(part, part.name ?? ""),
+      };
+    case "step-start":
+    case "step-finish":
+      return {
+        id: part.id,
+        type: part.type,
+        evidence: createPartEvidence(part),
       };
     default:
       return {
@@ -140,11 +156,65 @@ function normalizeToolInvocation(part: RawPart): Array<ToolInvocation> {
   ];
 }
 
+function buildSteps(messages: RawSessionMessages): Array<NormalizedStep> {
+  const stepPairs: Array<{
+    sessionID: string;
+    start?: RawPart & { type: "step-start" };
+    finish?: RawPart & { type: "step-finish" };
+  }> = [];
+
+  let currentPair: typeof stepPairs[number] | undefined;
+
+  for (const msg of messages) {
+    for (const part of msg.parts) {
+      if (part.type === "step-start") {
+        if (currentPair?.finish) {
+          stepPairs.push(currentPair);
+        }
+        currentPair = {
+          sessionID: part.sessionID,
+          start: part as RawPart & { type: "step-start" },
+        };
+      } else if (part.type === "step-finish" && currentPair) {
+        currentPair.finish = part as RawPart & { type: "step-finish" };
+        stepPairs.push(currentPair);
+        currentPair = undefined;
+      }
+    }
+  }
+
+  if (currentPair) {
+    stepPairs.push(currentPair);
+  }
+
+  return stepPairs.map((pair, index) => {
+    const start = pair.start;
+    const finish = pair.finish;
+    const startId = start?.id ?? `step-${index}`;
+
+    return {
+      id: startId,
+      startSnapshot: start?.snapshot,
+      endSnapshot: finish?.snapshot,
+      duration: undefined,
+      cost: finish?.stepCost,
+      tokens: finish?.stepTokens,
+      reason: finish?.reason,
+      evidence: {
+        sessionID: pair.sessionID,
+        partID: startId,
+        sourceType: "part",
+      } satisfies EvidenceRef,
+    };
+  });
+}
+
 function extractMessageText(parts: Array<RawPart>): string {
   return parts
     .flatMap((part) => {
       switch (part.type) {
         case "text":
+        case "reasoning":
           return [part.text ?? ""];
         case "subtask":
           return [part.description ?? "", part.prompt ?? ""];
@@ -184,6 +254,6 @@ function createPartEvidence(part: RawPart, excerpt?: string): EvidenceRef {
     messageID: part.messageID,
     partID: part.id,
     sourceType: part.type === "tool" ? "tool" : "part",
-    excerpt: excerpt?.slice(0, 280),
+    excerpt: excerpt?.slice(0, 600),
   };
 }

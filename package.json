@@ -6,19 +6,36 @@
   "bin": {
     "session2skills": "./dist/cli/main.js"
   },
+  "license": "MIT",
+  "engines": { "node": ">=20.0.0" },
+  "files": ["dist/", "docs/hybrid-artifacts.md"],
+  "keywords": ["opencode", "ai", "skill", "session-analysis", "cli"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suyingke/session2skills"
+  },
   "scripts": {
+    "clean": "node scripts/clean-dist.mjs",
+    "prebuild": "node scripts/clean-dist.mjs",
     "build": "tsc -p tsconfig.json",
+    "postbuild": "node scripts/fix-bin-mode.mjs",
+    "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:tests": "tsc -p tsconfig.test.json",
     "dev": "tsx src/cli/main.ts",
     "start": "node dist/cli/main.js",
+    "pretest": "npm run build",
     "test": "vitest run",
-    "test:e2e": "vitest run tests/e2e/ --pool=forks --poolOptions.forks.singleFork=true"
+    "pretest:e2e": "npm run build",
+    "test:e2e": "vitest run tests/e2e/"
   },
   "dependencies": {
     "@opencode-ai/sdk": "1.4.0",
+    "better-sqlite3": "^12.10.0",
     "commander": "^14.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.5.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

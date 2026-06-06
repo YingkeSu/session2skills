@@ -1,3 +1,6 @@
+export const HYBRID_LLM_ENV_REQUIRED =
+  "Hybrid mode requires SESSION2SKILLS_LLM_BASE_URL and SESSION2SKILLS_LLM_MODEL environment variables.";
+
 export class CliUsageError extends Error {
   constructor(message: string) {
     super(message);

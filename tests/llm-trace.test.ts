@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { createTrace, applyTracePolicy, DEFAULT_TRACE_POLICY, generateTraceID } from "../src/llm/trace.js";
+import {
+  createTrace,
+  applyPersistedTracePolicy,
+  applyTracePolicy,
+  DEFAULT_TRACE_POLICY,
+  generateTraceID,
+  sanitizePersistedTraces,
+} from "../src/llm/trace.js";
 import type { LLMTrace } from "../src/llm/trace.js";
+import type { LLMTrace as PersistedLLMTrace } from "../src/normalize/models.js";
 
 const minimalTrace: LLMTrace = {
   traceID: "trace_abc_12345678",
@@ -14,6 +22,33 @@ const minimalTrace: LLMTrace = {
   latencyMs: 1200,
   usage: { inputTokens: 500, outputTokens: 200, totalTokens: 700 },
   parsedOutput: { workStyle: [{ kind: "work-style", value: "tdd", weight: 4, evidence: [] }] },
+};
+
+const persistedTrace: PersistedLLMTrace = {
+  schemaVersion: "llm-trace/v1",
+  traceID: "trace_persisted_12345678",
+  timestamp: "2026-04-09T12:00:00.000Z",
+  promptSetVersion: "prompt-set/v1",
+  stage: "session-claims",
+  provider: "openai",
+  model: "gpt-4o",
+  inputArtifactRef: "session:ses_secret",
+  request: {
+    promptName: "extract-session-claims",
+    messages: [
+      { role: "system", content: "You are reviewing private source code." },
+      { role: "user", content: "SECRET_TOKEN=abc123\nPlease analyze this code." },
+    ],
+  },
+  response: {
+    finishReason: "stop",
+    rawText: "{\"claims\":[{\"secret\":\"abc123\"}]}",
+    structuredOutput: {
+      kind: "candidate-claims",
+      claims: [],
+    },
+  },
+  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
 };
 
 describe("LLMTrace", () => {
@@ -110,6 +145,43 @@ describe("TracePolicy", () => {
     });
 
     expect(result!.parsedOutput).toBeUndefined();
+  });
+
+  it("redacts persisted trace request content and raw output by default", () => {
+    const result = applyPersistedTracePolicy(persistedTrace, DEFAULT_TRACE_POLICY);
+
+    expect(result).not.toBeNull();
+    expect(result!.request.messages[0]!.content).toBe("[content omitted: 38 chars]");
+    expect(result!.request.messages[1]!.content).toBe("[content omitted: 45 chars]");
+    expect(result!.response.rawText).toBeUndefined();
+    expect(result!.response.structuredOutput).toEqual(persistedTrace.response.structuredOutput);
+  });
+
+  it("can explicitly persist full request content and raw output", () => {
+    const result = applyPersistedTracePolicy(persistedTrace, {
+      ...DEFAULT_TRACE_POLICY,
+      persistRequestContent: true,
+      persistRawOutput: true,
+    });
+
+    expect(result!.request.messages).toEqual(persistedTrace.request.messages);
+    expect(result!.response.rawText).toBe(persistedTrace.response.rawText);
+  });
+
+  it("can strip persisted structured output", () => {
+    const result = applyPersistedTracePolicy(persistedTrace, {
+      ...DEFAULT_TRACE_POLICY,
+      persistParsedOutput: false,
+    });
+
+    expect(result!.response.structuredOutput).toBeUndefined();
+  });
+
+  it("sanitizes arrays of persisted traces", () => {
+    const result = sanitizePersistedTraces([persistedTrace], DEFAULT_TRACE_POLICY);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.response.rawText).toBeUndefined();
   });
 });
 

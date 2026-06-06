@@ -5,6 +5,8 @@ import type {
   ProfileV2,
   RunManifest,
 } from "../normalize/models.js";
+import type { ClaimManifest, SkepticReport, VerifierReport } from "../harness/types.js";
+import { sanitizePersistedTraces } from "../llm/trace.js";
 import { writeDirectoryArtifacts } from "./staged-directory-write.js";
 
 export async function writeRunArtifacts(input: {
@@ -68,7 +70,7 @@ export async function writeHybridRunArtifacts(input: {
       "llm-category-claims.json": JSON.stringify(input.llmCategoryClaims, null, 2),
       "merged-claims.json": JSON.stringify(input.mergedClaims, null, 2),
       "skill-plan.json": JSON.stringify(input.skillPlan, null, 2),
-      "llm-traces.json": JSON.stringify(input.llmTraces, null, 2),
+      "llm-traces.json": JSON.stringify(sanitizePersistedTraces(input.llmTraces), null, 2),
       "manifest.json": JSON.stringify(input.manifest, null, 2),
     },
   });
@@ -82,6 +84,58 @@ export async function writeHybridRunArtifacts(input: {
     llmCategoryClaimsPath: paths["llm-category-claims.json"]!,
     mergedClaimsPath: paths["merged-claims.json"]!,
     skillPlanPath: paths["skill-plan.json"]!,
+    llmTracesPath: paths["llm-traces.json"]!,
+    manifestPath: paths["manifest.json"]!,
+  };
+}
+
+export async function writeHarnessRunArtifacts(input: {
+  outputDirectory: string;
+  normalizedSessions: Array<NormalizedSession>;
+  profile: ProfileV2;
+  evidenceIndex: unknown;
+  ruleClaims: unknown;
+  claimManifest: ClaimManifest;
+  skepticReport: SkepticReport;
+  verifierReport: VerifierReport;
+  llmTraces: Array<LLMTrace>;
+  manifest: RunManifest;
+  force: boolean;
+}): Promise<{
+  normalizedPath: string;
+  profilePath: string;
+  evidenceIndexPath: string;
+  ruleClaimsPath: string;
+  claimManifestPath: string;
+  skepticReportPath: string;
+  verifierReportPath: string;
+  llmTracesPath: string;
+  manifestPath: string;
+}> {
+  const paths = await writeDirectoryArtifacts({
+    outputDirectory: input.outputDirectory,
+    force: input.force,
+    files: {
+      "normalized.json": JSON.stringify(input.normalizedSessions, null, 2),
+      "profile.json": JSON.stringify(input.profile, null, 2),
+      "evidence-index.json": JSON.stringify(input.evidenceIndex, null, 2),
+      "rule-claims.json": JSON.stringify(input.ruleClaims, null, 2),
+      "claim-manifest.json": JSON.stringify(input.claimManifest, null, 2),
+      "skeptic-report.json": JSON.stringify(input.skepticReport, null, 2),
+      "verifier-report.json": JSON.stringify(input.verifierReport, null, 2),
+      "llm-traces.json": JSON.stringify(sanitizePersistedTraces(input.llmTraces), null, 2),
+      "manifest.json": JSON.stringify(input.manifest, null, 2),
+    },
+  });
+
+  return {
+    normalizedPath: paths["normalized.json"]!,
+    profilePath: paths["profile.json"]!,
+    evidenceIndexPath: paths["evidence-index.json"]!,
+    ruleClaimsPath: paths["rule-claims.json"]!,
+    claimManifestPath: paths["claim-manifest.json"]!,
+    skepticReportPath: paths["skeptic-report.json"]!,
+    verifierReportPath: paths["verifier-report.json"]!,
     llmTracesPath: paths["llm-traces.json"]!,
     manifestPath: paths["manifest.json"]!,
   };

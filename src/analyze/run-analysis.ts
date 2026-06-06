@@ -1,10 +1,4 @@
-import { createTypedOpenCodeClient } from "../adapters/opencode/client.js";
-import {
-  getSessionDiffWithClient,
-  getSessionMessagesWithClient,
-  getSessionWithClient,
-  listRecentSessionsWithClient,
-} from "../adapters/opencode/sessions.js";
+import { createSessionProvider } from "../adapters/registry.js";
 import { normalizeSession } from "../normalize/normalize-session.js";
 import type {
   CandidateClaim,
@@ -22,6 +16,7 @@ import {
   extractAllRuleClaims,
 } from "../profile/build-profile.js";
 import { buildEvidenceIndex } from "./evidence-index.js";
+import { filterSessions } from "./session-tree.js";
 import {
   mergeClaims,
   type MergedClaimResult,
@@ -85,41 +80,22 @@ export async function analyzeRecentSessions(options: AnalysisOptions): Promise<{
   llmClaims?: Array<CandidateClaim>;
   llmTraces?: Array<LLMTrace>;
 }> {
-  const runtime = await createTypedOpenCodeClient({
-    directory: options.directory,
-    workspace: options.workspace,
-  });
+  const providerOpts = { directory: options.directory, workspace: options.workspace };
+  const { provider, close } = await createSessionProvider(providerOpts);
 
   try {
-    const listedSessions = await listRecentSessionsWithClient(
-      runtime.client,
-      { directory: options.directory, workspace: options.workspace },
-      options.recent,
-    );
-    const filteredSessions = listedSessions.filter((session) => isRelevantSessionTitle(session.title));
+    const listedSessions = await provider.listRecentSessions(providerOpts, options.recent);
+    const filteredSessions = filterSessions(listedSessions);
 
     const normalizedSessions = [] as Array<NormalizedSession>;
     const warnings = [] as Array<AnalysisWarning>;
 
     for (const listedSession of filteredSessions) {
-      const session = await getSessionWithClient(
-        runtime.client,
-        { directory: options.directory, workspace: options.workspace },
-        listedSession.id,
-      );
-      const messages = await getSessionMessagesWithClient(
-        runtime.client,
-        { directory: options.directory, workspace: options.workspace },
-        listedSession.id,
-        options.messageLimit ?? 50,
-      );
+      const session = await provider.getSession(providerOpts, listedSession.id);
+      const messages = await provider.getSessionMessages(providerOpts, listedSession.id, options.messageLimit ?? 50);
       let diff: Array<RawSessionDiff> = [];
       try {
-        diff = await getSessionDiffWithClient(
-          runtime.client,
-          { directory: options.directory, workspace: options.workspace },
-          listedSession.id,
-        );
+        diff = await provider.getSessionDiff(providerOpts, listedSession.id);
       } catch (error) {
         warnings.push({
           type: "diff-unavailable",
@@ -149,7 +125,7 @@ export async function analyzeRecentSessions(options: AnalysisOptions): Promise<{
       warnings,
     };
   } finally {
-    await runtime.close();
+    await close();
   }
 }
 
@@ -312,10 +288,6 @@ export async function reduceSessionClaims(
     reducedClaims: reduction.results,
     reductionTraces: reduction.traces,
   };
-}
-
-function isRelevantSessionTitle(title: string): boolean {
-  return !/\(@.+subagent\)/i.test(title);
 }
 
 function buildAnalysisConfidenceNotes(

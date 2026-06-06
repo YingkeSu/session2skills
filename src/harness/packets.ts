@@ -1,0 +1,415 @@
+import type { LlmMessage, LlmStructuredOutputSchema } from "../llm/index.js";
+import type { PromptRegistry } from "../llm/prompts/registry.js";
+import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
+import type { ClaimManifest } from "./types.js";
+import { estimateTokens, selectEvidenceForBudget } from "../analyze/evidence-index.js";
+
+// ---------------------------------------------------------------------------
+// Taxonomy (all 7 dimensions for harness pipeline)
+// ---------------------------------------------------------------------------
+
+const HARNESS_TAXONOMY: Array<{
+  dimension: string;
+  labels: ReadonlyArray<string>;
+  description: string;
+}> = [
+  {
+    dimension: "work-style",
+    labels: ["analysis-first", "implementation-first", "iterative", "one-shot"],
+    description:
+      "How the developer approaches coding tasks: exploration-heavy vs action-heavy, iterative vs one-shot.",
+  },
+  {
+    dimension: "communication-style",
+    labels: ["concise", "explanatory", "consultative", "directive"],
+    description:
+      "How the developer communicates with the AI: terse vs verbose, asking vs commanding.",
+  },
+  {
+    dimension: "validation-habit",
+    labels: ["run-tests", "run-diagnostics", "check-git-state"],
+    description:
+      "How the developer verifies AI output: running tests, checking types, inspecting diffs.",
+  },
+  {
+    dimension: "constraint",
+    labels: ["minimal-diff", "preserve-patterns", "type-safety", "avoid-destructive-actions"],
+    description:
+      "Explicit or implicit constraints the developer places on AI behavior.",
+  },
+  {
+    dimension: "token-efficiency",
+    labels: ["explorer", "implementer", "analytical", "context-reuser"],
+    description:
+      "Token usage patterns: exploration vs implementation ratio, reasoning intensity, cache utilization.",
+  },
+  {
+    dimension: "model-selection",
+    labels: ["cost-conscious", "quality-focused", "adaptive"],
+    description:
+      "Model selection strategy: preference for cheaper vs premium models, adaptive switching.",
+  },
+  {
+    dimension: "delegation-pattern",
+    labels: ["hands-on", "trusting", "parallelizer"],
+    description:
+      "How the developer delegates to AI agents: manual control vs trusting delegation, parallelism preference.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Packet types
+// ---------------------------------------------------------------------------
+
+export type HarnessPacket = {
+  messages: Array<LlmMessage>;
+  schema: LlmStructuredOutputSchema<unknown>;
+  promptId: string;
+  promptVersion: string;
+};
+
+// ---------------------------------------------------------------------------
+// Prompt resolution helper
+// ---------------------------------------------------------------------------
+
+function resolveHarnessTemplate(
+  registry: PromptRegistry | undefined,
+  promptId: string,
+  fallbackSystem: string,
+  fallbackSchema: Record<string, unknown>,
+): {
+  systemPrompt: string;
+  outputSchema: Record<string, unknown>;
+  version: string;
+} {
+  if (registry) {
+    const registered = registry.list().find((entry) => entry.id === promptId);
+    if (registered) {
+      const tmpl = registry.get(promptId, registered.version);
+      return {
+        systemPrompt: tmpl.systemPrompt,
+        outputSchema: tmpl.outputSchema,
+        version: tmpl.version,
+      };
+    }
+  }
+  return {
+    systemPrompt: fallbackSystem,
+    outputSchema: { ...fallbackSchema },
+    version: "0.0.0",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Fallback system prompts
+// ---------------------------------------------------------------------------
+
+const FALLBACK_ANALYST_SYSTEM = [
+  "You are an Evidence Analyst for developer behavior patterns.",
+  "Extract candidate claims from session evidence.",
+  "Cover all 7 taxonomy dimensions when evidence supports them.",
+  "Each claim must cite specific evidence IDs.",
+  "Assign confidence 0–1 based on evidence strength.",
+  "Output valid JSON.",
+].join("\n");
+
+const FALLBACK_SKEPTIC_SYSTEM = [
+  "You are a Skeptic reviewing a claim manifest.",
+  "For each claim, verify evidence support and confidence appropriateness.",
+  "Assign severity: high (drop), medium (adjust), low (note).",
+  "Output valid JSON.",
+].join("\n");
+
+const FALLBACK_WRITER_SYSTEM = [
+  "You are writing a SKILL.md document from a claim manifest.",
+  "Every directive must reference a manifest claim ID.",
+  "Do not add information not in the manifest.",
+  "Output valid JSON.",
+].join("\n");
+
+const FALLBACK_VERIFIER_SYSTEM = [
+  "You are a Verifier cross-checking SKILL.md against a claim manifest.",
+  "Verify every directive maps to a valid claim.",
+  "Flag fabricated or unreferenced directives.",
+  "Output valid JSON.",
+].join("\n");
+
+// ---------------------------------------------------------------------------
+// Evidence rendering
+// ---------------------------------------------------------------------------
+
+function renderEvidenceLines(items: ReadonlyArray<EvidenceItem>): string {
+  return [...items]
+    .sort((a, b) => a.evidenceID.localeCompare(b.evidenceID))
+    .map((item) => {
+      const text = item.summaryText.length > 200
+        ? item.summaryText.substring(0, 200) + "..."
+        : item.summaryText;
+      return `[${item.evidenceID}] (${item.citation.sourceType}) ${text}`;
+    })
+    .join("\n");
+}
+
+function renderTaxonomy(): string {
+  return HARNESS_TAXONOMY.map(
+    (t) => `### ${t.dimension}\nLabels: ${t.labels.join(", ")}\n${t.description}`,
+  ).join("\n\n");
+}
+
+function renderSessionSummaries(sessions: ReadonlyArray<NormalizedSession>): string {
+  return sessions
+    .map((s) => `- [${s.id}] ${s.title} (${s.messages.length} messages, ${s.toolInvocations.length} tool calls)`)
+    .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1: Analyst packet
+// ---------------------------------------------------------------------------
+
+export function buildAnalystPacket(
+  sessions: ReadonlyArray<NormalizedSession>,
+  evidence: ReadonlyArray<EvidenceItem>,
+  registry?: PromptRegistry,
+  tokenBudget: number = 6000,
+): HarnessPacket {
+  const resolved = resolveHarnessTemplate(
+    registry,
+    "harness-analyst",
+    FALLBACK_ANALYST_SYSTEM,
+    {},
+  );
+
+  const sessionSection = renderSessionSummaries(sessions);
+  const taxonomySection = renderTaxonomy();
+
+  const fixedOverhead =
+    estimateTokens(resolved.systemPrompt) +
+    estimateTokens(taxonomySection) +
+    estimateTokens(sessionSection);
+
+  const evidenceBudget = Math.max(0, tokenBudget - fixedOverhead);
+  const selectedEvidence = selectEvidenceForBudget(
+    [...evidence],
+    evidenceBudget,
+    { preferDirectUser: true, maxItems: 100 },
+  );
+
+  const evidenceSection = renderEvidenceLines(selectedEvidence);
+
+  const userPayload = [
+    `# Sessions (${sessions.length})`,
+    sessionSection,
+    "",
+    "## Taxonomy (7 dimensions)",
+    taxonomySection,
+    "",
+    `## Evidence (${selectedEvidence.length} items)`,
+    evidenceSection,
+    "",
+    "## Instructions",
+    "Extract candidate claims from the evidence above.",
+    "Use ONLY the taxonomy dimensions and labels listed.",
+    "Cite evidence IDs exactly as they appear (e.g., ev_001).",
+    "Assign confidence 0–1 based on evidence strength and consistency across sessions.",
+    "Cover ALL dimensions where evidence exists.",
+  ].join("\n");
+
+  return {
+    messages: [
+      { role: "system", content: resolved.systemPrompt },
+      { role: "user", content: userPayload },
+    ],
+    schema: {
+      name: "claim_manifest",
+      description: "Structured claim manifest from evidence analysis.",
+      schema: resolved.outputSchema,
+      parse: (value: unknown) => value,
+    },
+    promptId: "harness-analyst",
+    promptVersion: resolved.version,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2: Skeptic packet
+// ---------------------------------------------------------------------------
+
+export function buildSkepticPacket(
+  manifest: ClaimManifest,
+  evidence: ReadonlyArray<EvidenceItem>,
+  registry?: PromptRegistry,
+): HarnessPacket {
+  const resolved = resolveHarnessTemplate(
+    registry,
+    "harness-skeptic",
+    FALLBACK_SKEPTIC_SYSTEM,
+    {},
+  );
+
+  const manifestJson = JSON.stringify(
+    {
+      claims: manifest.claims.map((c) => ({
+        id: c.id,
+        dimension: c.dimension,
+        label: c.label,
+        confidence: c.confidence,
+        rationale: c.rationale,
+        evidenceRefs: c.evidenceRefs,
+      })),
+    },
+    null,
+    2,
+  );
+
+  const evidenceLookup = new Map(evidence.map((e) => [e.evidenceID, e]));
+  const relevantEvidenceIds = new Set(
+    manifest.claims.flatMap((c) => c.evidenceRefs),
+  );
+  const relevantEvidence = evidence.filter((e) => relevantEvidenceIds.has(e.evidenceID));
+  const evidenceSection = renderEvidenceLines(relevantEvidence);
+
+  const userPayload = [
+    "# Claim Manifest to Review",
+    "```json",
+    manifestJson,
+    "```",
+    "",
+    `# Referenced Evidence (${relevantEvidence.length} items)`,
+    evidenceSection,
+    "",
+    "## Instructions",
+    "Review each claim in the manifest.",
+    "For each issue found, specify the claimId, severity, and problem type.",
+    "Be critical but fair. Only flag genuine problems.",
+  ].join("\n");
+
+  return {
+    messages: [
+      { role: "system", content: resolved.systemPrompt },
+      { role: "user", content: userPayload },
+    ],
+    schema: {
+      name: "skeptic_report",
+      description: "Structured critique of the claim manifest.",
+      schema: resolved.outputSchema,
+      parse: (value: unknown) => value,
+    },
+    promptId: "harness-skeptic",
+    promptVersion: resolved.version,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3: Writer packet
+// ---------------------------------------------------------------------------
+
+export function buildWriterPacket(
+  manifest: ClaimManifest,
+  tone: string,
+  registry?: PromptRegistry,
+): HarnessPacket {
+  const resolved = resolveHarnessTemplate(
+    registry,
+    "harness-writer",
+    FALLBACK_WRITER_SYSTEM,
+    {},
+  );
+
+  const manifestJson = JSON.stringify(
+    manifest.claims.map((c) => ({
+      id: c.id,
+      dimension: c.dimension,
+      label: c.label,
+      confidence: c.confidence,
+      rationale: c.rationale,
+    })),
+    null,
+    2,
+  );
+
+  const userPayload = [
+    `# Claim Manifest (${manifest.claims.length} claims)`,
+    "```json",
+    manifestJson,
+    "```",
+    "",
+    `## Dimensions Covered: ${manifest.dimensionsCovered.join(", ")}`,
+    `## Tone: ${tone}`,
+    "",
+    "## Instructions",
+    "Write SKILL.md guidance using ONLY the claims above.",
+    "Each directive must have a sourceClaimId matching a claim id in the manifest.",
+    "Group by dimension into sections.",
+    "Write imperative, actionable prose.",
+  ].join("\n");
+
+  return {
+    messages: [
+      { role: "system", content: resolved.systemPrompt },
+      { role: "user", content: userPayload },
+    ],
+    schema: {
+      name: "writer_output",
+      description: "SKILL.md with structured section/claim mapping.",
+      schema: resolved.outputSchema,
+      parse: (value: unknown) => value,
+    },
+    promptId: "harness-writer",
+    promptVersion: resolved.version,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4: Verifier packet
+// ---------------------------------------------------------------------------
+
+export function buildVerifierPacket(
+  skillMarkdown: string,
+  manifest: ClaimManifest,
+  registry?: PromptRegistry,
+): HarnessPacket {
+  const resolved = resolveHarnessTemplate(
+    registry,
+    "harness-verifier",
+    FALLBACK_VERIFIER_SYSTEM,
+    {},
+  );
+
+  const manifestClaimsJson = JSON.stringify(
+    manifest.claims.map((c) => ({ id: c.id, dimension: c.dimension, label: c.label, confidence: c.confidence })),
+    null,
+    2,
+  );
+
+  const userPayload = [
+    "# SKILL.md to Verify",
+    "```markdown",
+    skillMarkdown,
+    "```",
+    "",
+    "# Source Claim Manifest",
+    "```json",
+    manifestClaimsJson,
+    "```",
+    "",
+    "## Instructions",
+    "Cross-check every directive in SKILL.md against the manifest claims.",
+    "Mark each directive as: verified, unreferenced, or fabricated.",
+    "Set pass=true only if there are NO fabricated directives.",
+  ].join("\n");
+
+  return {
+    messages: [
+      { role: "system", content: resolved.systemPrompt },
+      { role: "user", content: userPayload },
+    ],
+    schema: {
+      name: "verifier_report",
+      description: "Cross-check report for SKILL.md against claim manifest.",
+      schema: resolved.outputSchema,
+      parse: (value: unknown) => value,
+    },
+    promptId: "harness-verifier",
+    promptVersion: resolved.version,
+  };
+}

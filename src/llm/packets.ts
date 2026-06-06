@@ -438,58 +438,6 @@ export function buildCategoryReducePacket(
 }
 
 // ---------------------------------------------------------------------------
-// Batch builders
-// ---------------------------------------------------------------------------
-
-/**
- * Build all session-map packets for a batch of sessions.
- * Returns packets in deterministic order (sorted by session ID).
- */
-export function buildAllSessionMapPackets(
-  sessions: Array<NormalizedSession>,
-  evidence: Array<EvidenceItem>,
-  budgetPerSession: number,
-  registry?: PromptRegistry,
-): Array<SessionMapPacket> {
-  const sorted = stableSort(sessions, (a, b) => a.id.localeCompare(b.id));
-  return sorted.map((session) =>
-    buildSessionMapPacket(session, evidence, budgetPerSession, registry),
-  );
-}
-
-/**
- * Build all category-reduce packets for the four taxonomy dimensions.
- * Returns packets in deterministic order (alphabetical by dimension).
- */
-export function buildAllCategoryReducePackets(
-  evidence: Array<EvidenceItem>,
-  budgetPerCategory: number,
-  sourceClaims?: Array<CandidateClaim>,
-  registry?: PromptRegistry,
-): Array<CategoryReducePacket> {
-  const dimensions: Array<WorkflowSignalKind> = [
-    "communication-style",
-    "constraint",
-    "validation-habit",
-    "work-style",
-  ];
-  return dimensions.map((dimension) => {
-    const dimClaims = sourceClaims?.filter((c) => c.dimension === dimension) ?? [];
-    return buildCategoryReducePacket(evidence, dimension, budgetPerCategory, dimClaims, registry);
-  });
-}
-
-/**
- * Sum estimated tokens across an array of packets.
- * Useful for verifying batch totals stay within rate limits.
- */
-export function estimateTotalBatchTokens(
-  packets: Array<SessionMapPacket | CategoryReducePacket>,
-): number {
-  return packets.reduce((sum, p) => sum + p.metadata.tokenEstimate, 0);
-}
-
-// ---------------------------------------------------------------------------
 // Payload renderers
 // ---------------------------------------------------------------------------
 

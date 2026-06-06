@@ -14,6 +14,7 @@ import {
   preflightChecks,
   readArtifact,
   runCLI,
+  runCLIAsync,
 } from "./helpers.js";
 
 type GenerateHybridOutput = {
@@ -34,9 +35,18 @@ function readTextArtifact(dir: string, filename: string): string {
 
 function parseGenerateOutput(stdout: string): GenerateHybridOutput {
   const trimmed = stdout.trim();
-  const jsonStart = trimmed.lastIndexOf("\n{");
-  const jsonText = jsonStart >= 0 ? trimmed.slice(jsonStart + 1) : trimmed;
-  return JSON.parse(jsonText) as GenerateHybridOutput;
+  let searchFrom = trimmed.length;
+  while (searchFrom > 0) {
+    const braceIdx = trimmed.lastIndexOf("\n{", searchFrom);
+    if (braceIdx < 0) break;
+    const candidate = trimmed.slice(braceIdx + 1);
+    try {
+      return JSON.parse(candidate) as GenerateHybridOutput;
+    } catch {
+      searchFrom = braceIdx - 1;
+    }
+  }
+  return JSON.parse(trimmed) as GenerateHybridOutput;
 }
 
 describe("generate hybrid", () => {
@@ -68,7 +78,7 @@ describe("generate hybrid", () => {
 
   it(
     "runs hybrid generate with the real LLM API and writes complete output artifacts",
-    () => {
+    async () => {
       if (preflightFailure) {
         console.warn(`Skipping generate hybrid test: ${preflightFailure.message}`);
         return;
@@ -76,7 +86,7 @@ describe("generate hybrid", () => {
 
       tempDir = createTempDir("session2skills-e2e-generate-hybrid-");
 
-      const result = runCLI(
+      const result = await runCLIAsync(
         [
           "generate",
           "-d",
@@ -167,7 +177,7 @@ describe("generate hybrid", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(
-        "Hybrid generation requires SESSION2SKILLS_LLM_BASE_URL and SESSION2SKILLS_LLM_MODEL environment variables.",
+        "Hybrid mode requires SESSION2SKILLS_LLM_BASE_URL and SESSION2SKILLS_LLM_MODEL environment variables.",
       );
     },
     60000,

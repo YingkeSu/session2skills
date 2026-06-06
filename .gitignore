@@ -8,6 +8,12 @@ dist/
 .session2skills/
 generated-skills/
 
+# Local agent/orchestration state
+.omo/
+.opencode/*.bak*
+.opencode/*.backup
+.opencode/*.migrations.json
+
 # Editor directories and files
 .vscode/
 .idea/
@@ -62,5 +68,3 @@ coverage/
 
 # Build artifacts
 *.tsbuildinfo
-
-.env

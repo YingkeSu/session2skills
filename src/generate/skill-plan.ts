@@ -36,6 +36,22 @@ const DIRECTIVE_PLACEMENT: Record<WorkflowSignalKind, Record<string, SkillDirect
     "type-safety": "directive",
     "avoid-destructive-actions": "directive",
   },
+  "token-efficiency": {
+    explorer: "directive",
+    implementer: "directive",
+    analytical: "directive",
+    "context-reuser": "directive",
+  },
+  "model-selection": {
+    "cost-conscious": "directive",
+    "quality-focused": "directive",
+    adaptive: "directive",
+  },
+  "delegation-pattern": {
+    "hands-on": "directive",
+    trusting: "directive",
+    parallelizer: "directive",
+  },
 };
 
 const LABEL_TO_DIRECTIVE_TEXT: Record<string, string> = {
@@ -54,6 +70,16 @@ const LABEL_TO_DIRECTIVE_TEXT: Record<string, string> = {
   "preserve-patterns": "Maintain existing code patterns and conventions in all changes",
   "type-safety": "Prioritize type safety and avoid any usage in all changes",
   "avoid-destructive-actions": "Avoid destructive operations unless explicitly requested",
+  explorer: "Explore codebase context thoroughly before making changes",
+  implementer: "Focus on producing implementation output efficiently",
+  analytical: "Take time for thorough analysis and reasoning before acting",
+  "context-reuser": "Build on previously established context efficiently",
+  "cost-conscious": "Prefer cost-effective model choices for routine tasks",
+  "quality-focused": "Always use the highest-quality model available",
+  adaptive: "Match model capability to task complexity",
+  "hands-on": "Handle most tasks directly with minimal delegation",
+  trusting: "Delegate tasks deeply to specialized sub-agents",
+  parallelizer: "Launch parallel sub-agents for concurrent task execution",
 };
 
 const SECTION_TITLES: Record<WorkflowSignalKind, string> = {
@@ -61,6 +87,9 @@ const SECTION_TITLES: Record<WorkflowSignalKind, string> = {
   "communication-style": "Communication",
   "validation-habit": "Validation",
   constraint: "Constraints",
+  "token-efficiency": "Token Efficiency",
+  "model-selection": "Model Selection",
+  "delegation-pattern": "Delegation",
 };
 
 const SECTION_ORDER: Array<WorkflowSignalKind> = [
@@ -68,6 +97,9 @@ const SECTION_ORDER: Array<WorkflowSignalKind> = [
   "communication-style",
   "validation-habit",
   "constraint",
+  "token-efficiency",
+  "model-selection",
+  "delegation-pattern",
 ];
 
 function makeFallbackDirective(section: string, text: string): SkillDirective {
@@ -103,6 +135,24 @@ const FALLBACK_DIRECTIVES: Record<WorkflowSignalKind, Array<SkillDirective>> = {
     makeFallbackDirective(
       "constraint",
       "Preserve existing patterns and avoid destructive changes unless explicitly requested",
+    ),
+  ],
+  "token-efficiency": [
+    makeFallbackDirective(
+      "token-efficiency",
+      "Default to balanced token usage unless specific efficiency patterns are detected",
+    ),
+  ],
+  "model-selection": [
+    makeFallbackDirective(
+      "model-selection",
+      "Use the default model unless cost or quality signals suggest otherwise",
+    ),
+  ],
+  "delegation-pattern": [
+    makeFallbackDirective(
+      "delegation-pattern",
+      "Delegate when appropriate but verify sub-agent results",
     ),
   ],
 };
@@ -184,9 +234,12 @@ export function buildSkillPlan(
   }
 
   for (const dimension of customDimensions) {
+    const sectionID: SkillPlanSectionID = dimension.startsWith("custom:")
+      ? dimension as SkillPlanSectionID
+      : `custom:${dimension}` as SkillPlanSectionID;
     const claimIDs = collectClaimIDs(allEligible, dimension);
     sections.push({
-      id: dimension as SkillPlanSectionID,
+      id: sectionID,
       title: dimension,
       summary: buildSectionSummary(dimension, directives[dimension], summaryClaimsBySection.get(dimension)),
       claimIDs,

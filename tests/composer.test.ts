@@ -124,6 +124,9 @@ function makeEmptyProfile(): PreferenceProfile {
     communicationStyle: [],
     validationHabits: [],
     constraints: [],
+    tokenEfficiency: [],
+    modelSelection: [],
+    delegationPattern: [],
     confidenceNotes: [],
   };
 }

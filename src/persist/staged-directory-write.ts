@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rename, rm, stat as statFn, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { CliUsageError } from "../shared/errors.js";
@@ -50,6 +50,10 @@ export async function writeDirectoryArtifacts(input: {
 
     const finalExists = await pathExists(input.outputDirectory);
     if (finalExists) {
+      const stat = await statFn(input.outputDirectory);
+      if (!stat.isDirectory()) {
+        throw new CliUsageError(`Output path is not a directory: ${input.outputDirectory}`);
+      }
       const existingEntries = await readdir(input.outputDirectory);
       if (!input.force && existingEntries.length > 0) {
         throw new CliUsageError(`Refusing to overwrite existing output directory without --force: ${input.outputDirectory}`);

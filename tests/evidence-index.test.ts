@@ -18,6 +18,7 @@ const makeSession = (overrides: Partial<NormalizedSession> = {}): NormalizedSess
   updatedAt: 1,
   messages: [],
   toolInvocations: [],
+  steps: [],
   ...overrides,
 });
 

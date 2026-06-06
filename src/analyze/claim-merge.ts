@@ -106,6 +106,15 @@ const CONTRADICTION_PAIRS: Readonly<Record<WorkflowSignalKind, ReadonlyArray<rea
   ],
   "validation-habit": [],
   constraint: [],
+  "token-efficiency": [
+    ["explorer", "implementer"],
+  ],
+  "model-selection": [
+    ["cost-conscious", "quality-focused"],
+  ],
+  "delegation-pattern": [
+    ["hands-on", "trusting"],
+  ],
 };
 
 export function mergeClaims(

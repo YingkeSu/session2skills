@@ -51,6 +51,11 @@ export type NormalizedMessage = {
   parts: Array<NormalizedPart>;
   toolInvocations: Array<ToolInvocation>;
   evidence: EvidenceRef;
+  agent?: string;
+  modelID?: string;
+  providerID?: string;
+  cost?: number;
+  tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } };
 };
 
 export type NormalizedDiffSummary = {
@@ -64,7 +69,10 @@ export type WorkflowSignalKind =
   | "work-style"
   | "communication-style"
   | "validation-habit"
-  | "constraint";
+  | "constraint"
+  | "token-efficiency"
+  | "model-selection"
+  | "delegation-pattern";
 
 export type WorkStyleLabel =
   | "analysis-first"
@@ -93,11 +101,33 @@ export type ConstraintLabel =
   | "avoid-destructive-actions"
   | TaxonomyExtensionLabel;
 
+export type TokenEfficiencyLabel =
+  | "explorer"
+  | "implementer"
+  | "analytical"
+  | "context-reuser"
+  | TaxonomyExtensionLabel;
+
+export type ModelSelectionLabel =
+  | "cost-conscious"
+  | "quality-focused"
+  | "adaptive"
+  | TaxonomyExtensionLabel;
+
+export type DelegationPatternLabel =
+  | "hands-on"
+  | "trusting"
+  | "parallelizer"
+  | TaxonomyExtensionLabel;
+
 export type WorkflowSignalLabelMap = {
   "work-style": WorkStyleLabel;
   "communication-style": CommunicationStyleLabel;
   "validation-habit": ValidationHabitLabel;
   constraint: ConstraintLabel;
+  "token-efficiency": TokenEfficiencyLabel;
+  "model-selection": ModelSelectionLabel;
+  "delegation-pattern": DelegationPatternLabel;
 };
 
 export type WorkflowSignalLabel = WorkflowSignalLabelMap[WorkflowSignalKind];
@@ -121,7 +151,21 @@ export type PreferenceProfile = {
   communicationStyle: Array<WorkflowSignal>;
   validationHabits: Array<WorkflowSignal>;
   constraints: Array<WorkflowSignal>;
+  tokenEfficiency: Array<WorkflowSignal>;
+  modelSelection: Array<WorkflowSignal>;
+  delegationPattern: Array<WorkflowSignal>;
   confidenceNotes: Array<string>;
+};
+
+export type NormalizedStep = {
+  id: string;
+  startSnapshot?: string;
+  endSnapshot?: string;
+  duration?: number;
+  cost?: number;
+  tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } };
+  reason?: string;
+  evidence: EvidenceRef;
 };
 
 export type NormalizedSession = {
@@ -133,6 +177,12 @@ export type NormalizedSession = {
   diffSummary?: NormalizedDiffSummary;
   messages: Array<NormalizedMessage>;
   toolInvocations: Array<ToolInvocation>;
+  steps: Array<NormalizedStep>;
+  parentID?: string;
+  agent?: string;
+  model?: import("./raw-session.js").RawSessionModel;
+  cost?: number;
+  tokens?: import("./raw-session.js").RawTokenUsage;
 };
 
 export type ProfileV2SchemaVersion = typeof PROFILE_V2_SCHEMA_VERSION;
@@ -152,7 +202,10 @@ export type ArtifactSchemaVersion =
   | MergedClaimSchemaVersion
   | SkillPlanSchemaVersion
   | LLMTraceSchemaVersion
-  | RunManifestSchemaVersion;
+  | RunManifestSchemaVersion
+  | "claim-manifest/v1"
+  | "skeptic-report/v1"
+  | "verifier-report/v1";
 
 export type EvidenceCitation = EvidenceRef & {
   evidenceID: string;
@@ -221,6 +274,9 @@ export type ProfileV2 = {
   communicationStyle: Array<ProfileSignal<"communication-style">>;
   validationHabits: Array<ProfileSignal<"validation-habit">>;
   constraints: Array<ProfileSignal<"constraint">>;
+  tokenEfficiency: Array<ProfileSignal<"token-efficiency">>;
+  modelSelection: Array<ProfileSignal<"model-selection">>;
+  delegationPattern: Array<ProfileSignal<"delegation-pattern">>;
   strongestSignals: Record<WorkflowSignalKind, Array<MergedClaim>>;
   acceptedClaims: Array<CandidateClaim>;
   tentativeClaims: Array<CandidateClaim>;
@@ -316,8 +372,8 @@ export type LLMTrace = {
   };
   response: {
     finishReason: LLMFinishReason;
-    rawText: string;
-    structuredOutput: LLMStructuredOutput;
+    rawText?: string;
+    structuredOutput?: LLMStructuredOutput;
   };
   usage?: {
     inputTokens?: number;
@@ -335,7 +391,10 @@ export type RunArtifactKind =
   | "llm-category-claims"
   | "merged-claims"
   | "skill-plan"
-  | "llm-traces";
+  | "llm-traces"
+  | "claim-manifest"
+  | "skeptic-report"
+  | "verifier-report";
 
 export type RunArtifact = {
   kind: RunArtifactKind;
@@ -353,7 +412,7 @@ export type RunManifest = {
   promptSetVersion: PromptSetVersion;
   artifacts: Array<RunArtifact>;
   metadata?: {
-    mode?: "legacy" | "hybrid";
+    mode?: "legacy" | "hybrid" | "harness";
     tone?: string;
     llm?: {
       provider: string;

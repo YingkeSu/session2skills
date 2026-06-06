@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "verifier-report/v1",
+  "pass": true,
+  "checkedItems": [],
+  "issues": [],
+  "metadata": {
+    "generatedAt": "2026-05-26T15:04:58.720Z",
+    "directiveCount": 0,
+    "verifiedCount": 0,
+    "fabricatedCount": 0
+  }
+}

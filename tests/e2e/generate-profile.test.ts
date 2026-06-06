@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ import {
   preflightChecks,
   readArtifact,
   runCLI,
+  runCLIAsync,
 } from "./helpers.js";
 
 describe("generate --profile", () => {
@@ -45,7 +46,7 @@ describe("generate --profile", () => {
     }
   }
 
-  beforeAll(() => {
+  beforeAll(async () => {
     try {
       preflightChecks();
       hybridEnv = getHybridEnv();
@@ -88,7 +89,7 @@ describe("generate --profile", () => {
         );
       }
 
-      const hybridAnalyzeResult = runCLI(
+      const hybridAnalyzeResult = await runCLIAsync(
         ["analyze", "-d", projectDir, "--recent", "3", "-o", hybridAnalyzeDir, "--hybrid"],
         {
           env: hybridEnv,
@@ -127,7 +128,7 @@ describe("generate --profile", () => {
 
   it(
     "generates summary.md and SKILL.md from a legacy profile",
-    () => {
+    async () => {
       if (preflightFailure) {
         console.warn(`Skipping generate --profile test: ${preflightFailure.message}`);
         return;
@@ -153,8 +154,38 @@ describe("generate --profile", () => {
   );
 
   it(
-    "auto-detects a profile/v2 artifact and uses the LLM renderer",
+    "accepts an analyze output directory as the profile input",
     () => {
+      if (preflightFailure) {
+        console.warn(`Skipping generate --profile test: ${preflightFailure.message}`);
+        return;
+      }
+
+      const profileDir = createGeneratedOutputDir("session2skills-e2e-generate-profile-dir-input-");
+      copyFileSync(legacyProfilePath, join(profileDir, "profile.json"));
+
+      const outputDir = createGeneratedOutputDir("session2skills-e2e-generate-profile-dir-output-");
+
+      const result = runCLI([
+        "generate",
+        "--profile",
+        profileDir,
+        "--output",
+        outputDir,
+        "--tone",
+        "balanced",
+      ]);
+
+      expect(result.status).toBe(0);
+      expect(existsSync(join(outputDir, "summary.md"))).toBe(true);
+      expect(existsSync(join(outputDir, "SKILL.md"))).toBe(true);
+    },
+    60000,
+  );
+
+  it(
+    "auto-detects a profile/v2 artifact and uses the LLM renderer",
+    async () => {
       if (preflightFailure) {
         console.warn(`Skipping generate --profile test: ${preflightFailure.message}`);
         return;
@@ -162,7 +193,7 @@ describe("generate --profile", () => {
 
       const outputDir = createGeneratedOutputDir("session2skills-e2e-generate-profile-hybrid-output-");
 
-      const result = runCLI(
+      const result = await runCLIAsync(
         [
           "generate",
           "--profile",
@@ -186,7 +217,7 @@ describe("generate --profile", () => {
 
   it(
     "fails for an invalid profile path",
-    () => {
+    async () => {
       if (preflightFailure) {
         console.warn(`Skipping generate --profile test: ${preflightFailure.message}`);
         return;
@@ -209,22 +240,32 @@ describe("generate --profile", () => {
 
   it(
     "reuses a sibling hybrid skill-plan.json instead of recomputing it",
-    () => {
+    async () => {
       if (preflightFailure) {
         console.warn(`Skipping generate --profile test: ${preflightFailure.message}`);
         return;
       }
 
       const sentinelPlanId = "e2e-sentinel-reused";
-      const siblingSkillPlanPath = join(hybridAnalyzeDir, "skill-plan.json");
+
+      // Copy artifacts to an isolated directory before mutating (#9)
+      const sentinelDir = createGeneratedOutputDir("session2skills-e2e-sentinel-");
+      for (const f of ["skill-plan.json", "merged-claims.json", "profile.json"]) {
+        const src = join(hybridAnalyzeDir, f);
+        if (existsSync(src)) {
+          copyFileSync(src, join(sentinelDir, f));
+        }
+      }
+
+      const siblingSkillPlanPath = join(sentinelDir, "skill-plan.json");
       const siblingSkillPlan = JSON.parse(readFileSync(siblingSkillPlanPath, "utf-8")) as SkillPlan;
 
       siblingSkillPlan.planID = sentinelPlanId;
       writeFileSync(siblingSkillPlanPath, `${JSON.stringify(siblingSkillPlan, null, 2)}\n`, "utf-8");
 
       const outputDir = createGeneratedOutputDir("session2skills-e2e-generate-profile-sentinel-");
-      const result = runCLI(
-        ["generate", "--profile", join(hybridAnalyzeDir, "profile.json"), "--output", outputDir],
+      const result = await runCLIAsync(
+        ["generate", "--profile", join(sentinelDir, "profile.json"), "--output", outputDir],
         {
           env: hybridEnv,
           timeout: 300000,

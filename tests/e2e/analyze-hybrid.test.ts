@@ -24,6 +24,7 @@ import {
   preflightChecks,
   readArtifact,
   runCLI,
+  runCLIAsync,
 } from "./helpers.js";
 
 const HYBRID_ARTIFACT_FILES = [
@@ -78,10 +79,10 @@ describe("analyze hybrid", () => {
 
   it(
     "runs hybrid analysis with the real LLM API and writes the full artifact tree",
-    () => {
+    async () => {
     tempDir = createTempDir("session2skills-e2e-hybrid-");
 
-    const result = runCLI(
+    const result = await runCLIAsync(
       ["analyze", "-d", projectDir, "--recent", "3", "-o", tempDir, "--hybrid"],
       { env: hybridEnv, timeout: 300000 },
     );

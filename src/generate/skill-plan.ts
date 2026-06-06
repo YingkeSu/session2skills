@@ -166,8 +166,8 @@ export type BuildSkillPlanOptions = {
 
 const DEFAULT_OPTIONS = {
   promptSetVersion: "prompt-set/v1" as PromptSetVersion,
-  title: "Personalized Workflow Skill Plan",
-  overview: "Directives derived from accepted and tentative claims about the user's observed workflow habits.",
+  title: "Personalized Repository Workflow Skill",
+  overview: "Apply these defaults as lightweight operating guidance while working in the user's codebase. Let the user's latest explicit instruction override any generated preference.",
   minClaimsPerSection: 1,
 };
 
@@ -269,20 +269,77 @@ function classifyClaims(
   claims: ReadonlyArray<RankedMergedClaim>,
   sectionID: string,
 ): ClassificationResult {
-  const sectionDirectives: Array<SkillDirective> = [];
+  const directiveClaims: Array<RankedMergedClaim> = [];
   const summaryClaims: Array<RankedMergedClaim> = [];
 
   for (const claim of claims) {
     const placement = resolvePlacement(claim.dimension, claim.normalizedLabel);
 
     if (placement === "directive") {
-      sectionDirectives.push(claimToDirective(claim, sectionID));
+      directiveClaims.push(claim);
     } else {
       summaryClaims.push(claim);
     }
   }
 
+  const sectionDirectives = resolveDirectiveClaims(directiveClaims)
+    .map((claim) => claimToDirective(claim, sectionID));
+
   return { sectionDirectives, summaryClaims };
+}
+
+function resolveDirectiveClaims(
+  claims: ReadonlyArray<RankedMergedClaim>,
+): Array<RankedMergedClaim> {
+  const byLabel = new Map<string, RankedMergedClaim>();
+  for (const claim of claims) {
+    const existing = byLabel.get(claim.normalizedLabel);
+    if (!existing || claim.confidence > existing.confidence) {
+      byLabel.set(claim.normalizedLabel, claim);
+    }
+  }
+
+  const resolved = [...byLabel.values()];
+  removeWeakerContradiction(resolved, "analysis-first", "implementation-first");
+  removeWeakerContradiction(resolved, "iterative", "one-shot");
+
+  if (hasLabel(resolved, "analysis-first") && hasLabel(resolved, "one-shot")) {
+    removeLabel(resolved, "one-shot");
+  }
+
+  return resolved.sort((left, right) => {
+    if (right.confidence !== left.confidence) {
+      return right.confidence - left.confidence;
+    }
+    return left.normalizedLabel.localeCompare(right.normalizedLabel);
+  });
+}
+
+function removeWeakerContradiction(
+  claims: Array<RankedMergedClaim>,
+  leftLabel: string,
+  rightLabel: string,
+): void {
+  const left = claims.find((claim) => claim.normalizedLabel === leftLabel);
+  const right = claims.find((claim) => claim.normalizedLabel === rightLabel);
+
+  if (!left || !right) {
+    return;
+  }
+
+  const remove = left.confidence >= right.confidence ? rightLabel : leftLabel;
+  removeLabel(claims, remove);
+}
+
+function hasLabel(claims: ReadonlyArray<RankedMergedClaim>, label: string): boolean {
+  return claims.some((claim) => claim.normalizedLabel === label);
+}
+
+function removeLabel(claims: Array<RankedMergedClaim>, label: string): void {
+  const index = claims.findIndex((claim) => claim.normalizedLabel === label);
+  if (index >= 0) {
+    claims.splice(index, 1);
+  }
 }
 
 function resolvePlacement(dimension: WorkflowSignalKind, label: string): SkillDirectivePlacement {
@@ -346,21 +403,66 @@ function buildSectionSummary(
   const parts: Array<string> = [];
 
   if (sectionDirectives && sectionDirectives.length > 0) {
-    parts.push(
-      `${sectionDirectives.length} directive(s): ${sectionDirectives.map((d) => d.id.split(":").pop()).join(", ")}.`,
-    );
+    parts.push(buildDirectiveSummary(sectionDirectives));
   }
 
   if (summaryClaims && summaryClaims.length > 0) {
-    const labels = summaryClaims.map((c) => c.label).join(", ");
-    parts.push(`Summary-only observation(s): ${labels}.`);
+    parts.push(buildObservationSummary(sectionID, summaryClaims));
   }
 
   if (parts.length === 0) {
-    return `No strong evidence detected for ${sectionID}.`;
+    return defaultSectionSummary(sectionID);
   }
 
   return parts.join(" ");
+}
+
+function buildDirectiveSummary(sectionDirectives: ReadonlyArray<SkillDirective>): string {
+  const directives = sectionDirectives.map((directive) =>
+    directive.directive.replace(/\.$/, "").toLowerCase(),
+  );
+
+  if (directives.length === 1) {
+    return `Default to this practice: ${directives[0]}.`;
+  }
+
+  return `Default to these practices: ${joinNaturalLanguage(directives)}.`;
+}
+
+function buildObservationSummary(
+  sectionID: string,
+  summaryClaims: ReadonlyArray<RankedMergedClaim>,
+): string {
+  const labels = summaryClaims.map((claim) => claim.normalizedLabel.replace(/-/g, " "));
+  return `Treat ${joinNaturalLanguage(labels)} as a secondary ${sectionID.replace(/-/g, " ")} signal, and let explicit user instructions take precedence.`;
+}
+
+function defaultSectionSummary(sectionID: string): string {
+  const summaries: Record<string, string> = {
+    "work-style": "Use a conservative coding workflow: inspect enough context, make focused changes, and adapt when the user asks for a different pace.",
+    "communication-style": "Keep communication balanced, direct, and useful without over-explaining routine steps.",
+    "validation-habit": "Choose the most relevant verification for the files changed before reporting completion.",
+    constraint: "Preserve existing project conventions and avoid destructive actions unless the user explicitly requests them.",
+    "token-efficiency": "Spend context deliberately: gather what is needed, reuse known facts, and avoid unnecessary transcript-sized detail.",
+    "model-selection": "Use the default model unless the task clearly needs a different cost, speed, or quality tradeoff.",
+    "delegation-pattern": "Handle straightforward work directly and verify any delegated or parallel results before relying on them.",
+  };
+
+  return summaries[sectionID] ?? "Use this guidance only when it is relevant to the current coding task.";
+}
+
+function joinNaturalLanguage(items: ReadonlyArray<string>): string {
+  if (items.length === 0) {
+    return "";
+  }
+  if (items.length === 1) {
+    return items[0]!;
+  }
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 function buildSummaryOnlySection(
@@ -371,13 +473,13 @@ function buildSummaryOnlySection(
 
   const summaries: Array<string> = [];
   for (const [sectionID, claims] of summaryClaimsBySection) {
-    const labels = claims.map((c) => `${c.label} (${c.confidence.toFixed(2)})`).join(", ");
-    summaries.push(`${sectionID}: ${labels}`);
+    const labels = claims.map((c) => c.normalizedLabel.replace(/-/g, " "));
+    summaries.push(`${sectionID.replace(/-/g, " ")}: ${joinNaturalLanguage(labels)}`);
   }
 
   return {
     id: "summary",
-    title: "Summary-only insights",
+    title: "Additional Grounding",
     summary: summaries.join("; "),
     claimIDs: allSummaryClaims.flatMap((c) => c.sourceClaimIDs).sort(),
   };

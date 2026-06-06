@@ -128,8 +128,8 @@ function buildFallbackSkillPlan(profile: PreferenceProfile | ProfileV2): SkillPl
   if (profile.confidenceNotes.length > 0) {
     sections.push({
       id: "summary",
-      title: "Confidence notes",
-      summary: profile.confidenceNotes.map((note) => `- ${note}`).join("\n"),
+      title: "Additional Grounding",
+      summary: "Use the generated guidance as operating defaults, not as a report of the source sessions.",
       claimIDs: [],
     });
   }
@@ -201,8 +201,8 @@ function toDirective(sectionID: string, signal: WorkflowSignal): SkillDirective 
     id: `profile:${sectionID}:${signal.value}`,
     directive: DIRECTIVE_TEXT[signal.value] ?? `Favor ${signal.value.replace(/-/g, " ")} behavior`,
     evidenceSummary: signal.evidence.length > 0
-      ? `${signal.evidence.length} evidence item(s), observed weight ${signal.weight.toFixed(2)}`
-      : `Observed weight ${signal.weight.toFixed(2)}`,
+      ? `${signal.evidence.length} supporting observation(s)`
+      : "Generated from observed workflow patterns",
     claimIDs: [],
     placement: "directive",
   };
@@ -213,10 +213,12 @@ function buildObservedSummary(signals: Array<WorkflowSignal>, fallback: string):
     return fallback;
   }
 
-  const summary = signals
+  const labels = signals
     .slice(0, 3)
-    .map((signal) => `${signal.value.replace(/-/g, " ")} (${signal.weight.toFixed(2)})`)
-    .join(", ");
+    .map((signal) => signal.value.replace(/-/g, " "));
+  const summary = labels.length === 1
+    ? `preference for ${labels[0]}`
+    : `preferences for ${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
 
-  return `Strongest observed tendencies: ${summary}.`;
+  return `Default to the observed ${summary} when it fits the current task.`;
 }

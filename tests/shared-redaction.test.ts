@@ -34,6 +34,22 @@ describe("redaction", () => {
     });
   });
 
+  it("does not redact project taxonomy keys containing token", () => {
+    const result = redactSecretsDeep({
+      strongestSignals: {
+        "token-efficiency": [{ label: "explorer" }],
+        authToken: "secret-value",
+      },
+    });
+
+    expect(result).toEqual({
+      strongestSignals: {
+        "token-efficiency": [{ label: "explorer" }],
+        authToken: REDACTED_SECRET,
+      },
+    });
+  });
+
   it("redacts quoted JSON secret properties in raw text", () => {
     const result = redactSecretsFromString("{\"secret\":\"abc123\"}");
     expect(result).toBe(`{"secret":"${REDACTED_SECRET}"}`);

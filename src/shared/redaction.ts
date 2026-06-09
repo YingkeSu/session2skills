@@ -3,6 +3,10 @@ export const REDACTED_SECRET = "[REDACTED_SECRET]";
 const SENSITIVE_KEY_PATTERN =
   /(^|[_-])(api[_-]?key|access[_-]?key|auth[_-]?token|client[_-]?secret|secret|token|password|passwd|pwd|private[_-]?key)($|[_-])/i;
 
+const NON_SECRET_PROJECT_KEYS = new Set([
+  "token-efficiency",
+]);
+
 const PRIVATE_KEY_BLOCK_PATTERN =
   /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g;
 
@@ -58,6 +62,9 @@ export function stringifyRedactedJson(value: unknown): string {
 }
 
 export function isSensitiveKey(key: string): boolean {
+  if (NON_SECRET_PROJECT_KEYS.has(key.toLowerCase())) {
+    return false;
+  }
   return SENSITIVE_KEY_PATTERN.test(key);
 }
 

@@ -149,7 +149,9 @@ describe("generate legacy", () => {
       const skill = readFileSync(skillPath, "utf-8");
 
       expect(skill.trim().length).toBeGreaterThan(0);
-      expect(skill.startsWith("#")).toBe(true);
+      expect(skill.startsWith("---\n")).toBe(true);
+      expect(skill).toMatch(/^name:\s*\S/m);
+      expect(skill).toMatch(/^description:\s*\S/m);
       expect(skill).toMatch(/^#+\s*.*(Workflow|Communication|Validation|Constraint)/im);
     },
     60000,

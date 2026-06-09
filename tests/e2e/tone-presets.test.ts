@@ -210,7 +210,9 @@ describe("tone presets", () => {
         const skill = readOutputFile(run.skillPath);
 
         expect(skill.trim().length).toBeGreaterThan(0);
-        expect(skill.startsWith("#")).toBe(true);
+        expect(skill.startsWith("---\n")).toBe(true);
+        expect(skill).toMatch(/^name:\s*\S/m);
+        expect(skill).toMatch(/^description:\s*\S/m);
         expect(skill).toMatch(/^##\s+\S/m);
       }
     },

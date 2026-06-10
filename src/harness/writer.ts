@@ -39,7 +39,6 @@ export async function runWriterStage(
   const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
   const packet = buildWriterPacket(manifest, tone, registry);
   const traceID = generateTraceID();
-  const startedAt = Date.now();
 
   const result = await provider.provider.generateStructured<RawWriterOutput>({
     model: provider.model,
@@ -59,14 +58,13 @@ export async function runWriterStage(
   });
 
   const output = parseWriterOutput(result.object, manifest);
-  const latencyMs = Date.now() - startedAt;
 
   const trace: LLMTrace = {
     schemaVersion: "llm-trace/v1",
     traceID,
     timestamp: new Date().toISOString(),
     promptSetVersion: "prompt-set/v1",
-    stage: "skill-plan",
+    stage: "harness-writer",
     provider: result.metadata.provider,
     model: result.metadata.model,
     inputArtifactRef: "harness:writer",

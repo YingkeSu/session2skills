@@ -46,7 +46,6 @@ export async function runVerifierStage(
   const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
   const packet = buildVerifierPacket(skillMarkdown, manifest, registry);
   const traceID = generateTraceID();
-  const startedAt = Date.now();
 
   const result = await provider.provider.generateStructured<RawVerifierOutput>({
     model: provider.model,
@@ -66,14 +65,13 @@ export async function runVerifierStage(
   });
 
   const report = parseVerifierOutput(result.object, manifest, skillMarkdown);
-  const latencyMs = Date.now() - startedAt;
 
   const trace: LLMTrace = {
     schemaVersion: "llm-trace/v1",
     traceID,
     timestamp: new Date().toISOString(),
     promptSetVersion: "prompt-set/v1",
-    stage: "skill-plan",
+    stage: "harness-verifier",
     provider: result.metadata.provider,
     model: result.metadata.model,
     inputArtifactRef: "harness:verifier",

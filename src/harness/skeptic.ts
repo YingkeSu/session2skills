@@ -38,7 +38,6 @@ export async function runSkepticStage(
   const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
   const packet = buildSkepticPacket(manifest, evidence, registry);
   const traceID = generateTraceID();
-  const startedAt = Date.now();
 
   const result = await provider.provider.generateStructured<RawSkepticOutput>({
     model: provider.model,
@@ -58,14 +57,13 @@ export async function runSkepticStage(
   });
 
   const report = parseSkepticOutput(result.object, manifest.claims.length);
-  const latencyMs = Date.now() - startedAt;
 
   const trace: LLMTrace = {
     schemaVersion: "llm-trace/v1",
     traceID,
     timestamp: new Date().toISOString(),
     promptSetVersion: "prompt-set/v1",
-    stage: "category-claims",
+    stage: "harness-skeptic",
     provider: result.metadata.provider,
     model: result.metadata.model,
     inputArtifactRef: "harness:skeptic",

@@ -191,6 +191,10 @@ export type EvidenceItemSchemaVersion = "evidence-item/v1";
 export type CandidateClaimSchemaVersion = "candidate-claim/v1";
 export type MergedClaimSchemaVersion = "merged-claim/v1";
 export type SkillPlanSchemaVersion = "skill-plan/v1";
+export type SkillIntentSchemaVersion = "skill-intent/v1";
+export type SkillEvaluationSchemaVersion = "skill-evaluation/v1";
+export type SkillPatchSchemaVersion = "skill-patch/v1";
+export type EvolutionCandidateSchemaVersion = "evolution-candidate/v1";
 export type LLMTraceSchemaVersion = "llm-trace/v1";
 
 export type ArtifactSchemaVersion =
@@ -201,6 +205,10 @@ export type ArtifactSchemaVersion =
   | CandidateClaimSchemaVersion
   | MergedClaimSchemaVersion
   | SkillPlanSchemaVersion
+  | SkillIntentSchemaVersion
+  | SkillEvaluationSchemaVersion
+  | SkillPatchSchemaVersion
+  | EvolutionCandidateSchemaVersion
   | LLMTraceSchemaVersion
   | RunManifestSchemaVersion
   | "claim-manifest/v1"
@@ -315,6 +323,76 @@ export type SkillPlan = {
   fallbackDirectives: Record<string, Array<SkillDirective>>;
 };
 
+export type SkillTargetAgent = "generic" | "codex" | "claude" | "opencode";
+export type SkillIntentConfidence = "high" | "medium" | "low";
+export type SkillPatchRisk = "low" | "medium" | "high";
+export type SkillGateStatus = "pass" | "fail";
+export type SkillEvaluationVerdict = "pass" | "needs-patch" | "reject";
+export type SkillEvaluationIssueSeverity = "low" | "medium" | "high";
+
+export type SkillIntent = {
+  schemaVersion: SkillIntentSchemaVersion;
+  name: string;
+  trigger: string;
+  targetAgent: SkillTargetAgent;
+  problemClass: string;
+  workflow: Array<string>;
+  constraints: Array<string>;
+  validation: Array<string>;
+  antiPatterns: Array<string>;
+  evidenceClaimIDs: Array<string>;
+  confidence: SkillIntentConfidence;
+};
+
+export type SkillPatch = {
+  schemaVersion: SkillPatchSchemaVersion;
+  targetSection: string;
+  reason: string;
+  find: string;
+  replace: string;
+  claimIDs: Array<string>;
+  risk: SkillPatchRisk;
+};
+
+export type SkillEvaluationIssue = {
+  severity: SkillEvaluationIssueSeverity;
+  message: string;
+  location?: string;
+};
+
+export type SkillEvaluation = {
+  schemaVersion: SkillEvaluationSchemaVersion;
+  skillID: string;
+  evaluatedAt: string;
+  gates: {
+    lint: SkillGateStatus;
+    redaction: SkillGateStatus;
+    grounding: SkillGateStatus;
+    semanticPreservation?: SkillGateStatus;
+  };
+  scores: {
+    grounding: number;
+    actionability: number;
+    specificity: number;
+    safety: number;
+    concision: number;
+    discoverability: number;
+    duplication?: number;
+  };
+  verdict: SkillEvaluationVerdict;
+  issues: Array<SkillEvaluationIssue>;
+};
+
+export type EvolutionCandidate = {
+  schemaVersion: EvolutionCandidateSchemaVersion;
+  candidateID: string;
+  baseSkillID: string;
+  patch: SkillPatch;
+  rationale: string;
+  expectedImprovement: string;
+  evaluation?: SkillEvaluation;
+};
+
 export type LLMTraceStage =
   | "session-claims"
   | "category-claims"
@@ -399,6 +477,10 @@ export type RunArtifactKind =
   | "llm-category-claims"
   | "merged-claims"
   | "skill-plan"
+  | "skill-intent"
+  | "skill-evaluation"
+  | "skill-patch"
+  | "evolution-candidate"
   | "llm-traces"
   | "claim-manifest"
   | "skeptic-report"

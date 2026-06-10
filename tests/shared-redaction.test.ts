@@ -59,4 +59,46 @@ describe("redaction", () => {
     expect(containsSecretMaterial({ env: "OPENAI_API_KEY=sk-secretvalue" })).toBe(true);
     expect(containsSecretMaterial({ model: "gpt-4o", totalTokens: 20 })).toBe(false);
   });
+
+  it("does not redact common non-sensitive token/secret keys", () => {
+    const result = redactSecretsDeep({
+      pagination: {
+        next_page_token: "abc123",
+        page_token: "def456",
+      },
+      auth: {
+        csrf_token: "csrf-value",
+        id_token: "id-value",
+        refresh_token: "refresh-value",
+      },
+      usage: {
+        total_tokens: 1500,
+      },
+      config: {
+        reset_token: "reset-value",
+        secret_sauce: "my-algorithm",
+      },
+      "my-secret-key": "actual-secret-value",
+    });
+
+    expect(result).toEqual({
+      pagination: {
+        next_page_token: "abc123",
+        page_token: "def456",
+      },
+      auth: {
+        csrf_token: "csrf-value",
+        id_token: "id-value",
+        refresh_token: "refresh-value",
+      },
+      usage: {
+        total_tokens: 1500,
+      },
+      config: {
+        reset_token: "reset-value",
+        secret_sauce: "my-algorithm",
+      },
+      "my-secret-key": REDACTED_SECRET,
+    });
+  });
 });

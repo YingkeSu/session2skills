@@ -5,6 +5,22 @@ const SENSITIVE_KEY_PATTERN =
 
 const NON_SECRET_PROJECT_KEYS = new Set([
   "token-efficiency",
+  "csrf-token",
+  "csrf_token",
+  "id-token",
+  "id_token",
+  "refresh-token",
+  "refresh_token",
+  "next-page-token",
+  "next_page_token",
+  "total-tokens",
+  "total_tokens",
+  "reset-token",
+  "reset_token",
+  "page-token",
+  "page_token",
+  "secret-handshake",
+  "secret_sauce",
 ]);
 
 const PRIVATE_KEY_BLOCK_PATTERN =

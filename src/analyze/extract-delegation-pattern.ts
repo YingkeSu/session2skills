@@ -47,7 +47,7 @@ export function extractDelegationPatternClaims(sessions: Array<NormalizedSession
     const root = sessionMap.get(rootID);
     if (!root) continue;
 
-    const { maxDepth, maxBreadth } = computeTreeMetrics(rootID, sessionMap);
+    const { maxDepth, maxBreadth } = computeTreeMetrics(rootID, sessionMap, childrenByParent);
 
     const childCount = childrenByParent.get(rootID)?.length ?? 0;
 
@@ -108,6 +108,7 @@ export function extractDelegationPatternClaims(sessions: Array<NormalizedSession
 function computeTreeMetrics(
   rootID: string,
   sessionMap: Map<string, NormalizedSession>,
+  childrenByParent: Map<string, Array<string>>,
 ): { maxDepth: number; maxBreadth: number } {
   let maxDepth = 0;
   let maxBreadth = 0;
@@ -120,12 +121,7 @@ function computeTreeMetrics(
 
     maxDepth = Math.max(maxDepth, depth);
 
-    const children: Array<string> = [];
-    for (const session of sessionMap.values()) {
-      if (session.parentID === sessionID && !visited.has(session.id)) {
-        children.push(session.id);
-      }
-    }
+    const children = childrenByParent.get(sessionID) ?? [];
 
     maxBreadth = Math.max(maxBreadth, children.length);
 

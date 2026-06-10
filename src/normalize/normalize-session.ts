@@ -168,7 +168,7 @@ function buildSteps(messages: RawSessionMessages): Array<NormalizedStep> {
   for (const msg of messages) {
     for (const part of msg.parts) {
       if (part.type === "step-start") {
-        if (currentPair?.finish) {
+        if (currentPair) {
           stepPairs.push(currentPair);
         }
         currentPair = {

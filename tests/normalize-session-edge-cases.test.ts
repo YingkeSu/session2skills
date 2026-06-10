@@ -177,4 +177,28 @@ describe("normalizeSession edge cases", () => {
     expect(result.parentID).toBe("ses_parent");
     expect(result.agent).toBe("explore");
   });
+
+  it("preserves incomplete step pair when consecutive step-start events arrive", () => {
+    const messages: RawSessionMessages = [
+      makeMessage([
+        makeStepPart("step_A_start", "step-start", { snapshot: "shaA" }),
+        makeStepPart("step_B_start", "step-start", { snapshot: "shaB" }),
+        makeStepPart("step_B_finish", "step-finish", {
+          snapshot: "shaB2",
+          stepCost: 0.03,
+        }),
+      ]),
+    ];
+
+    const result = normalizeSession({ session: makeSession(), messages });
+
+    expect(result.steps).toHaveLength(2);
+    // Step A: incomplete (start only)
+    expect(result.steps[0]!.startSnapshot).toBe("shaA");
+    expect(result.steps[0]!.endSnapshot).toBeUndefined();
+    // Step B: complete
+    expect(result.steps[1]!.startSnapshot).toBe("shaB");
+    expect(result.steps[1]!.endSnapshot).toBe("shaB2");
+    expect(result.steps[1]!.cost).toBe(0.03);
+  });
 });

@@ -315,7 +315,15 @@ export type SkillPlan = {
   fallbackDirectives: Record<string, Array<SkillDirective>>;
 };
 
-export type LLMTraceStage = "session-claims" | "category-claims" | "merge-claims" | "skill-plan";
+export type LLMTraceStage =
+  | "session-claims"
+  | "category-claims"
+  | "merge-claims"
+  | "skill-plan"
+  | "harness-analyst"
+  | "harness-skeptic"
+  | "harness-writer"
+  | "harness-verifier";
 export type LLMTraceMessageRole = "system" | "developer" | "user" | "assistant" | "tool";
 export type LLMFinishReason = "stop" | "length" | "content-filter" | "tool-call" | "error" | "unknown";
 export type LLMTraceWarningCode =

@@ -66,7 +66,7 @@ describe("harness analyst stage", () => {
     expect(result.manifest.metadata.sessionCount).toBe(1);
     expect(result.manifest.metadata.totalEvidenceItems).toBe(5);
     expect(result.trace.schemaVersion).toBe("llm-trace/v1");
-    expect(result.trace.stage).toBe("session-claims");
+    expect(result.trace.stage).toBe("harness-analyst");
   });
 
   it("covers all 7 dimensions when LLM returns them", async () => {

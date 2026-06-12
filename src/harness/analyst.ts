@@ -4,9 +4,9 @@ import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget } from "./types.js";
-import { DEFAULT_HARNESS_BUDGET } from "./types.js";
 import { generateTraceID } from "../llm/trace.js";
 import { buildAnalystPacket } from "./packets.js";
+import { resolveHarnessBudget } from "./stage-runner.js";
 import { LlmProviderError } from "../shared/errors.js";
 
 type RawAnalystOutput = {
@@ -38,7 +38,7 @@ export async function runAnalystStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
 ): Promise<AnalystStageResult> {
-  const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
+  const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildAnalystPacket(sessions, evidence, registry);
 
   let lastResult: LlmStructuredGenerationResult<RawAnalystOutput> | undefined;

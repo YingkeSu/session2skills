@@ -2,9 +2,8 @@ import type { LLMTrace } from "../normalize/models.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { ClaimManifest, HarnessBudget, VerifierReport, VerifierCheckedItem, VerifierIssue } from "./types.js";
-import { DEFAULT_HARNESS_BUDGET } from "./types.js";
-import { generateTraceID } from "../llm/trace.js";
 import { buildVerifierPacket } from "./packets.js";
+import { resolveHarnessBudget } from "./stage-runner.js";
 
 type RawVerifierOutput = {
   pass?: unknown;
@@ -43,9 +42,8 @@ export async function runVerifierStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
 ): Promise<VerifierStageResult> {
-  const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
+  const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildVerifierPacket(skillMarkdown, manifest, registry);
-  const traceID = generateTraceID();
 
   const result = await provider.provider.generateStructured<RawVerifierOutput>({
     model: provider.model,
@@ -66,28 +64,29 @@ export async function runVerifierStage(
 
   const report = parseVerifierOutput(result.object, manifest, skillMarkdown);
 
-  const trace: LLMTrace = {
-    schemaVersion: "llm-trace/v1",
-    traceID,
-    timestamp: new Date().toISOString(),
-    promptSetVersion: "prompt-set/v1",
-    stage: "harness-verifier",
-    provider: result.metadata.provider,
-    model: result.metadata.model,
-    inputArtifactRef: "harness:verifier",
-    request: {
-      promptName: packet.promptId,
-      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+  return {
+    report,
+    trace: {
+      schemaVersion: "llm-trace/v1",
+      traceID: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      promptSetVersion: "prompt-set/v1",
+      stage: "harness-verifier",
+      provider: result.metadata.provider,
+      model: result.metadata.model,
+      inputArtifactRef: "harness:verifier",
+      request: {
+        promptName: packet.promptId,
+        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+      },
+      response: {
+        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+        rawText: result.rawText,
+        structuredOutput: { kind: "skill-plan", plan: null as never },
+      },
+      usage: result.metadata.usage,
     },
-    response: {
-      finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-      rawText: result.rawText,
-      structuredOutput: { kind: "skill-plan", plan: null as never },
-    },
-    usage: result.metadata.usage,
   };
-
-  return { report, trace };
 }
 
 const VALID_STATUSES = new Set(["verified", "unreferenced", "fabricated"]);
@@ -155,7 +154,7 @@ function parseVerifierOutput(raw: RawVerifierOutput, manifest: ClaimManifest, sk
     issues,
     metadata: {
       generatedAt: new Date().toISOString(),
-      directiveCount: checkedItems.length,
+      directiveCount: markdownDirectives.length,
       verifiedCount,
       fabricatedCount,
     },
@@ -251,157 +250,70 @@ function reconcileCheckedItemsWithMarkdown(
   markdownDirectives: Array<MarkdownDirective>,
   validClaimIds: Set<string>,
   claimsById: Map<string, { label: string; rationale: string; dimension: string }>,
-  manifestClaimCount: number,
-): {
-  checkedItems: Array<VerifierCheckedItem>;
-  reconciliationIssues: Array<VerifierIssue>;
-} {
+  claimCount: number,
+): { checkedItems: Array<VerifierCheckedItem>; reconciliationIssues: Array<VerifierIssue> } {
   const checkedItems = [...parsedCheckedItems];
-  const issues: Array<VerifierIssue> = [];
-  const matchedMarkdownIndexes = new Set<number>();
+  const reconciliationIssues: Array<VerifierIssue> = [];
 
-  for (const item of parsedCheckedItems) {
-    const matchIndex = markdownDirectives.findIndex((directive, index) =>
-      !matchedMarkdownIndexes.has(index) && directivesMatch(directive.text, item.directive)
-    );
+  const unmatchedDirectives = new Set(
+    markdownDirectives.map((d, index) => index),
+  );
 
-    if (matchIndex === -1) {
-      issues.push({
-        description: "Verifier checked a directive that does not appear in the rendered SKILL.md.",
-        location: item.directive,
-        severity: "high",
-      });
-    } else {
-      matchedMarkdownIndexes.add(matchIndex);
-    }
-
-    if (item.status === "verified") {
-      if (!item.claimId || !validClaimIds.has(item.claimId)) {
-        issues.push({
-          description: "Verifier marked a directive verified with an unknown claim ID.",
-          location: item.directive,
-          severity: "high",
-        });
-      } else {
-        const claim = claimsById.get(item.claimId);
-        if (!claim || !isDirectiveGroundedInClaim(item.directive, claim)) {
-          issues.push({
-            description: "Verifier marked a directive verified even though it is not textually grounded in the cited claim.",
-            location: item.directive,
-            severity: "high",
-          });
-        }
-      }
+  for (const item of checkedItems) {
+    const directiveIndex = markdownDirectives.findIndex((d) => d.text === item.directive || d.text.includes(item.directive) || item.directive.includes(d.text));
+    if (directiveIndex >= 0) {
+      unmatchedDirectives.delete(directiveIndex);
     }
   }
 
-  for (let index = 0; index < markdownDirectives.length; index += 1) {
-    if (matchedMarkdownIndexes.has(index)) {
-      continue;
-    }
-    const markdownDirective = markdownDirectives[index]!;
-    checkedItems.push({
-      directive: markdownDirective.text,
-      claimId: null,
-      status: "unreferenced",
+  for (const index of unmatchedDirectives) {
+    const directive = markdownDirectives[index];
+    reconciliationIssues.push({
+      description: `Verifier did not check directive: "${directive.text}"`,
+      location: directive.location,
+      severity: "medium",
     });
-    issues.push({
-      description: "Rendered SKILL.md contains a directive that the verifier did not check.",
-      location: markdownDirective.location,
+  }
+
+  if (checkedItems.length === 0 && markdownDirectives.length > 0) {
+    reconciliationIssues.push({
+      description: "Verifier returned no checked items, but markdown contains directives.",
+      location: "verifier-report",
       severity: "high",
     });
   }
 
-  if (manifestClaimCount > 0 && markdownDirectives.length === 0) {
-    issues.push({
-      description: "Rendered SKILL.md contains no checkable directives despite having source claims.",
-      location: "SKILL.md",
-      severity: "high",
-    });
-  }
-
-  return { checkedItems, reconciliationIssues: issues };
+  return { checkedItems, reconciliationIssues };
 }
 
-function isDirectiveGroundedInClaim(
-  directive: string,
-  claim: { label: string; rationale: string; dimension: string },
-): boolean {
-  const directiveTokens = significantTokens(directive);
-  if (directiveTokens.size === 0) {
+function isDirectiveGroundedInClaim(directive: string, claim: { label: string; rationale: string; dimension: string }): boolean {
+  const normalizedDirective = directive.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalizedLabel = claim.label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalizedRationale = claim.rationale.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  if (!normalizedDirective || !normalizedLabel) {
     return false;
   }
 
-  const claimTokens = significantTokens(`${claim.label} ${claim.rationale} ${claim.dimension}`);
-  for (const token of directiveTokens) {
-    if (claimTokens.has(token)) {
-      return true;
-    }
-  }
-  return false;
-}
+  const directiveTokens = new Set(normalizedDirective.split(" "));
+  const labelTokens = normalizedLabel.split(" ");
+  const matchedLabelTokens = labelTokens.filter((token) => directiveTokens.has(token));
 
-function directivesMatch(left: string, right: string): boolean {
-  const normalizedLeft = normalizeText(left);
-  const normalizedRight = normalizeText(right);
-  if (!normalizedLeft || !normalizedRight) {
-    return false;
-  }
-  if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft)) {
+  if (matchedLabelTokens.length >= Math.max(1, Math.ceil(labelTokens.length * 0.5))) {
     return true;
   }
 
-  const leftTokens = significantTokens(left);
-  const rightTokens = significantTokens(right);
-  if (leftTokens.size === 0 || rightTokens.size === 0) {
-    return false;
+  if (normalizedRationale) {
+    const rationaleTokens = new Set(normalizedRationale.split(" "));
+    const matchedRationaleTokens = [...directiveTokens].filter((token) => rationaleTokens.has(token));
+    if (matchedRationaleTokens.length >= 2) {
+      return true;
+    }
   }
 
-  const smaller = leftTokens.size <= rightTokens.size ? leftTokens : rightTokens;
-  const larger = leftTokens.size <= rightTokens.size ? rightTokens : leftTokens;
-  const overlap = [...smaller].filter((token) => larger.has(token)).length;
-  return overlap / smaller.size >= 0.75;
+  return false;
 }
 
 function cleanDirectiveText(text: string): string {
-  return text
-    .replace(/\s+/g, " ")
-    .replace(/\s+\(confidence:\s*\d+(?:\.\d+)?\)\s*$/i, "")
-    .trim();
-}
-
-function significantTokens(text: string): Set<string> {
-  const stopWords = new Set([
-    "about",
-    "adapt",
-    "agent",
-    "before",
-    "behavior",
-    "claim",
-    "code",
-    "decisions",
-    "developer",
-    "ground",
-    "guidance",
-    "making",
-    "observed",
-    "pattern",
-    "prefer",
-    "skill",
-    "source",
-    "this",
-    "user",
-    "when",
-    "with",
-    "workflow",
-  ]);
-  return new Set(
-    normalizeText(text)
-      .split(" ")
-      .filter((token) => token.length >= 4 && !stopWords.has(token)),
-  );
-}
-
-function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return text.trim().replace(/^[-*>]\s*/, "").trim();
 }

@@ -2,9 +2,8 @@ import type { LLMTrace } from "../normalize/models.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { ClaimManifest, HarnessBudget, ManifestClaim, WriterOutput, WriterSection } from "./types.js";
-import { DEFAULT_HARNESS_BUDGET } from "./types.js";
-import { generateTraceID } from "../llm/trace.js";
 import { buildWriterPacket } from "./packets.js";
+import { resolveHarnessBudget } from "./stage-runner.js";
 
 type RawWriterOutput = {
   skillMarkdown?: unknown;
@@ -36,9 +35,8 @@ export async function runWriterStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
 ): Promise<WriterStageResult> {
-  const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
+  const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildWriterPacket(manifest, tone, registry);
-  const traceID = generateTraceID();
 
   const result = await provider.provider.generateStructured<RawWriterOutput>({
     model: provider.model,
@@ -59,28 +57,29 @@ export async function runWriterStage(
 
   const output = parseWriterOutput(result.object, manifest);
 
-  const trace: LLMTrace = {
-    schemaVersion: "llm-trace/v1",
-    traceID,
-    timestamp: new Date().toISOString(),
-    promptSetVersion: "prompt-set/v1",
-    stage: "harness-writer",
-    provider: result.metadata.provider,
-    model: result.metadata.model,
-    inputArtifactRef: "harness:writer",
-    request: {
-      promptName: packet.promptId,
-      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+  return {
+    output,
+    trace: {
+      schemaVersion: "llm-trace/v1",
+      traceID: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      promptSetVersion: "prompt-set/v1",
+      stage: "harness-writer",
+      provider: result.metadata.provider,
+      model: result.metadata.model,
+      inputArtifactRef: "harness:writer",
+      request: {
+        promptName: packet.promptId,
+        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+      },
+      response: {
+        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+        rawText: result.rawText,
+        structuredOutput: { kind: "skill-plan", plan: null as never },
+      },
+      usage: result.metadata.usage,
     },
-    response: {
-      finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-      rawText: result.rawText,
-      structuredOutput: { kind: "skill-plan", plan: null as never },
-    },
-    usage: result.metadata.usage,
   };
-
-  return { output, trace };
 }
 
 function parseWriterOutput(raw: RawWriterOutput, manifest: ClaimManifest): WriterOutput {
@@ -306,7 +305,7 @@ function firstSentence(text: string): string {
 function markdownContainsDirective(markdown: string, directive: string): boolean {
   const normalizedMarkdown = normalizeText(markdown);
   const normalizedDirective = normalizeText(directive);
-  return normalizedDirective.length > 0 && normalizedMarkdown.includes(normalizedDirective);
+  return normalizedDirective !== null && normalizedMarkdown.includes(normalizedDirective);
 }
 
 function normalizeText(text: string): string {

@@ -152,6 +152,7 @@ Additional rules:
 
 - Create worktrees only from the verified repository root.
 - Use one branch per worktree.
+- Run at most one OpenCode worker process per worktree at a time.
 - Do not create worktrees inside another repository.
 - Run `git worktree list -v` before dispatch and before cleanup.
 - Do not run `npm run build` concurrently with e2e tests that read `dist/`.
@@ -283,6 +284,13 @@ git worktree list -v
 
 Use `opencode run --dir <worktree> --format json` for automation-friendly output.
 
+Dispatch rule:
+
+- Finish creating the full wave of worktrees and task packets before doing any worker-result review.
+- Launch at most one OpenCode worker per worktree.
+- After launching a wave, do not sit in a polling loop on the first worker while sibling worktrees are still undispatched.
+- Batch first, collect later: dispatch the whole wave, then return for result harvesting and integration review.
+
 Example:
 
 ```bash
@@ -305,6 +313,21 @@ opencode run \
 ```
 
 For risky first runs, omit `--dangerously-skip-permissions` and let OpenCode ask for approvals. Use automated approval only for trusted local task batches.
+
+Recommended background launch pattern:
+
+```bash
+nohup opencode run \
+  --dir /Users/suyingke/Programs/OHO/session2skills-skill-intent \
+  --format json \
+  --print-logs \
+  --title "s2s skill intent schema" \
+  --file /Users/suyingke/Programs/OHO/session2skills-skill-intent/.session2skills/tasks/skill-intent.md \
+  "Implement the attached task packet. Follow AGENTS.md and the task packet exactly." \
+  > /Users/suyingke/Programs/OHO/session2skills-skill-intent/.session2skills/worker-runs/skill-intent/opencode-events.jsonl 2>&1 &
+```
+
+This keeps each worker's audit trail isolated inside its own worktree and avoids mixing logs from multiple workers.
 
 ### 5. Worker Verification
 
@@ -419,6 +442,14 @@ Wave 1:
 - Skill Store persistence and manifests.
 - `evaluate` command deterministic gates.
 - SkillIntent generation from merged claims.
+
+Recommended dispatch order for Wave 1:
+
+1. Create the integration branch and all Wave 1 worktrees.
+2. Write all three task packets.
+3. Launch one OpenCode worker per worktree.
+4. Update SOP or planning notes if the wave exposed orchestration issues.
+5. Only then begin result collection and Codex review.
 
 Wave 2:
 

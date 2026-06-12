@@ -3,9 +3,8 @@ import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget, SkepticReport } from "./types.js";
-import { DEFAULT_HARNESS_BUDGET } from "./types.js";
-import { generateTraceID } from "../llm/trace.js";
 import { buildSkepticPacket } from "./packets.js";
+import { resolveHarnessBudget } from "./stage-runner.js";
 
 type RawSkepticOutput = {
   issues?: Array<{
@@ -35,9 +34,8 @@ export async function runSkepticStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
 ): Promise<SkepticStageResult> {
-  const resolvedBudget = { ...DEFAULT_HARNESS_BUDGET, ...budget };
+  const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildSkepticPacket(manifest, evidence, registry);
-  const traceID = generateTraceID();
 
   const result = await provider.provider.generateStructured<RawSkepticOutput>({
     model: provider.model,
@@ -58,28 +56,29 @@ export async function runSkepticStage(
 
   const report = parseSkepticOutput(result.object, manifest.claims.length);
 
-  const trace: LLMTrace = {
-    schemaVersion: "llm-trace/v1",
-    traceID,
-    timestamp: new Date().toISOString(),
-    promptSetVersion: "prompt-set/v1",
-    stage: "harness-skeptic",
-    provider: result.metadata.provider,
-    model: result.metadata.model,
-    inputArtifactRef: "harness:skeptic",
-    request: {
-      promptName: packet.promptId,
-      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+  return {
+    report,
+    trace: {
+      schemaVersion: "llm-trace/v1",
+      traceID: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      promptSetVersion: "prompt-set/v1",
+      stage: "harness-skeptic",
+      provider: result.metadata.provider,
+      model: result.metadata.model,
+      inputArtifactRef: "harness:skeptic",
+      request: {
+        promptName: packet.promptId,
+        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+      },
+      response: {
+        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+        rawText: result.rawText,
+        structuredOutput: { kind: "candidate-claims", claims: [] },
+      },
+      usage: result.metadata.usage,
     },
-    response: {
-      finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-      rawText: result.rawText,
-      structuredOutput: { kind: "candidate-claims", claims: [] },
-    },
-    usage: result.metadata.usage,
   };
-
-  return { report, trace };
 }
 
 function parseSkepticOutput(raw: RawSkepticOutput, claimCount: number): SkepticReport {

@@ -10,7 +10,18 @@ import {
   killOrphanedOpenCodeServers,
   preflightChecks,
   runCLI,
+  type CliResult,
 } from "./helpers.js";
+
+// Force legacy mode: harness is now the default when LLM env vars are present (issue #18).
+const legacyOnlyEnv = {
+  SESSION2SKILLS_LLM_BASE_URL: "",
+  SESSION2SKILLS_LLM_MODEL: "",
+};
+
+function runLegacyCLI(args: string[]): CliResult {
+  return runCLI(args, { env: legacyOnlyEnv });
+}
 
 describe("generate legacy", () => {
   const projectDir = getProjectDir();
@@ -24,7 +35,7 @@ describe("generate legacy", () => {
       const probeDir = createTempDir("session2skills-e2e-probe-");
 
       try {
-        const probe = runCLI([
+        const probe = runLegacyCLI([
           "generate",
           "-d",
           projectDir,
@@ -73,7 +84,7 @@ describe("generate legacy", () => {
         return;
       }
 
-      const result = runCLI([
+      const result = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -98,7 +109,7 @@ describe("generate legacy", () => {
         return;
       }
 
-      const result = runCLI([
+      const result = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -130,7 +141,7 @@ describe("generate legacy", () => {
         return;
       }
 
-      const result = runCLI([
+      const result = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -165,7 +176,7 @@ describe("generate legacy", () => {
         return;
       }
 
-      const firstRun = runCLI([
+      const firstRun = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -177,7 +188,7 @@ describe("generate legacy", () => {
         "balanced",
         "--force",
       ]);
-      const secondRun = runCLI([
+      const secondRun = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -204,7 +215,7 @@ describe("generate legacy", () => {
         return;
       }
 
-      const firstRun = runCLI([
+      const firstRun = runLegacyCLI([
         "generate",
         "-d",
         projectDir,
@@ -215,7 +226,7 @@ describe("generate legacy", () => {
         "--tone",
         "balanced",
       ]);
-      const secondRun = runCLI([
+      const secondRun = runLegacyCLI([
         "generate",
         "-d",
         projectDir,

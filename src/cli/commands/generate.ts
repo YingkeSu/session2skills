@@ -33,6 +33,13 @@ type GenerateOptions = {
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
+const HYBRID_DEPRECATION_WARNING =
+  "Warning: --hybrid is deprecated. Harness mode is the default when LLM env vars are set.\n";
+
+function hasLlmEnvVars(): boolean {
+  return Boolean(process.env.SESSION2SKILLS_LLM_BASE_URL) && Boolean(process.env.SESSION2SKILLS_LLM_MODEL);
+}
+
 export function registerGenerateCommand(program: Command): void {
   program
     .command("generate")
@@ -51,6 +58,10 @@ export function registerGenerateCommand(program: Command): void {
         throw new CliUsageError("Cannot use --hybrid and --harness together. Choose one mode.");
       }
 
+      if (options.hybrid) {
+        process.stderr.write(HYBRID_DEPRECATION_WARNING);
+      }
+
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
       const outputDirectory = resolveGeneratedSkillsDirectory(directory, options.output);
       const source = await resolveGenerateSource(options, directory);
@@ -60,7 +71,7 @@ export function registerGenerateCommand(program: Command): void {
         return;
       }
 
-      if (options.harness && source.mode === "harness") {
+      if (source.mode === "harness") {
         const summary = renderSummary(source.profile, { tone: options.tone });
         const skill = source.harnessResult.writerOutput.skillMarkdown;
 
@@ -251,7 +262,7 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     };
   }
 
-  if (options.harness) {
+  if (options.harness || (!options.hybrid && hasLlmEnvVars())) {
     const resolved = resolveHybridLlmProvider();
     const registry = buildPromptRegistry();
 

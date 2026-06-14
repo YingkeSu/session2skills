@@ -92,6 +92,48 @@ export function createServer(runsDirectory: string): Hono {
     }
   });
 
+  app.get("/api/runs/:name/evidence/:evidenceId", async (c) => {
+    const name = c.req.param("name");
+    const evidenceId = c.req.param("evidenceId");
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    try {
+      const manifestRaw = await readJsonSafe(join(runDir, "claim-manifest.json"));
+      if (!manifestRaw) {
+        return c.json({ error: "Manifest not found" }, 404);
+      }
+
+      const evidence = manifestRaw["evidence"];
+      if (!Array.isArray(evidence)) {
+        return c.json({ error: "Evidence array not found" }, 404);
+      }
+
+      const item = evidence.find(
+        (entry: unknown) =>
+          typeof entry === "object" &&
+          entry !== null &&
+          (entry as Record<string, unknown>)["evidenceID"] === evidenceId
+      );
+
+      if (!item) {
+        return c.json({ error: "Evidence not found" }, 404);
+      }
+
+      return c.json(item);
+    } catch {
+      return c.json({ error: "Failed to read evidence" }, 500);
+    }
+  });
+
   app.get("/api/health", (c) => c.json({ status: "ok" }));
 
   app.use("/assets/*", serveStatic({ root: webDist }));

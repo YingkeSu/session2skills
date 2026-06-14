@@ -157,6 +157,7 @@ export function RunDetailPage({
               }}
               skepticReport={detail.skepticReport}
               verifierReport={detail.verifierReport}
+              runName={runName}
             />
           )}
           {tab === "reports" && (

@@ -17,6 +17,7 @@ import { resolveGeneratedSkillsDirectory, resolveProjectDirectory, validateProje
 import { analyzeWithHarness } from "../../harness/run-harness.js";
 import { buildEvidenceIndex } from "../../analyze/evidence-index.js";
 import { extractAllRuleClaims, buildProfileV2 } from "../../profile/build-profile.js";
+import { enrichManifestWithEvidence } from "../../harness/enrich-evidence.js";
 
 type GenerateOptions = {
   directory?: string;
@@ -297,11 +298,16 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
       ],
     });
 
+    const selfContainedManifest = enrichManifestWithEvidence(
+      harnessResult.revisedManifest,
+      evidenceIndex,
+    );
+
     return {
       mode: "harness" as const,
       profile,
       normalizedSessions: analysis.normalizedSessions,
-      harnessResult,
+      harnessResult: { ...harnessResult, revisedManifest: selfContainedManifest },
       warnings: analysis.warnings.map((w) => w.message),
     };
   }

@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { registerAnalyzeCommand } from "./commands/analyze.js";
 import { registerGenerateCommand } from "./commands/generate.js";
 import { registerInspectCommand } from "./commands/inspect.js";
+import { registerServeCommand } from "./commands/serve.js";
 import { CliUsageError, toErrorMessage } from "../shared/errors.js";
 
 const packageVersion: string = JSON.parse(
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
   registerInspectCommand(program);
   registerAnalyzeCommand(program);
   registerGenerateCommand(program);
+  registerServeCommand(program);
 
   await program.parseAsync(process.argv);
 }

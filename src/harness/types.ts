@@ -41,6 +41,19 @@ export type ManifestClaim = {
   evidenceRefs: Array<string>;
 };
 
+/**
+ * Verbatim evidence excerpt embedded in the manifest so the output directory
+ * is self-contained for auditing. Excerpts are capped (see MAX_MANIFEST_EXCERPT_CHARS).
+ */
+export type ManifestEvidenceExcerpt = {
+  /** Evidence item ID (matches a value in some claim's evidenceRefs). */
+  evidenceID: string;
+  /** Source type copied from the evidence citation (message | tool | part). */
+  sourceType: string;
+  /** Verbatim excerpt from the evidence item's summaryText. */
+  excerpt: string;
+};
+
 export type ClaimManifest = {
   schemaVersion: ClaimManifestSchemaVersion;
   /** Claims extracted by the analyst. */
@@ -54,6 +67,12 @@ export type ClaimManifest = {
     sessionCount: number;
     totalEvidenceItems: number;
   };
+  /**
+   * Verbatim evidence excerpts for every evidenceID referenced by at least one
+   * claim. Optional for backward compatibility; when present the manifest is
+   * self-contained (no external files needed to audit claim evidenceRefs).
+   */
+  evidence?: Array<ManifestEvidenceExcerpt>;
 };
 
 // ---------------------------------------------------------------------------

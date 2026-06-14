@@ -132,45 +132,6 @@ describe("generate default mode resolution", () => {
   );
 
   it(
-    "uses hybrid mode and prints a deprecation warning when --hybrid is passed",
-    async () => {
-      if (preflightFailure) {
-        console.warn(`Skipping hybrid-deprecation test: ${preflightFailure.message}`);
-        return;
-      }
-
-      const outputDir = trackTempDir("session2skills-e2e-hybrid-deprecated-");
-
-      const result = await runCLIAsync(
-        [
-          "generate",
-          "-d",
-          projectDir,
-          "--recent",
-          "3",
-          "--output",
-          outputDir,
-          "--hybrid",
-          "--tone",
-          "balanced",
-        ],
-        { env: hybridEnv, timeout: 300000 },
-      );
-
-      expect(result.status).toBe(0);
-      expect(result.stderr).toMatch(/--hybrid is deprecated/i);
-      expect(existsSync(join(outputDir, "summary.md"))).toBe(true);
-      expect(existsSync(join(outputDir, "SKILL.md"))).toBe(true);
-      expect(existsSync(join(outputDir, "merged-claims.json"))).toBe(true);
-      expect(existsSync(join(outputDir, "skill-plan.json"))).toBe(true);
-
-      const output = parseGenerateMode(result.stdout);
-      expect(output.mode).toBe("hybrid");
-    },
-    300000,
-  );
-
-  it(
     "uses harness mode when --harness is passed explicitly",
     async () => {
       if (preflightFailure) {

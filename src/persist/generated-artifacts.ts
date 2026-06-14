@@ -31,40 +31,6 @@ export async function writeGeneratedArtifacts(input: {
   };
 }
 
-export async function writeHybridGeneratedArtifacts(input: {
-  outputDirectory: string;
-  summary: string;
-  skill: string;
-  mergedClaims: unknown;
-  skillPlan: unknown;
-  force: boolean;
-}): Promise<{
-  summaryPath: string;
-  skillPath: string;
-  mergedClaimsPath: string;
-  skillPlanPath: string;
-}> {
-  assertValidSkillMarkdown(input.skill);
-
-  const paths = await writeDirectoryArtifacts({
-    outputDirectory: input.outputDirectory,
-    force: input.force,
-    files: {
-      "summary.md": redactSecretsFromString(input.summary),
-      "SKILL.md": input.skill,
-      "merged-claims.json": stringifyRedactedJson(input.mergedClaims),
-      "skill-plan.json": stringifyRedactedJson(input.skillPlan),
-    },
-  });
-
-  return {
-    summaryPath: paths["summary.md"]!,
-    skillPath: paths["SKILL.md"]!,
-    mergedClaimsPath: paths["merged-claims.json"]!,
-    skillPlanPath: paths["skill-plan.json"]!,
-  };
-}
-
 export async function writeHarnessGeneratedArtifacts(input: {
   outputDirectory: string;
   summary: string;

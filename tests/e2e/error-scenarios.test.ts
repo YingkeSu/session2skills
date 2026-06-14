@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -150,78 +150,6 @@ describe("error scenarios", () => {
         expect(result.status).toBe(1);
         expect(result.stderr.trim()).not.toBe("");
         expect(result.stderr).toMatch(/unknown command/i);
-      },
-      60000,
-    );
-
-    it(
-      "fails when --hybrid is used without LLM environment variables",
-      () => {
-        const result = runCLI(
-          ["analyze", "-d", projectDir, "--recent", "1", "-o", join(tempDir, "hybrid-missing-env"), "--hybrid"],
-          {
-            env: {
-              SESSION2SKILLS_LLM_API_KEY: "",
-              SESSION2SKILLS_LLM_BASE_URL: "",
-              SESSION2SKILLS_LLM_MODEL: "",
-              SESSION2SKILLS_LLM_MODEL_VERSION: "",
-              SESSION2SKILLS_LLM_PROVIDER: "",
-            },
-          },
-        );
-
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/requires .*SESSION2SKILLS_LLM_BASE_URL.*SESSION2SKILLS_LLM_MODEL/i);
-      },
-      60000,
-    );
-
-    it(
-      "fails when --hybrid is used with a v1 profile",
-      () => {
-        if (shouldSkip("hybrid v1 profile error test", analyzePreflightFailure)) {
-          return;
-        }
-
-        const legacyAnalyzeDir = join(tempDir, "legacy-analyze");
-        const legacyAnalyzeResult = runCLI(["analyze", "-d", projectDir, "--recent", "3", "-o", legacyAnalyzeDir]);
-
-        expectCliSuccess("legacy analyze for v1 profile", legacyAnalyzeResult);
-
-        const generatedProfilePath = join(legacyAnalyzeDir, "profile.json");
-
-        expect(existsSync(generatedProfilePath)).toBe(true);
-
-        const rawProfile = readFileSync(generatedProfilePath, "utf8");
-        const parsedProfile = JSON.parse(rawProfile) as Record<string, unknown>;
-        const v1ProfilePath = join(tempDir, "v1_profile.json");
-
-        if (parsedProfile.schemaVersion === "profile/v2") {
-          const {
-            acceptedClaims: _acceptedClaims,
-            mergedClaims: _mergedClaims,
-            promptSetVersion: _promptSetVersion,
-            schemaVersion: _schemaVersion,
-            tentativeClaims: _tentativeClaims,
-            ...legacyCompatibleProfile
-          } = parsedProfile;
-
-          writeFileSync(v1ProfilePath, `${JSON.stringify(legacyCompatibleProfile, null, 2)}\n`, "utf8");
-        } else {
-          writeFileSync(v1ProfilePath, rawProfile.endsWith("\n") ? rawProfile : `${rawProfile}\n`, "utf8");
-        }
-
-        const result = runCLI([
-          "generate",
-          "--profile",
-          v1ProfilePath,
-          "--output",
-          join(tempDir, "hybrid-from-v1-profile"),
-          "--hybrid",
-        ]);
-
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/requires a hybrid profile\/v2|hybrid profile\/v2/i);
       },
       60000,
     );

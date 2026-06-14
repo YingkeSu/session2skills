@@ -34,62 +34,6 @@ export async function writeRunArtifacts(input: {
   };
 }
 
-export async function writeHybridRunArtifacts(input: {
-  outputDirectory: string;
-  normalizedSessions: Array<NormalizedSession>;
-  profile: PreferenceProfile | ProfileV2;
-  evidenceIndex: unknown;
-  ruleClaims: unknown;
-  llmSessionClaims: unknown;
-  llmCategoryClaims: unknown;
-  mergedClaims: unknown;
-  skillPlan: unknown;
-  llmTraces: Array<LLMTrace>;
-  manifest: RunManifest;
-  force: boolean;
-}): Promise<{
-  normalizedPath: string;
-  profilePath: string;
-  evidenceIndexPath: string;
-  ruleClaimsPath: string;
-  llmSessionClaimsPath: string;
-  llmCategoryClaimsPath: string;
-  mergedClaimsPath: string;
-  skillPlanPath: string;
-  llmTracesPath: string;
-  manifestPath: string;
-}> {
-  const paths = await writeDirectoryArtifacts({
-    outputDirectory: input.outputDirectory,
-    force: input.force,
-    files: {
-      "normalized.json": stringifyRedactedJson(input.normalizedSessions),
-      "profile.json": stringifyRedactedJson(input.profile),
-      "evidence-index.json": stringifyRedactedJson(input.evidenceIndex),
-      "rule-claims.json": stringifyRedactedJson(input.ruleClaims),
-      "llm-session-claims.json": stringifyRedactedJson(input.llmSessionClaims),
-      "llm-category-claims.json": stringifyRedactedJson(input.llmCategoryClaims),
-      "merged-claims.json": stringifyRedactedJson(input.mergedClaims),
-      "skill-plan.json": stringifyRedactedJson(input.skillPlan),
-      "llm-traces.json": stringifyRedactedJson(sanitizePersistedTraces(input.llmTraces)),
-      "manifest.json": stringifyRedactedJson(input.manifest),
-    },
-  });
-
-  return {
-    normalizedPath: paths["normalized.json"]!,
-    profilePath: paths["profile.json"]!,
-    evidenceIndexPath: paths["evidence-index.json"]!,
-    ruleClaimsPath: paths["rule-claims.json"]!,
-    llmSessionClaimsPath: paths["llm-session-claims.json"]!,
-    llmCategoryClaimsPath: paths["llm-category-claims.json"]!,
-    mergedClaimsPath: paths["merged-claims.json"]!,
-    skillPlanPath: paths["skill-plan.json"]!,
-    llmTracesPath: paths["llm-traces.json"]!,
-    manifestPath: paths["manifest.json"]!,
-  };
-}
-
 export async function writeHarnessRunArtifacts(input: {
   outputDirectory: string;
   normalizedSessions: Array<NormalizedSession>;

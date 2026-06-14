@@ -3,14 +3,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { buildSkillPlan } from "../src/generate/skill-plan.js";
 import { renderSkill } from "../src/generate/render-skill.js";
 import { renderSummary } from "../src/generate/render-summary.js";
 import { sampleProfile } from "./fixtures/sample-profile.js";
-import {
-  sampleAcceptedMergedClaims,
-  sampleTentativeMergedClaims,
-} from "./fixtures/sample-hybrid-artifacts.js";
 import { sampleProfileV2 } from "./fixtures/sample-profile-v2.js";
 
 describe("renderers", () => {
@@ -44,13 +39,6 @@ describe("renderers", () => {
     const expected = readFileSync(path.resolve("tests/golden/summary-hybrid.md"), "utf8");
 
     expect(renderSummary(sampleProfileV2, { tone: "balanced" })).toBe(expected);
-  });
-
-  it("renders hybrid skill markdown matching the golden file", () => {
-    const expected = readFileSync(path.resolve("tests/golden/SKILL-hybrid.md"), "utf8");
-    const skillPlan = buildSkillPlan(sampleAcceptedMergedClaims, sampleTentativeMergedClaims);
-
-    expect(renderSkill({ ...sampleProfileV2, skillPlan }, "balanced")).toBe(expected);
   });
 
   it("renders ProfileV2 summary deterministically", () => {

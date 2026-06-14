@@ -1,29 +1,9 @@
-import type { ResolvedLlmProvider } from "../llm/provider.js";
 import { DEFAULT_PROMPT_SET_VERSION } from "../normalize/models.js";
 import type { PreferenceProfile, ProfileV2, SkillDirective, SkillPlan, WorkflowSignal } from "../normalize/models.js";
 import type { TonePreset } from "../shared/cli.js";
-import {
-  composeSkillViaLLM,
-  fallbackSkillRenderer,
-  type ComposedSkillResult,
-  type SkillComposerBudget,
-} from "./composer.js";
+import { fallbackSkillRenderer } from "./composer.js";
 
 type RenderableProfile = (PreferenceProfile | ProfileV2) & { skillPlan?: SkillPlan };
-
-export type RenderSkillOptions = {
-  skillPlan?: SkillPlan;
-  llmClient?: ResolvedLlmProvider;
-  composerBudget?: Partial<SkillComposerBudget>;
-};
-
-export type RenderSkillResult = {
-  markdown: string;
-  renderer: "llm" | "fallback";
-  reason?: string;
-  trace?: ComposedSkillResult["trace"];
-  skillPlan: SkillPlan;
-};
 
 const OVERVIEW_TEXT = "Use this skill when working in the user's repository context and you want your execution style to mirror their established OpenCode habits.";
 
@@ -52,63 +32,9 @@ const SECTION_FALLBACKS = {
   constraint: "Preserve existing patterns and avoid destructive changes unless explicitly requested.",
 } as const;
 
-export function renderSkill(profile: RenderableProfile, tone?: TonePreset): string;
-export function renderSkill(
-  profile: RenderableProfile,
-  tone: TonePreset,
-  options: RenderSkillOptions & { llmClient: ResolvedLlmProvider },
-): Promise<string>;
-export function renderSkill(
-  profile: RenderableProfile,
-  tone: TonePreset = "balanced",
-  options?: RenderSkillOptions,
-): string | Promise<string> {
-  const skillPlan = resolveSkillPlan(profile, options?.skillPlan);
-
-  if (!options?.llmClient) {
-    return fallbackSkillRenderer(skillPlan, tone);
-  }
-
-  return renderSkillArtifact(profile, tone, options).then((result) => result.markdown);
-}
-
-export async function renderSkillArtifact(
-  profile: RenderableProfile,
-  tone: TonePreset = "balanced",
-  options: RenderSkillOptions = {},
-): Promise<RenderSkillResult> {
-  const skillPlan = resolveSkillPlan(profile, options.skillPlan);
-
-  if (options.llmClient) {
-    try {
-      const composed = await composeSkillViaLLM(
-        skillPlan,
-        tone,
-        options.composerBudget,
-        options.llmClient,
-      );
-
-      return {
-        markdown: composed.markdown,
-        renderer: "llm",
-        trace: composed.trace,
-        skillPlan,
-      };
-    } catch (error) {
-      return {
-        markdown: fallbackSkillRenderer(skillPlan, tone),
-        renderer: "fallback",
-        reason: error instanceof Error ? error.message : String(error),
-        skillPlan,
-      };
-    }
-  }
-
-  return {
-    markdown: fallbackSkillRenderer(skillPlan, tone),
-    renderer: "fallback",
-    skillPlan,
-  };
+export function renderSkill(profile: RenderableProfile, tone: TonePreset = "balanced"): string {
+  const skillPlan = resolveSkillPlan(profile, profile.skillPlan);
+  return fallbackSkillRenderer(skillPlan, tone);
 }
 
 function resolveSkillPlan(profile: RenderableProfile, providedSkillPlan?: SkillPlan): SkillPlan {

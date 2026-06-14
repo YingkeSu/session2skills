@@ -162,4 +162,43 @@ describe("Hono app", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([]);
   });
+
+  test("GET /api/runs/:name returns combined run data", async () => {
+    const app = createServer(runsDir);
+    const res = await app.request("/api/runs/app-run");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.name).toBe("app-run");
+    expect(body.claimManifest).toEqual(validManifest());
+    expect(body.skepticReport).toEqual(validSkeptic(1, 0));
+    expect(body.verifierReport).toEqual(validVerifier(true));
+    expect(body.writerSections).toBeNull();
+    expect(body.skillMarkdown).toBeNull();
+    expect(body.traces).toEqual([]);
+  });
+
+  test("GET /api/runs/:name returns 404 for missing run", async () => {
+    const app = createServer(runsDir);
+    const res = await app.request("/api/runs/does-not-exist");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Run not found: does-not-exist" });
+  });
+
+  test("GET /api/runs/:name handles missing optional artifacts", async () => {
+    const partialDir = join(tempRoot, "partial-run-detail");
+    const partialRun = join(partialDir, "only-manifest");
+    await mkdir(partialRun, { recursive: true });
+    await writeFile(join(partialRun, "claim-manifest.json"), JSON.stringify(validManifest()));
+
+    const app = createServer(partialDir);
+    const res = await app.request("/api/runs/only-manifest");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.claimManifest).toEqual(validManifest());
+    expect(body.skepticReport).toBeNull();
+    expect(body.verifierReport).toBeNull();
+    expect(body.writerSections).toBeNull();
+    expect(body.skillMarkdown).toBeNull();
+    expect(body.traces).toEqual([]);
+  });
 });

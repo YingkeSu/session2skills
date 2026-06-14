@@ -25,6 +25,73 @@ export function createServer(runsDirectory: string): Hono {
     }
   });
 
+  app.get("/api/runs/:name", async (c) => {
+    const name = c.req.param("name");
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    try {
+      const [claimManifestRaw, skepticReportRaw, verifierReportRaw, llmTracesRaw] =
+        await Promise.all([
+          readJsonSafe(join(runDir, "claim-manifest.json")),
+          readJsonSafe(join(runDir, "skeptic-report.json")),
+          readJsonSafe(join(runDir, "verifier-report.json")),
+          readJsonSafe(join(runDir, "llm-traces.json")),
+        ]);
+
+      const claimManifest = claimManifestRaw as Record<string, unknown> | null;
+      const skepticReport = skepticReportRaw as Record<string, unknown> | null;
+      const verifierReport = verifierReportRaw as Record<string, unknown> | null;
+      const llmTraces = llmTracesRaw as unknown[] | null;
+
+      let skillMarkdown: string | null = null;
+      let writerSections: Record<string, unknown> | null = null;
+      try {
+        skillMarkdown = await readFile(join(runDir, "SKILL.md"), "utf8");
+      } catch {}
+      try {
+        const raw = await readFile(join(runDir, "writer-output.json"), "utf8");
+        const parsed: unknown = JSON.parse(raw);
+        if (
+          typeof parsed === "object" &&
+          parsed !== null &&
+          !Array.isArray(parsed)
+        ) {
+          writerSections = parsed as Record<string, unknown>;
+        }
+      } catch {}
+
+      const traces: Array<Record<string, unknown>> = Array.isArray(
+        llmTraces
+      )
+        ? (llmTraces as Array<Record<string, unknown>>)
+        : [];
+
+      return c.json({
+        name,
+        claimManifest: claimManifest ?? null,
+        skepticReport: skepticReport ?? null,
+        verifierReport: verifierReport ?? null,
+        writerSections,
+        skillMarkdown,
+        traces,
+      });
+    } catch {
+      return c.json(
+        { error: `Failed to read run artifacts: ${name}` },
+        500
+      );
+    }
+  });
+
   app.get("/api/health", (c) => c.json({ status: "ok" }));
 
   app.use("/assets/*", serveStatic({ root: webDist }));

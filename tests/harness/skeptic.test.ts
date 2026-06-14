@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { MockLlmProvider } from "../mock-provider.js";
 import { runSkepticStage } from "../../src/harness/skeptic.js";
-import { makeClaimManifest, makeManifestClaim, makeEvidenceItems } from "./fixtures.js";
+import { LlmProviderError } from "../../src/shared/errors.js";
+import { makeClaimManifest, makeManifestClaim, makeEvidenceItems, makeMultiDimensionManifest } from "./fixtures.js";
 
 describe("harness skeptic stage", () => {
   it("produces valid SkepticReport from manifest", async () => {
@@ -107,16 +108,20 @@ describe("harness skeptic stage", () => {
     expect(result.report.metadata.claimCount).toBe(0);
   });
 
-  it("handles LLM error gracefully", async () => {
+  it("handles LLM error gracefully after retries exhausted", async () => {
     const manifest = makeClaimManifest();
     const evidence = makeEvidenceItems(3);
     const provider = new MockLlmProvider({
-      structuredScenarios: [{ kind: "network-error", message: "Connection failed" }],
+      structuredScenarios: [
+        { kind: "network-error", message: "Connection failed" },
+        { kind: "network-error", message: "Connection failed" },
+        { kind: "network-error", message: "Connection failed" },
+      ],
     });
 
     await expect(
       runSkepticStage(manifest, evidence, provider.toResolved()),
-    ).rejects.toThrow("Connection failed");
+    ).rejects.toThrow("Skeptic stage failed after 3 attempts");
   });
 
   it("defaults overallScore when LLM omits it", async () => {
@@ -140,5 +145,91 @@ describe("harness skeptic stage", () => {
 
     expect(result.report.overallScore).toBeGreaterThanOrEqual(0);
     expect(result.report.overallScore).toBeLessThanOrEqual(1);
+  });
+
+  it("retries on provider error and succeeds on second attempt", async () => {
+    const manifest = makeMultiDimensionManifest();
+    const evidence = makeEvidenceItems(7);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "timeout", message: "First attempt fails" },
+        {
+          kind: "success",
+          object: {
+            issues: [
+              { claimId: "claim_001", severity: "medium", problemType: "overconfident", detail: "d", suggestion: "s" },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await runSkepticStage(manifest, evidence, provider.toResolved());
+
+    expect(result.report.issues).toHaveLength(1);
+    expect(provider.structuredRequests).toHaveLength(2);
+  });
+
+  it("retries on empty issues for non-trivial manifest", async () => {
+    const manifest = makeMultiDimensionManifest();
+    const evidence = makeEvidenceItems(7);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { issues: [] } },
+        {
+          kind: "success",
+          object: {
+            issues: [
+              { claimId: "claim_001", severity: "low", problemType: "vague", detail: "d", suggestion: "s" },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await runSkepticStage(manifest, evidence, provider.toResolved());
+
+    expect(result.report.issues).toHaveLength(1);
+  });
+
+  it("does not retry on empty issues for trivial manifest", async () => {
+    const manifest = makeClaimManifest();
+    const evidence = makeEvidenceItems(3);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { issues: [] } },
+      ],
+    });
+
+    const result = await runSkepticStage(manifest, evidence, provider.toResolved());
+
+    expect(result.report.issues).toHaveLength(0);
+    expect(provider.structuredRequests).toHaveLength(1);
+  });
+
+  it("throws LlmProviderError after all retries fail", async () => {
+    const manifest = makeMultiDimensionManifest();
+    const evidence = makeEvidenceItems(7);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "timeout", message: "Attempt 1" },
+        { kind: "timeout", message: "Attempt 2" },
+        { kind: "timeout", message: "Attempt 3" },
+      ],
+    });
+
+    await expect(
+      runSkepticStage(manifest, evidence, provider.toResolved()),
+    ).rejects.toThrow("Skeptic stage failed after 3 attempts");
+
+    await expect(
+      runSkepticStage(manifest, evidence, new MockLlmProvider({
+        structuredScenarios: [
+          { kind: "timeout", message: "A1" },
+          { kind: "timeout", message: "A2" },
+          { kind: "timeout", message: "A3" },
+        ],
+      }).toResolved()),
+    ).rejects.toBeInstanceOf(LlmProviderError);
   });
 });

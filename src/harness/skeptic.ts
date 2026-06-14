@@ -3,8 +3,11 @@ import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget, SkepticReport } from "./types.js";
+import type { LlmStructuredGenerationResult } from "../llm/types.js";
+import { generateTraceID } from "../llm/trace.js";
 import { buildSkepticPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
+import { LlmProviderError } from "../shared/errors.js";
 
 type RawSkepticOutput = {
   issues?: Array<{
@@ -27,6 +30,8 @@ export type SkepticStageResult = {
   trace: LLMTrace;
 };
 
+const SKEPTIC_MAX_RETRIES = 2;
+
 export async function runSkepticStage(
   manifest: ClaimManifest,
   evidence: ReadonlyArray<EvidenceItem>,
@@ -36,49 +41,95 @@ export async function runSkepticStage(
 ): Promise<SkepticStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildSkepticPacket(manifest, evidence, registry);
+  const hasNonTrivialClaims = manifest.claims.length > 2;
 
-  const result = await provider.provider.generateStructured<RawSkepticOutput>({
-    model: provider.model,
-    messages: packet.messages,
-    temperature: resolvedBudget.temperature,
-    maxOutputTokens: resolvedBudget.maxOutputTokens,
-    options: { timeoutMs: resolvedBudget.timeoutMs },
-    schema: {
-      name: packet.schema.name,
-      description: packet.schema.description,
-      schema: packet.schema.schema,
-      parse: (value: unknown): RawSkepticOutput => {
-        if (!value || typeof value !== "object") return {};
-        return value as RawSkepticOutput;
-      },
+  let lastResult: LlmStructuredGenerationResult<RawSkepticOutput> | undefined;
+  let report: SkepticReport | undefined;
+
+  for (let attempt = 0; attempt <= SKEPTIC_MAX_RETRIES; attempt++) {
+    const traceID = generateTraceID();
+
+    let result: LlmStructuredGenerationResult<RawSkepticOutput>;
+    try {
+      result = await provider.provider.generateStructured<RawSkepticOutput>({
+        model: provider.model,
+        messages: packet.messages,
+        temperature: resolvedBudget.temperature,
+        maxOutputTokens: resolvedBudget.maxOutputTokens,
+        options: { timeoutMs: resolvedBudget.timeoutMs },
+        schema: {
+          name: packet.schema.name,
+          description: packet.schema.description,
+          schema: packet.schema.schema,
+          parse: (value: unknown): RawSkepticOutput => {
+            if (!value || typeof value !== "object") return {};
+            return value as RawSkepticOutput;
+          },
+        },
+      });
+    } catch {
+      if (attempt < SKEPTIC_MAX_RETRIES) continue;
+      throw new LlmProviderError(
+        `Skeptic stage failed after ${SKEPTIC_MAX_RETRIES + 1} attempts`,
+        {
+          provider: provider.provider.provider,
+          retryable: false,
+        },
+      );
+    }
+
+    lastResult = result;
+    report = parseSkepticOutput(result.object, manifest.claims.length);
+
+    if (!hasNonTrivialClaims || report.issues.length > 0) {
+      const trace: LLMTrace = {
+        schemaVersion: "llm-trace/v1",
+        traceID,
+        timestamp: new Date().toISOString(),
+        promptSetVersion: "prompt-set/v1",
+        stage: "harness-skeptic",
+        provider: result.metadata.provider,
+        model: result.metadata.model,
+        inputArtifactRef: `harness:skeptic:${manifest.claims.length}-claims${attempt > 0 ? `:retry-${attempt}` : ""}`,
+        request: {
+          promptName: packet.promptId,
+          messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+        },
+        response: {
+          finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+          rawText: result.rawText,
+          structuredOutput: { kind: "candidate-claims", claims: [] },
+        },
+        usage: result.metadata.usage,
+      };
+
+      return { report, trace };
+    }
+  }
+
+  const traceID = generateTraceID();
+  const exhaustedTrace: LLMTrace = {
+    schemaVersion: "llm-trace/v1",
+    traceID,
+    timestamp: new Date().toISOString(),
+    promptSetVersion: "prompt-set/v1",
+    stage: "harness-skeptic",
+    provider: lastResult!.metadata.provider,
+    model: lastResult!.metadata.model,
+    inputArtifactRef: `harness:skeptic:${manifest.claims.length}-claims:retries-exhausted`,
+    request: {
+      promptName: packet.promptId,
+      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
     },
-  });
-
-  const report = parseSkepticOutput(result.object, manifest.claims.length);
-
-  return {
-    report,
-    trace: {
-      schemaVersion: "llm-trace/v1",
-      traceID: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      promptSetVersion: "prompt-set/v1",
-      stage: "harness-skeptic",
-      provider: result.metadata.provider,
-      model: result.metadata.model,
-      inputArtifactRef: "harness:skeptic",
-      request: {
-        promptName: packet.promptId,
-        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
-      },
-      response: {
-        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-        rawText: result.rawText,
-        structuredOutput: { kind: "candidate-claims", claims: [] },
-      },
-      usage: result.metadata.usage,
+    response: {
+      finishReason: (lastResult!.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+      rawText: lastResult!.rawText,
+      structuredOutput: { kind: "candidate-claims", claims: [] },
     },
+    usage: lastResult!.metadata.usage,
   };
+
+  return { report: report!, trace: exhaustedTrace };
 }
 
 function parseSkepticOutput(raw: RawSkepticOutput, claimCount: number): SkepticReport {

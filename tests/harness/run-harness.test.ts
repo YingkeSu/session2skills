@@ -203,6 +203,8 @@ describe("harness orchestrator", () => {
           },
         },
         { kind: "timeout", message: "Skeptic timed out" },
+        { kind: "timeout", message: "Skeptic timed out" },
+        { kind: "timeout", message: "Skeptic timed out" },
       ],
     });
 
@@ -212,7 +214,7 @@ describe("harness orchestrator", () => {
         evidence: makeEvidenceItems(3),
         provider: provider.toResolved(),
       }),
-    ).rejects.toThrow("Skeptic timed out");
+    ).rejects.toThrow("Skeptic stage failed after 3 attempts");
   });
 
   it("collects traces from all completed stages before error", async () => {

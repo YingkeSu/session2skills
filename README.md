@@ -2,7 +2,7 @@
 
 CLI that reads your local OpenCode sessions, figures out how you work, and writes a `SKILL.md` file your AI assistant can pick up.
 
-It has two modes. **Legacy** mode runs purely local heuristics, fast and private. **Hybrid** mode sends session evidence to an LLM you configure, producing richer claims, a full audit trail, and a structured skill plan.
+It has three modes. **Legacy** mode runs purely local heuristics, fast and private. **Hybrid** mode sends session evidence to an LLM you configure, producing richer claims, a full audit trail, and a structured skill plan. **Harness** mode runs a multi-stage LLM pipeline (Analyst → Skeptic → Writer → Verifier) and is the default when LLM environment variables are set.
 
 ## Install
 
@@ -59,7 +59,27 @@ Use `--force` to overwrite an existing output directory.
 
 ### Generate final artifacts
 
-**Legacy:**
+When LLM environment variables (`SESSION2SKILLS_LLM_BASE_URL` + `SESSION2SKILLS_LLM_MODEL`) are set, `generate` defaults to **harness** mode — no flag needed. Without them, it falls back to **legacy** mode.
+
+**Harness** (default when LLM env vars are set):
+
+```bash
+export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
+export SESSION2SKILLS_LLM_MODEL="gpt-4o"
+export SESSION2SKILLS_LLM_API_KEY="sk-..."
+
+node dist/cli/main.js generate \
+  --directory /absolute/project/path \
+  --recent 10 \
+  --output generated-skills/my-skill \
+  --tone balanced
+```
+
+Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`. The harness pipeline runs 4 stages: Analyst → Skeptic → Writer → Verifier. Each claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier stages.
+
+You can also pass `--harness` explicitly to force harness mode regardless of env vars.
+
+**Legacy** (offline, no LLM):
 
 ```bash
 node dist/cli/main.js generate \
@@ -71,7 +91,7 @@ node dist/cli/main.js generate \
 
 Writes `summary.md` and `SKILL.md`.
 
-**Hybrid:**
+**Hybrid** (deprecated, use harness instead):
 
 ```bash
 node dist/cli/main.js generate \
@@ -82,20 +102,7 @@ node dist/cli/main.js generate \
   --tone balanced
 ```
 
-Writes `summary.md`, `SKILL.md`, `merged-claims.json`, and `skill-plan.json`.
-
-**Harness** (multi-stage LLM pipeline, inspired by Anthropic's Harness):
-
-```bash
-node dist/cli/main.js generate \
-  --directory /absolute/project/path \
-  --recent 10 \
-  --output generated-skills/my-skill \
-  --harness \
-  --tone balanced
-```
-
-Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`. The harness pipeline runs 4 stages: Analyst → Skeptic → Writer → Verifier. Each claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier stages. Mutually exclusive with `--hybrid`.
+Writes `summary.md`, `SKILL.md`, `merged-claims.json`, and `skill-plan.json`. The `--hybrid` flag prints a deprecation warning; harness mode is the recommended LLM-enhanced path.
 
 **From a saved profile:**
 

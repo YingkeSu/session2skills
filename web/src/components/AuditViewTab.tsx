@@ -1,13 +1,16 @@
 import type {
   ClaimManifest,
+  ManifestEvidenceExcerpt,
   SkepticReport,
   VerifierReport,
 } from "../runs.js";
+import { EvidencePanel } from "./EvidencePanel.js";
 
 type AuditViewTabProps = {
   manifest: ClaimManifest;
   skepticReport: SkepticReport | null;
   verifierReport: VerifierReport | null;
+  runName: string;
 };
 
 const trustColors: Record<string, string> = {
@@ -44,6 +47,7 @@ export function AuditViewTab({
   manifest,
   skepticReport,
   verifierReport,
+  runName,
 }: AuditViewTabProps): JSX.Element {
   const trustMap = buildTrustMap(verifierReport);
   const skepticMap = buildSkepticIssueMap(skepticReport);
@@ -55,6 +59,13 @@ export function AuditViewTab({
       list.push(claim);
     } else {
       claimsByDimension.set(claim.dimension, [claim]);
+    }
+  }
+
+  const evidenceByEvidenceId = new Map<string, ManifestEvidenceExcerpt>();
+  if (manifest.evidence) {
+    for (const item of manifest.evidence) {
+      evidenceByEvidenceId.set(item.evidenceID, item);
     }
   }
 
@@ -251,24 +262,38 @@ export function AuditViewTab({
                             style={{
                               marginTop: "6px",
                               display: "flex",
+                              flexDirection: "column",
                               gap: "4px",
-                              flexWrap: "wrap",
                             }}
                           >
-                            {claim.evidenceRefs.map((ref) => (
-                              <span
-                                key={ref}
-                                style={{
-                                  padding: "2px 6px",
-                                  borderRadius: "4px",
-                                  background: "#e7f1ff",
-                                  color: "#084298",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                {ref}
-                              </span>
-                            ))}
+                            {claim.evidenceRefs.map((ref) => {
+                              const evidence = evidenceByEvidenceId.get(ref);
+                              if (!evidence) {
+                                return (
+                                  <span
+                                    key={ref}
+                                    style={{
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      background: "#e7f1ff",
+                                      color: "#084298",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    {ref}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <EvidencePanel
+                                  key={ref}
+                                  evidenceId={evidence.evidenceID}
+                                  excerpt={evidence.excerpt}
+                                  sourceType={evidence.sourceType}
+                                  runName={runName}
+                                />
+                              );
+                            })}
                           </div>
                         )}
                       </div>

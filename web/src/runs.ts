@@ -115,11 +115,32 @@ export async function fetchRuns(): Promise<RunSummary[]> {
   return res.json();
 }
 
+export type EvidenceDetail = {
+  evidenceID: string;
+  sourceType: string;
+  excerpt: string;
+};
+
 export async function fetchRunDetail(name: string): Promise<RunDetail> {
   const res = await fetch(`/api/runs/${encodeURIComponent(name)}`);
   if (!res.ok) {
     throw new Error(
       `Failed to fetch run detail: ${res.status} ${res.statusText}`
+    );
+  }
+  return res.json();
+}
+
+export async function fetchEvidenceDetail(
+  runName: string,
+  evidenceId: string
+): Promise<EvidenceDetail> {
+  const res = await fetch(
+    `/api/runs/${encodeURIComponent(runName)}/evidence/${encodeURIComponent(evidenceId)}`
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Failed to fetch evidence detail: ${res.status} ${res.statusText}`
     );
   }
   return res.json();

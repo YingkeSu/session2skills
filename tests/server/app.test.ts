@@ -201,4 +201,35 @@ describe("Hono app", () => {
     expect(body.skillMarkdown).toBeNull();
     expect(body.traces).toEqual([]);
   });
+
+  test("GET /api/runs/:name/evidence/:evidenceId returns evidence item", async () => {
+    const app = createServer(runsDir);
+    const manifest = validManifest({
+      evidence: [
+        { evidenceID: "ev-1", sourceType: "message", excerpt: "hello" },
+        { evidenceID: "ev-2", sourceType: "tool", excerpt: "world" },
+      ],
+    });
+    await writeFile(join(runsDir, "app-run", "claim-manifest.json"), JSON.stringify(manifest));
+
+    const res = await app.request("/api/runs/app-run/evidence/ev-1");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ evidenceID: "ev-1", sourceType: "message", excerpt: "hello" });
+  });
+
+  test("GET /api/runs/:name/evidence/:evidenceId returns 404 for missing evidence", async () => {
+    const app = createServer(runsDir);
+    const res = await app.request("/api/runs/app-run/evidence/missing");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Evidence not found" });
+  });
+
+  test("GET /api/runs/:name/evidence/:evidenceId handles missing evidence array", async () => {
+    const app = createServer(runsDir);
+    await writeFile(join(runsDir, "app-run", "claim-manifest.json"), JSON.stringify(validManifest()));
+    const res = await app.request("/api/runs/app-run/evidence/ev-1");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Evidence array not found" });
+  });
 });

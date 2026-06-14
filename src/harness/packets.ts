@@ -212,7 +212,7 @@ export function buildAnalystPacket(
     "## Instructions",
     "Extract candidate claims from the evidence above.",
     "Use ONLY the taxonomy dimensions and labels listed.",
-    "Cite evidence IDs exactly as they appear (e.g., ev_001).",
+    "Cite evidence IDs exactly as they appear (e.g., ses_001:msg_001:part_001).",
     "Assign confidence 0–1 based on evidence strength and consistency across sessions.",
     "Cover ALL dimensions where evidence exists.",
   ].join("\n");
@@ -382,7 +382,14 @@ export function buildVerifierPacket(
   );
 
   const manifestClaimsJson = JSON.stringify(
-    manifest.claims.map((c) => ({ id: c.id, dimension: c.dimension, label: c.label, confidence: c.confidence })),
+    manifest.claims.map((c) => ({
+      id: c.id,
+      dimension: c.dimension,
+      label: c.label,
+      confidence: c.confidence,
+      rationale: c.rationale,
+      evidenceRefs: c.evidenceRefs,
+    })),
     null,
     2,
   );

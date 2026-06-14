@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchRuns, type RunSummary } from "./runs.js";
+import { RunDetailPage } from "./components/RunDetailPage.js";
 
 type LoadState =
   | { status: "loading" }
@@ -9,6 +10,7 @@ type LoadState =
 
 export function App(): JSX.Element {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [selectedRun, setSelectedRun] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +33,15 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  if (selectedRun) {
+    return (
+      <RunDetailPage
+        runName={selectedRun}
+        onBack={() => setSelectedRun(null)}
+      />
+    );
+  }
+
   if (state.status === "loading") {
     return <Shell>Loading runs…</Shell>;
   }
@@ -45,12 +56,21 @@ export function App(): JSX.Element {
 
   return (
     <Shell>
-      <RunTable runs={state.runs} />
+      <RunTable
+        runs={state.runs}
+        onSelect={(name) => setSelectedRun(name)}
+      />
     </Shell>
   );
 }
 
-function RunTable({ runs }: { runs: RunSummary[] }): JSX.Element {
+function RunTable({
+  runs,
+  onSelect,
+}: {
+  runs: RunSummary[];
+  onSelect: (name: string) => void;
+}): JSX.Element {
   return (
     <table style={tableStyle}>
       <thead>
@@ -66,7 +86,11 @@ function RunTable({ runs }: { runs: RunSummary[] }): JSX.Element {
       </thead>
       <tbody>
         {runs.map((run) => (
-          <tr key={run.name}>
+          <tr
+            key={run.name}
+            onClick={() => onSelect(run.name)}
+            style={{ cursor: "pointer" }}
+          >
             <td style={tdStyle}>{run.name}</td>
             <td style={tdStyle}>{run.model}</td>
             <td style={tdStyle}>{run.generatedAt}</td>

@@ -40,6 +40,7 @@ export async function runAnalystStage(
 ): Promise<AnalystStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildAnalystPacket(sessions, evidence, registry);
+  const knownEvidenceIds = new Set(evidence.map((e) => e.evidenceID));
 
   let lastResult: LlmStructuredGenerationResult<RawAnalystOutput> | undefined;
   let manifest: ClaimManifest | undefined;
@@ -74,7 +75,7 @@ export async function runAnalystStage(
     }
 
     lastResult = result;
-    manifest = parseAnalystOutput(result.object, sessions.length, evidence.length);
+    manifest = parseAnalystOutput(result.object, sessions.length, evidence.length, knownEvidenceIds);
 
     if (manifest.claims.length > 0) {
       const trace: LLMTrace = {
@@ -131,24 +132,32 @@ function parseAnalystOutput(
   raw: RawAnalystOutput,
   sessionCount: number,
   evidenceCount: number,
+  knownEvidenceIds: ReadonlySet<string>,
 ): ClaimManifest {
   const rawClaims = Array.isArray(raw.claims) ? raw.claims : [];
 
   const claims = rawClaims
     .filter((c) => c.dimension && c.label && typeof c.confidence === "number")
-    .map((c, i) => {
+    .map((c) => {
       const evidenceRefsRaw = c.evidenceRefs ?? c.evidence_ids;
+      const rawRefs = Array.isArray(evidenceRefsRaw)
+        ? evidenceRefsRaw.filter((r): r is string => typeof r === "string")
+        : [];
       return {
-        id: c.id ? String(c.id) : `claim_${String(i + 1).padStart(3, "0")}`,
-        dimension: String(c.dimension) as ClaimManifest["claims"][number]["dimension"],
-        label: String(c.label),
-        confidence: Math.max(0, Math.min(1, Number(c.confidence) || 0)),
-        rationale: String(c.rationale ?? c.reasoning ?? ""),
-        evidenceRefs: Array.isArray(evidenceRefsRaw)
-          ? evidenceRefsRaw.filter((r): r is string => typeof r === "string")
-          : [],
+        raw: c,
+        validRefs: rawRefs.filter((r) => knownEvidenceIds.has(r)),
+        citedEvidence: rawRefs.length > 0,
       };
-    });
+    })
+    .filter((entry) => !entry.citedEvidence || entry.validRefs.length > 0)
+    .map((entry, i) => ({
+      id: entry.raw.id ? String(entry.raw.id) : `claim_${String(i + 1).padStart(3, "0")}`,
+      dimension: String(entry.raw.dimension) as ClaimManifest["claims"][number]["dimension"],
+      label: String(entry.raw.label),
+      confidence: Math.max(0, Math.min(1, Number(entry.raw.confidence) || 0)),
+      rationale: String(entry.raw.rationale ?? entry.raw.reasoning ?? ""),
+      evidenceRefs: entry.validRefs,
+    }));
 
   const dimensionsCovered = Array.isArray(raw.dimensionsCovered)
     ? raw.dimensionsCovered.filter((d): d is string => typeof d === "string")

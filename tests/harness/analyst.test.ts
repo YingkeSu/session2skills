@@ -163,6 +163,104 @@ describe("harness analyst stage", () => {
     expect(result.manifest.claims[1]!.confidence).toBe(0);
   });
 
+  it("filters out hallucinated evidenceRefs that don't match known evidence", async () => {
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_001",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "User explores before editing",
+                evidenceRefs: ["ev_001", "ev_FAKE", "ev_999"],
+              },
+            ],
+            evidenceSummary: "5 items",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.evidenceRefs).toEqual(["ev_001"]);
+  });
+
+  it("drops claims whose evidenceRefs are entirely hallucinated", async () => {
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_valid",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "Grounded in real evidence",
+                evidenceRefs: ["ev_001"],
+              },
+              {
+                id: "claim_fabricated",
+                dimension: "constraint",
+                label: "minimal-diff",
+                confidence: 0.9,
+                rationale: "Fabricated grounding",
+                evidenceRefs: ["ev_FAKE", "ev_999"],
+              },
+            ],
+            evidenceSummary: "5 items",
+            dimensionsCovered: ["work-style", "constraint"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.id).toBe("claim_valid");
+  });
+
+  it("preserves multiple valid evidenceRefs without filtering", async () => {
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_001",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "Well-supported by multiple evidence items",
+                evidenceRefs: ["ev_001", "ev_002", "ev_003"],
+              },
+            ],
+            evidenceSummary: "5 items",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.evidenceRefs).toEqual(["ev_001", "ev_002", "ev_003"]);
+  });
+
   it("filters claims with missing required fields", async () => {
     const provider = new MockLlmProvider({
       structuredScenarios: [

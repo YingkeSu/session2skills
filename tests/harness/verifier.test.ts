@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { MockLlmProvider } from "../mock-provider.js";
 import { runVerifierStage } from "../../src/harness/verifier.js";
-import { makeClaimManifest, makeManifestClaim } from "./fixtures.js";
+import { makeClaimManifest, makeManifestClaim, makeWriterOutput } from "./fixtures.js";
+import { LlmProviderError } from "../../src/shared/errors.js";
 
 const SAMPLE_SKILL = `# Workflow Skill
 
@@ -154,14 +155,112 @@ describe("harness verifier stage", () => {
     expect(result.report.issues.some((issue) => issue.description.includes("did not check"))).toBe(true);
   });
 
-  it("handles LLM error", async () => {
+  it("handles LLM error after exhausting retries", async () => {
     const manifest = makeClaimManifest();
     const provider = new MockLlmProvider({
-      structuredScenarios: [{ kind: "network-error", message: "Verifier crashed" }],
+      structuredScenarios: [
+        { kind: "network-error", message: "Verifier crashed" },
+        { kind: "network-error", message: "Verifier crashed" },
+        { kind: "network-error", message: "Verifier crashed" },
+      ],
     });
 
     await expect(
       runVerifierStage(SAMPLE_SKILL, manifest, provider.toResolved()),
-    ).rejects.toThrow("Verifier crashed");
+    ).rejects.toThrow(LlmProviderError);
+  });
+
+  it("retries on provider error and succeeds on second attempt", async () => {
+    const writer = makeWriterOutput();
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "claim_001",
+          rationale: "The developer prefers analysis-first approach",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "timeout", message: "First attempt timed out" },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "Begin with code inspection before making changes", claimId: "claim_001", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage(writer.skillMarkdown, manifest, provider.toResolved());
+
+    expect(result.report.checkedItems.length).toBeGreaterThan(0);
+    expect(provider.structuredRequests).toHaveLength(2);
+  });
+
+  it("retries on empty checkedItems for SKILL.md with directives", async () => {
+    const writer = makeWriterOutput();
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "claim_001",
+          rationale: "The developer prefers analysis-first approach",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { pass: true, checkedItems: [], issues: [] } },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "Begin with code inspection before making changes", claimId: "claim_001", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage(writer.skillMarkdown, manifest, provider.toResolved());
+
+    expect(result.report.checkedItems.length).toBeGreaterThan(0);
+  });
+
+  it("does not retry on empty checkedItems for SKILL.md without directives", async () => {
+    const skillMarkdown = "# Heading Only\n";
+    const manifest = makeClaimManifest({ claims: [] });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { pass: true, checkedItems: [], issues: [] } },
+      ],
+    });
+
+    const result = await runVerifierStage(skillMarkdown, manifest, provider.toResolved());
+
+    expect(result.report.checkedItems).toHaveLength(0);
+    expect(provider.structuredRequests).toHaveLength(1);
+  });
+
+  it("throws LlmProviderError after all retries fail on provider errors", async () => {
+    const writer = makeWriterOutput();
+    const manifest = makeClaimManifest();
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "timeout", message: "timeout 1" },
+        { kind: "timeout", message: "timeout 2" },
+        { kind: "timeout", message: "timeout 3" },
+      ],
+    });
+
+    await expect(
+      runVerifierStage(writer.skillMarkdown, manifest, provider.toResolved()),
+    ).rejects.toThrow(LlmProviderError);
   });
 });

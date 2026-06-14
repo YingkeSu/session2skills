@@ -1,9 +1,12 @@
 import type { LLMTrace } from "../normalize/models.js";
+import type { LlmStructuredGenerationResult } from "../llm/types.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { ClaimManifest, HarnessBudget, VerifierReport, VerifierCheckedItem, VerifierIssue } from "./types.js";
+import { generateTraceID } from "../llm/trace.js";
 import { buildVerifierPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
+import { LlmProviderError } from "../shared/errors.js";
 
 type RawVerifierOutput = {
   pass?: unknown;
@@ -35,6 +38,8 @@ export type VerifierStageResult = {
   trace: LLMTrace;
 };
 
+const VERIFIER_MAX_RETRIES = 2;
+
 export async function runVerifierStage(
   skillMarkdown: string,
   manifest: ClaimManifest,
@@ -44,49 +49,93 @@ export async function runVerifierStage(
 ): Promise<VerifierStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildVerifierPacket(skillMarkdown, manifest, registry);
+  const markdownDirectives = extractMarkdownDirectives(skillMarkdown);
 
-  const result = await provider.provider.generateStructured<RawVerifierOutput>({
-    model: provider.model,
-    messages: packet.messages,
-    temperature: resolvedBudget.temperature,
-    maxOutputTokens: resolvedBudget.maxOutputTokens,
-    options: { timeoutMs: resolvedBudget.timeoutMs },
-    schema: {
-      name: packet.schema.name,
-      description: packet.schema.description,
-      schema: packet.schema.schema,
-      parse: (value: unknown): RawVerifierOutput => {
-        if (!value || typeof value !== "object") return {};
-        return value as RawVerifierOutput;
-      },
+  let lastResult: LlmStructuredGenerationResult<RawVerifierOutput> | undefined;
+  let report: VerifierReport | undefined;
+
+  for (let attempt = 0; attempt <= VERIFIER_MAX_RETRIES; attempt++) {
+    const traceID = generateTraceID();
+
+    let result: LlmStructuredGenerationResult<RawVerifierOutput>;
+    try {
+      result = await provider.provider.generateStructured<RawVerifierOutput>({
+        model: provider.model,
+        messages: packet.messages,
+        temperature: resolvedBudget.temperature,
+        maxOutputTokens: resolvedBudget.maxOutputTokens,
+        options: { timeoutMs: resolvedBudget.timeoutMs },
+        schema: {
+          name: packet.schema.name,
+          description: packet.schema.description,
+          schema: packet.schema.schema,
+          parse: (value: unknown): RawVerifierOutput => {
+            if (!value || typeof value !== "object") return {};
+            return value as RawVerifierOutput;
+          },
+        },
+      });
+    } catch {
+      if (attempt < VERIFIER_MAX_RETRIES) continue;
+      throw new LlmProviderError(`Verifier stage failed after ${VERIFIER_MAX_RETRIES + 1} attempts`, {
+        provider: provider.provider.provider,
+        retryable: false,
+      });
+    }
+
+    lastResult = result;
+    report = parseVerifierOutput(result.object, manifest, skillMarkdown);
+
+    if (markdownDirectives.length === 0 || report.checkedItems.length > 0) {
+      return {
+        report,
+        trace: {
+          schemaVersion: "llm-trace/v1",
+          traceID,
+          timestamp: new Date().toISOString(),
+          promptSetVersion: "prompt-set/v1",
+          stage: "harness-verifier",
+          provider: result.metadata.provider,
+          model: result.metadata.model,
+          inputArtifactRef: `harness:verifier${attempt > 0 ? `:retry-${attempt}` : ""}`,
+          request: {
+            promptName: packet.promptId,
+            messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+          },
+          response: {
+            finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+            rawText: result.rawText,
+            structuredOutput: { kind: "skill-plan", plan: null as never },
+          },
+          usage: result.metadata.usage,
+        },
+      };
+    }
+  }
+
+  const exhaustedTraceID = generateTraceID();
+  const exhaustedTrace: LLMTrace = {
+    schemaVersion: "llm-trace/v1",
+    traceID: exhaustedTraceID,
+    timestamp: new Date().toISOString(),
+    promptSetVersion: "prompt-set/v1",
+    stage: "harness-verifier",
+    provider: lastResult!.metadata.provider,
+    model: lastResult!.metadata.model,
+    inputArtifactRef: "harness:verifier:retries-exhausted",
+    request: {
+      promptName: packet.promptId,
+      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
     },
-  });
-
-  const report = parseVerifierOutput(result.object, manifest, skillMarkdown);
-
-  return {
-    report,
-    trace: {
-      schemaVersion: "llm-trace/v1",
-      traceID: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      promptSetVersion: "prompt-set/v1",
-      stage: "harness-verifier",
-      provider: result.metadata.provider,
-      model: result.metadata.model,
-      inputArtifactRef: "harness:verifier",
-      request: {
-        promptName: packet.promptId,
-        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
-      },
-      response: {
-        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-        rawText: result.rawText,
-        structuredOutput: { kind: "skill-plan", plan: null as never },
-      },
-      usage: result.metadata.usage,
+    response: {
+      finishReason: (lastResult!.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+      rawText: lastResult!.rawText,
+      structuredOutput: { kind: "skill-plan", plan: null as never },
     },
+    usage: lastResult!.metadata.usage,
   };
+
+  return { report: report!, trace: exhaustedTrace };
 }
 
 const VALID_STATUSES = new Set(["verified", "unreferenced", "fabricated"]);

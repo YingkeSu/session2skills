@@ -1,4 +1,4 @@
-import type { LLMTrace } from "../normalize/models.js";
+import type { EvidenceItem, LLMTrace } from "../normalize/models.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { ClaimManifest, HarnessBudget, ManifestClaim, WriterOutput, WriterSection } from "./types.js";
@@ -34,9 +34,10 @@ export async function runWriterStage(
   provider: ResolvedLlmProvider,
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
+  evidence?: ReadonlyArray<EvidenceItem>,
 ): Promise<WriterStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildWriterPacket(manifest, tone, registry);
+  const packet = buildWriterPacket(manifest, tone, registry, evidence);
 
   const result = await provider.provider.generateStructured<RawWriterOutput>({
     model: provider.model,

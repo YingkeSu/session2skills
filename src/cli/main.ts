@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 
 import { registerAnalyzeCommand } from "./commands/analyze.js";
+import { registerEvaluateCommand } from "./commands/evaluate.js";
 import { registerGenerateCommand } from "./commands/generate.js";
 import { registerInspectCommand } from "./commands/inspect.js";
 import { CliUsageError, toErrorMessage } from "../shared/errors.js";
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
     .version(packageVersion);
 
   registerInspectCommand(program);
+  registerEvaluateCommand(program);
   registerAnalyzeCommand(program);
   registerGenerateCommand(program);
 

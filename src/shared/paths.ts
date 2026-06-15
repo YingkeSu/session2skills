@@ -44,3 +44,11 @@ export function resolveGeneratedSkillsDirectory(rootDirectory: string, outputDir
     ? path.resolve(outputDirectory)
     : getDefaultGeneratedSkillsDirectory(rootDirectory);
 }
+
+export function getDefaultSkillStoreRoot(rootDirectory: string): string {
+  return path.join(rootDirectory, ".session2skills", "skills");
+}
+
+export function getActiveSkillPath(storeRoot: string, skillId: string): string {
+  return path.join(storeRoot, "active", skillId);
+}

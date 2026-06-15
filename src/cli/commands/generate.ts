@@ -1,17 +1,13 @@
 import { Command } from "commander";
-import { stat } from "node:fs/promises";
-import path from "node:path";
 
 import { analyzeRecentSessions } from "../../analyze/run-analysis.js";
-import { renderSkill } from "../../generate/render-skill.js";
 import { renderSummary } from "../../generate/render-summary.js";
 import { LlmProviderRegistry, OpenAiCompatibleProvider, createPromptRegistry } from "../../llm/index.js";
 import { allPrompts } from "../../llm/prompts/index.js";
 import type { ProfileV2 } from "../../normalize/models.js";
-import { writeGeneratedArtifacts, writeHarnessGeneratedArtifacts } from "../../persist/generated-artifacts.js";
+import { writeHarnessGeneratedArtifacts } from "../../persist/generated-artifacts.js";
 import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../shared/cli.js";
 import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../../shared/errors.js";
-import { loadProfileFromFile } from "../../shared/profile-io.js";
 import { resolveGeneratedSkillsDirectory, resolveProjectDirectory, validateProjectDirectory } from "../../shared/paths.js";
 import { analyzeWithHarness } from "../../harness/run-harness.js";
 import { buildEvidenceIndex } from "../../analyze/evidence-index.js";
@@ -24,27 +20,19 @@ type GenerateOptions = {
   recent: number;
   output?: string;
   force: boolean;
-  profile?: string;
   tone: TonePreset;
-  harness: boolean;
 };
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
-function hasLlmEnvVars(): boolean {
-  return Boolean(process.env.SESSION2SKILLS_LLM_BASE_URL) && Boolean(process.env.SESSION2SKILLS_LLM_MODEL);
-}
-
 export function registerGenerateCommand(program: Command): void {
   program
     .command("generate")
-    .description("Generate summary and SKILL markdown artifacts from OpenCode sessions")
+    .description("Generate summary and SKILL markdown artifacts from OpenCode sessions via the harness pipeline")
     .option("-d, --directory <path>", "Target project directory")
     .option("-w, --workspace <id>", "Optional OpenCode workspace id")
     .option("-r, --recent <number>", "Number of recent sessions to analyze", parsePositiveInteger, 10)
     .option("-o, --output <path>", "Directory where generated skill artifacts should be written")
-    .option("-p, --profile <path>", "Use an existing profile.json file or analyze output directory instead of live analysis")
-    .option("--harness", "Run harness-inspired multi-stage LLM pipeline for skill generation", false)
     .option("--tone <preset>", "Output tone: concise, balanced, or detailed", parseTonePreset, "balanced")
     .option("--force", "Allow overwriting existing generated outputs", false)
     .action(async (options: GenerateOptions) => {
@@ -52,71 +40,27 @@ export function registerGenerateCommand(program: Command): void {
       const outputDirectory = resolveGeneratedSkillsDirectory(directory, options.output);
       const source = await resolveGenerateSource(options, directory);
 
-      if (!options.profile && !options.harness && source.normalizedSessions.length === 0) {
+      if (source.normalizedSessions.length === 0) {
         console.log(`No OpenCode sessions found for ${directory}.`);
         return;
       }
 
-      if (source.mode === "harness") {
-        const summary = renderSummary(source.profile, { tone: options.tone });
-        const skill = source.harnessResult.writerOutput.skillMarkdown;
-
-        console.log("--- summary preview ---");
-        console.log(summary.split("\n").slice(0, 12).join("\n"));
-        console.log("--- skill preview ---");
-        console.log(skill.split("\n").slice(0, 18).join("\n"));
-
-        const artifactPaths = await writeHarnessGeneratedArtifacts({
-          outputDirectory,
-          summary,
-          skill,
-          claimManifest: source.harnessResult.revisedManifest,
-          skepticReport: source.harnessResult.skepticReport,
-          verifierReport: source.harnessResult.verifierReport,
-          traces: source.harnessResult.traces,
-          force: options.force,
-        });
-
-        console.log(
-          JSON.stringify(
-            {
-              directory,
-              workspace: options.workspace,
-              recent: source.normalizedSessions.length,
-              outputDirectory,
-              mode: "harness",
-              artifacts: {
-                summaryPath: artifactPaths.summaryPath,
-                skillPath: artifactPaths.skillPath,
-                claimManifestPath: artifactPaths.claimManifestPath,
-                skepticReportPath: artifactPaths.skepticReportPath,
-                verifierReportPath: artifactPaths.verifierReportPath,
-              },
-              verifierPassed: source.harnessResult.verifierReport.pass,
-              manifestClaims: source.harnessResult.revisedManifest.claims.length,
-              skepticIssues: source.harnessResult.skepticReport.issues.length,
-              tone: options.tone,
-              force: options.force,
-            },
-            null,
-            2,
-          ),
-        );
-        return;
-      }
-
       const summary = renderSummary(source.profile, { tone: options.tone });
-      const skill = renderSkill(source.profile, options.tone);
+      const skill = source.harnessResult.writerOutput.skillMarkdown;
 
       console.log("--- summary preview ---");
-      console.log(summary.split("\n").slice(0, options.tone === "detailed" ? 18 : 12).join("\n"));
+      console.log(summary.split("\n").slice(0, 12).join("\n"));
       console.log("--- skill preview ---");
-      console.log(skill.split("\n").slice(0, options.tone === "detailed" ? 18 : 12).join("\n"));
+      console.log(skill.split("\n").slice(0, 18).join("\n"));
 
-      const artifactPaths = await writeGeneratedArtifacts({
+      const artifactPaths = await writeHarnessGeneratedArtifacts({
         outputDirectory,
         summary,
         skill,
+        claimManifest: source.harnessResult.revisedManifest,
+        skepticReport: source.harnessResult.skepticReport,
+        verifierReport: source.harnessResult.verifierReport,
+        traces: source.harnessResult.traces,
         force: options.force,
       });
 
@@ -125,15 +69,19 @@ export function registerGenerateCommand(program: Command): void {
           {
             directory,
             workspace: options.workspace,
-            recent: options.profile ? null : source.normalizedSessions.length,
+            recent: source.normalizedSessions.length,
             outputDirectory,
-            mode: source.mode,
+            mode: "harness",
             artifacts: {
               summaryPath: artifactPaths.summaryPath,
               skillPath: artifactPaths.skillPath,
+              claimManifestPath: artifactPaths.claimManifestPath,
+              skepticReportPath: artifactPaths.skepticReportPath,
+              verifierReportPath: artifactPaths.verifierReportPath,
             },
-            profileSource: describeProfileSource(source),
-            warnings: source.warnings,
+            verifierPassed: source.harnessResult.verifierReport.pass,
+            manifestClaims: source.harnessResult.revisedManifest.claims.length,
+            skepticIssues: source.harnessResult.skepticReport.issues.length,
             tone: options.tone,
             force: options.force,
           },
@@ -144,95 +92,16 @@ export function registerGenerateCommand(program: Command): void {
     });
 }
 
-type LegacyGenerateSource = {
-  mode: "legacy";
-  profile: Awaited<ReturnType<typeof loadProfileFromFile>>;
-  normalizedSessions: Awaited<ReturnType<typeof analyzeRecentSessions>>["normalizedSessions"];
-  warnings: Array<string | { type: string; message: string; sessionID?: string }>;
-  profileSourcePath?: string;
-};
-
 type HarnessGenerateSource = {
-  mode: "harness";
   profile: ProfileV2;
   normalizedSessions: Awaited<ReturnType<typeof analyzeRecentSessions>>["normalizedSessions"];
   harnessResult: Awaited<ReturnType<typeof analyzeWithHarness>>;
   warnings: Array<string>;
 };
 
-async function resolveGenerateSource(options: GenerateOptions, directory: string): Promise<LegacyGenerateSource | HarnessGenerateSource> {
-  if (options.profile) {
-    const profilePath = await resolveProfileInputPath(options.profile);
-    const profile = await loadProfileFromFile(profilePath);
-
-    return {
-      mode: "legacy",
-      profile,
-      normalizedSessions: [],
-      warnings: [],
-      profileSourcePath: profilePath,
-    };
-  }
-
-  if (options.harness || hasLlmEnvVars()) {
-    const resolved = resolveHybridLlmProvider();
-    const registry = buildPromptRegistry();
-
-    const analysis = await analyzeRecentSessions({
-      directory,
-      workspace: options.workspace,
-      recent: options.recent,
-      tone: options.tone,
-    });
-
-    if (analysis.normalizedSessions.length === 0) {
-      return {
-        mode: "harness" as const,
-        profile: analysis.profile,
-        normalizedSessions: [],
-        harnessResult: {
-          manifest: { schemaVersion: "claim-manifest/v1" as const, claims: [], evidenceSummary: "", dimensionsCovered: [], metadata: { generatedAt: new Date().toISOString(), sessionCount: 0, totalEvidenceItems: 0 } },
-          skepticReport: { schemaVersion: "skeptic-report/v1" as const, issues: [], overallScore: 1, metadata: { generatedAt: new Date().toISOString(), claimCount: 0, issueCount: 0 } },
-          writerOutput: { skillMarkdown: "# No sessions found\n", sections: [] },
-          verifierReport: { schemaVersion: "verifier-report/v1" as const, pass: true, checkedItems: [], issues: [], metadata: { generatedAt: new Date().toISOString(), directiveCount: 0, verifiedCount: 0, fabricatedCount: 0 } },
-          revisedManifest: { schemaVersion: "claim-manifest/v1" as const, claims: [], evidenceSummary: "", dimensionsCovered: [], metadata: { generatedAt: new Date().toISOString(), sessionCount: 0, totalEvidenceItems: 0 } },
-          traces: [],
-        },
-        warnings: [],
-      };
-    }
-
-    const evidenceIndex = buildEvidenceIndex(analysis.normalizedSessions);
-    const harnessResult = await analyzeWithHarness({
-      sessions: analysis.normalizedSessions,
-      evidence: evidenceIndex,
-      provider: resolved,
-      registry,
-      tone: options.tone,
-    });
-
-    const profile = buildProfileV2([], {
-      confidenceNotes: [
-        ...analysis.profile.confidenceNotes,
-        `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
-        `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
-        `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
-      ],
-    });
-
-    const selfContainedManifest = enrichManifestWithEvidence(
-      harnessResult.revisedManifest,
-      evidenceIndex,
-    );
-
-    return {
-      mode: "harness" as const,
-      profile,
-      normalizedSessions: analysis.normalizedSessions,
-      harnessResult: { ...harnessResult, revisedManifest: selfContainedManifest },
-      warnings: analysis.warnings.map((w) => w.message),
-    };
-  }
+async function resolveGenerateSource(options: GenerateOptions, directory: string): Promise<HarnessGenerateSource> {
+  const resolved = resolveHybridLlmProvider();
+  const registry = buildPromptRegistry();
 
   const analysis = await analyzeRecentSessions({
     directory,
@@ -241,34 +110,51 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     tone: options.tone,
   });
 
-  return {
-    mode: "legacy",
-    profile: analysis.profile,
-    normalizedSessions: analysis.normalizedSessions,
-    warnings: analysis.warnings,
-  };
-}
-
-async function resolveProfileInputPath(inputPath: string): Promise<string> {
-  const resolvedPath = path.resolve(inputPath);
-
-  try {
-    const stats = await stat(resolvedPath);
-    if (stats.isDirectory()) {
-      return path.join(resolvedPath, "profile.json");
-    }
-    return resolvedPath;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") {
-      return resolvedPath;
-    }
-    throw new CliUsageError(`Cannot access profile path ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`);
+  if (analysis.normalizedSessions.length === 0) {
+    return {
+      profile: analysis.profile,
+      normalizedSessions: [],
+      harnessResult: {
+        manifest: { schemaVersion: "claim-manifest/v1" as const, claims: [], evidenceSummary: "", dimensionsCovered: [], metadata: { generatedAt: new Date().toISOString(), sessionCount: 0, totalEvidenceItems: 0 } },
+        skepticReport: { schemaVersion: "skeptic-report/v1" as const, issues: [], overallScore: 1, metadata: { generatedAt: new Date().toISOString(), claimCount: 0, issueCount: 0 } },
+        writerOutput: { skillMarkdown: "# No sessions found\n", sections: [] },
+        verifierReport: { schemaVersion: "verifier-report/v1" as const, pass: true, checkedItems: [], issues: [], metadata: { generatedAt: new Date().toISOString(), directiveCount: 0, verifiedCount: 0, fabricatedCount: 0 } },
+        revisedManifest: { schemaVersion: "claim-manifest/v1" as const, claims: [], evidenceSummary: "", dimensionsCovered: [], metadata: { generatedAt: new Date().toISOString(), sessionCount: 0, totalEvidenceItems: 0 } },
+        traces: [],
+      },
+      warnings: [],
+    };
   }
-}
 
-function describeProfileSource(source: LegacyGenerateSource): string {
-  return source.profileSourcePath ?? "live-analysis";
+  const evidenceIndex = buildEvidenceIndex(analysis.normalizedSessions);
+  const harnessResult = await analyzeWithHarness({
+    sessions: analysis.normalizedSessions,
+    evidence: evidenceIndex,
+    provider: resolved,
+    registry,
+    tone: options.tone,
+  });
+
+  const profile = buildProfileV2([], {
+    confidenceNotes: [
+      ...analysis.profile.confidenceNotes,
+      `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
+      `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
+      `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
+    ],
+  });
+
+  const selfContainedManifest = enrichManifestWithEvidence(
+    harnessResult.revisedManifest,
+    evidenceIndex,
+  );
+
+  return {
+    profile,
+    normalizedSessions: analysis.normalizedSessions,
+    harnessResult: { ...harnessResult, revisedManifest: selfContainedManifest },
+    warnings: analysis.warnings.map((w) => w.message),
+  };
 }
 
 function resolveHybridLlmProvider() {

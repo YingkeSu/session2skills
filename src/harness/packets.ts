@@ -126,6 +126,8 @@ const FALLBACK_WRITER_SYSTEM = [
   "Every directive must reference a manifest claim ID.",
   "Do not add information not in the manifest.",
   "Return structured sections whose directives exactly correspond to checkable instructions in the markdown.",
+  "When evidence excerpts are provided for a claim, anchor each directive to the observed pattern.",
+  "Prefer behavioral translations over abstract labels (e.g., 'Limit explanations to 2-3 sentences' not 'Be concise').",
   "Output valid JSON.",
 ].join("\n");
 
@@ -310,6 +312,7 @@ export function buildWriterPacket(
   manifest: ClaimManifest,
   tone: string,
   registry?: PromptRegistry,
+  evidence?: ReadonlyArray<EvidenceItem>,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -318,14 +321,38 @@ export function buildWriterPacket(
     {},
   );
 
+  const evidenceLookup = new Map((evidence ?? []).map((e) => [e.evidenceID, e]));
+
   const manifestJson = JSON.stringify(
-    manifest.claims.map((c) => ({
-      id: c.id,
-      dimension: c.dimension,
-      label: c.label,
-      confidence: c.confidence,
-      rationale: c.rationale,
-    })),
+    manifest.claims.map((c) => {
+      const base: Record<string, unknown> = {
+        id: c.id,
+        dimension: c.dimension,
+        label: c.label,
+        confidence: c.confidence,
+        rationale: c.rationale,
+        evidenceRefs: c.evidenceRefs,
+      };
+
+      if (evidenceLookup.size > 0) {
+        const excerpts = c.evidenceRefs
+          .map((refId) => evidenceLookup.get(refId))
+          .filter((item): item is EvidenceItem => item !== undefined)
+          .map((item) => ({
+            id: item.evidenceID,
+            sourceType: item.citation.sourceType,
+            excerpt:
+              item.summaryText.length > 200
+                ? item.summaryText.substring(0, 200) + "..."
+                : item.summaryText,
+          }));
+        if (excerpts.length > 0) {
+          base.evidenceExcerpts = excerpts;
+        }
+      }
+
+      return base;
+    }),
     null,
     2,
   );

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildAnalystPacket, buildVerifierPacket } from "../../src/harness/packets.js";
+import { buildAnalystPacket, buildVerifierPacket, buildWriterPacket } from "../../src/harness/packets.js";
 import { buildEvidenceIndex, makeEvidenceID } from "../../src/analyze/evidence-index.js";
-import { makeEvidenceItems, makeClaimManifest, makeManifestClaim } from "./fixtures.js";
+import { makeEvidenceItems, makeEvidenceItem, makeClaimManifest, makeManifestClaim } from "./fixtures.js";
 import type { NormalizedSession } from "../../src/normalize/models.js";
 
 const mockSessions: Array<NormalizedSession> = [
@@ -87,5 +87,161 @@ describe("buildVerifierPacket", () => {
     expect(claim).toHaveProperty("rationale", "The user consistently inspects code before editing.");
     expect(claim).toHaveProperty("evidenceRefs");
     expect(claim.evidenceRefs).toEqual(["ses_001:msg_001", "ses_001:msg_002"]);
+  });
+});
+
+describe("buildWriterPacket", () => {
+  it("includes evidenceRefs and evidenceExcerpts for each claim when evidence provided", () => {
+    const evidence = [
+      makeEvidenceItem({
+        evidenceID: "ev_001",
+        citation: {
+          evidenceID: "ev_001",
+          sessionID: "ses_001",
+          sourceType: "message",
+        },
+        summaryText: "User asks for analysis before editing any code.",
+      }),
+      makeEvidenceItem({
+        evidenceID: "ev_002",
+        citation: {
+          evidenceID: "ev_002",
+          sessionID: "ses_001",
+          sourceType: "tool",
+        },
+        summaryText: "Ran the full test suite immediately after changes.",
+      }),
+    ];
+
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "claim_001",
+          evidenceRefs: ["ev_001", "ev_002"],
+        }),
+      ],
+    });
+
+    const packet = buildWriterPacket(manifest, "balanced", undefined, evidence);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+
+    const jsonBlockMatch = userMessage!.content.match(/```json\n([\s\S]*?)\n```/);
+    expect(jsonBlockMatch).not.toBeNull();
+    const parsed = JSON.parse(jsonBlockMatch![1]!);
+
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(1);
+
+    const claim = parsed[0];
+    expect(claim).toHaveProperty("evidenceRefs");
+    expect(claim.evidenceRefs).toEqual(["ev_001", "ev_002"]);
+    expect(claim).toHaveProperty("evidenceExcerpts");
+    expect(Array.isArray(claim.evidenceExcerpts)).toBe(true);
+    expect(claim.evidenceExcerpts).toHaveLength(2);
+
+    const excerpt0 = claim.evidenceExcerpts[0];
+    expect(excerpt0.id).toBe("ev_001");
+    expect(excerpt0.sourceType).toBe("message");
+    expect(excerpt0.excerpt).toContain("User asks for analysis before editing");
+
+    const excerpt1 = claim.evidenceExcerpts[1];
+    expect(excerpt1.id).toBe("ev_002");
+    expect(excerpt1.sourceType).toBe("tool");
+    expect(excerpt1.excerpt).toContain("Ran the full test suite");
+  });
+
+  it("truncates evidence excerpts to ~200 chars", () => {
+    const longText = "x".repeat(500);
+    const evidence = [
+      makeEvidenceItem({
+        evidenceID: "ev_long",
+        citation: { evidenceID: "ev_long", sessionID: "ses_001", sourceType: "message" },
+        summaryText: longText,
+      }),
+    ];
+
+    const manifest = makeClaimManifest({
+      claims: [makeManifestClaim({ id: "claim_001", evidenceRefs: ["ev_long"] })],
+    });
+
+    const packet = buildWriterPacket(manifest, "balanced", undefined, evidence);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    const jsonBlockMatch = userMessage!.content.match(/```json\n([\s\S]*?)\n```/);
+    const parsed = JSON.parse(jsonBlockMatch![1]!);
+    const excerpt = parsed[0].evidenceExcerpts[0].excerpt as string;
+    expect(excerpt.length).toBeLessThanOrEqual(203);
+    expect(excerpt.endsWith("...")).toBe(true);
+  });
+
+  it("degrades gracefully when evidence is undefined (no crash, no evidenceExcerpts)", () => {
+    const manifest = makeClaimManifest({
+      claims: [makeManifestClaim({ id: "claim_001", evidenceRefs: ["ev_001"] })],
+    });
+
+    const packet = buildWriterPacket(manifest, "balanced", undefined);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+
+    const jsonBlockMatch = userMessage!.content.match(/```json\n([\s\S]*?)\n```/);
+    expect(jsonBlockMatch).not.toBeNull();
+    const parsed = JSON.parse(jsonBlockMatch![1]!);
+
+    expect(parsed[0]).toHaveProperty("evidenceRefs");
+    expect(parsed[0].evidenceRefs).toEqual(["ev_001"]);
+    expect(parsed[0]).not.toHaveProperty("evidenceExcerpts");
+  });
+
+  it("degrades gracefully when evidence array is empty", () => {
+    const manifest = makeClaimManifest({
+      claims: [makeManifestClaim({ id: "claim_001", evidenceRefs: ["ev_001"] })],
+    });
+
+    const packet = buildWriterPacket(manifest, "balanced", undefined, []);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    const jsonBlockMatch = userMessage!.content.match(/```json\n([\s\S]*?)\n```/);
+    const parsed = JSON.parse(jsonBlockMatch![1]!);
+    expect(parsed[0]).not.toHaveProperty("evidenceExcerpts");
+  });
+
+  it("resolves only excerpts for referenced evidence IDs, skipping unknown refs", () => {
+    const evidence = [
+      makeEvidenceItem({
+        evidenceID: "ev_known",
+        citation: { evidenceID: "ev_known", sessionID: "ses_001", sourceType: "message" },
+        summaryText: "Known evidence text.",
+      }),
+    ];
+
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "claim_001",
+          evidenceRefs: ["ev_known", "ev_unknown"],
+        }),
+      ],
+    });
+
+    const packet = buildWriterPacket(manifest, "balanced", undefined, evidence);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    const jsonBlockMatch = userMessage!.content.match(/```json\n([\s\S]*?)\n```/);
+    const parsed = JSON.parse(jsonBlockMatch![1]!);
+    expect(parsed[0].evidenceExcerpts).toHaveLength(1);
+    expect(parsed[0].evidenceExcerpts[0].id).toBe("ev_known");
+  });
+
+  it("fallback system prompt includes grounding density instructions", () => {
+    const manifest = makeClaimManifest();
+    const packet = buildWriterPacket(manifest, "balanced", undefined);
+
+    const systemMessage = packet.messages.find((m) => m.role === "system");
+    expect(systemMessage).toBeDefined();
+    expect(systemMessage!.content).toContain("anchor each directive to the observed pattern");
+    expect(systemMessage!.content).toContain("Prefer behavioral translations over abstract labels");
   });
 });

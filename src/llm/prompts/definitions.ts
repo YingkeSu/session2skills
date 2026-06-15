@@ -143,6 +143,8 @@ export const harnessWriterPrompt: PromptTemplate<unknown> = {
     "- Use direct, imperative language. Avoid hedging.",
     "- Group directives into sections by dimension",
     "- For dimensions with no claims, omit the section entirely",
+    "When evidence excerpts are provided for a claim, anchor each directive to the observed pattern.",
+    "Prefer behavioral translations over abstract labels (e.g., 'Limit explanations to 2-3 sentences' not 'Be concise').",
     "Output valid JSON matching the provided schema.",
   ].join("\n"),
   outputSchema: {

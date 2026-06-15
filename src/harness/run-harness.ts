@@ -44,7 +44,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
 
   const revisedManifest = applySkepticFeedback(analystResult.manifest, skepticResult.report.issues);
 
-  const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget);
+  const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence);
   traces.push(writerResult.trace);
 
   const verifierResult = await runVerifierStage(

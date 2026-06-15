@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { MockLlmProvider } from "../mock-provider.js";
 import { runWriterStage } from "../../src/harness/writer.js";
-import { makeClaimManifest, makeMultiDimensionManifest } from "./fixtures.js";
+import { makeClaimManifest, makeMultiDimensionManifest, makeEvidenceItem } from "./fixtures.js";
 
 describe("harness writer stage", () => {
   it("produces SKILL.md markdown from manifest", async () => {
@@ -150,5 +150,64 @@ describe("harness writer stage", () => {
     expect(result.output.sections[0]!.groundingClaimIds).toEqual(["claim_001"]);
     expect(result.output.sections[0]!.directives[0]!.sourceClaimId).toBe("claim_001");
     expect(result.output.skillMarkdown).toContain("## Verified Operating Instructions");
+  });
+
+  it("threads evidence excerpts into the writer packet when evidence provided", async () => {
+    const manifest = makeClaimManifest();
+    const evidence = [
+      makeEvidenceItem({
+        evidenceID: "ev_001",
+        citation: { evidenceID: "ev_001", sessionID: "ses_001", sourceType: "message" },
+        summaryText: "User explicitly asks to inspect code before editing.",
+      }),
+    ];
+
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Inspect first\n",
+            sections: [
+              {
+                title: "Workflow",
+                summary: "Analysis-first",
+                directives: [{ text: "Inspect first", sourceClaimId: "claim_001" }],
+                groundingClaimIds: ["claim_001"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved(), undefined, undefined, evidence);
+
+    const userTraceMessage = result.trace.request.messages.find((m) => m.role === "user");
+    expect(userTraceMessage).toBeDefined();
+    expect(userTraceMessage!.content).toContain("evidenceExcerpts");
+    expect(userTraceMessage!.content).toContain("User explicitly asks to inspect code before editing.");
+  });
+
+  it("omits evidenceExcerpts from packet when evidence is not provided", async () => {
+    const manifest = makeClaimManifest();
+
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n- Test\n",
+            sections: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved());
+
+    const userTraceMessage = result.trace.request.messages.find((m) => m.role === "user");
+    expect(userTraceMessage).toBeDefined();
+    expect(userTraceMessage!.content).not.toContain("evidenceExcerpts");
   });
 });

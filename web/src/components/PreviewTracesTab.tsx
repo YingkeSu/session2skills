@@ -1,4 +1,5 @@
 import type { LLMTraceSummary } from "../runs.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 type PreviewTracesTabProps = {
   skillMarkdown: string | null;
@@ -150,6 +151,7 @@ export function PreviewTracesTab({
   skillMarkdown,
   traces,
 }: PreviewTracesTabProps): JSX.Element {
+  const { t, tEnum } = useLocale();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <section
@@ -159,9 +161,9 @@ export function PreviewTracesTab({
           padding: "16px",
         }}
       >
-        <h3 style={{ margin: "0 0 12px" }}>SKILL.md Preview</h3>
+        <h3 style={{ margin: "0 0 12px" }}>{t("preview.skillTitle")}</h3>
         {skillMarkdown == null ? (
-          <p style={{ color: "#666" }}>No SKILL.md available for this run.</p>
+          <p style={{ color: "#666" }}>{t("preview.noSkill")}</p>
         ) : (
           <div
             style={{
@@ -184,9 +186,9 @@ export function PreviewTracesTab({
           padding: "16px",
         }}
       >
-        <h3 style={{ margin: "0 0 12px" }}>LLM Traces</h3>
+        <h3 style={{ margin: "0 0 12px" }}>{t("preview.tracesTitle")}</h3>
         {traces.length === 0 ? (
-          <p style={{ color: "#666" }}>No LLM traces recorded.</p>
+          <p style={{ color: "#666" }}>{t("preview.noTraces")}</p>
         ) : (
           <div
             style={{
@@ -236,7 +238,7 @@ export function PreviewTracesTab({
                             stageColors[summary.stage] ?? "#6c757d",
                         }}
                       >
-                        {summary.stage}
+                        {tEnum("stage", summary.stage)}
                       </span>
                       <span style={{ fontSize: "13px", fontWeight: 500 }}>
                         {summary.model}
@@ -248,7 +250,7 @@ export function PreviewTracesTab({
                         color: "#666",
                       }}
                     >
-                      {formatBytes(summary.usage.totalTokens)} tokens
+                      {formatBytes(summary.usage.totalTokens)} {t("preview.tokens")}
                       {summary.latencyMs
                         ? ` · ${summary.latencyMs}ms`
                         : ""}
@@ -266,34 +268,34 @@ export function PreviewTracesTab({
                     }}
                   >
                     <div>
-                      <strong>Provider:</strong> {summary.provider}
+                      <strong>{t("preview.provider")}</strong> {summary.provider}
                     </div>
                     <div>
-                      <strong>Prompt tokens:</strong>{" "}
+                      <strong>{t("preview.promptTokens")}</strong>{" "}
                       {summary.usage.promptTokens}
                     </div>
                     <div>
-                      <strong>Completion tokens:</strong>{" "}
+                      <strong>{t("preview.completionTokens")}</strong>{" "}
                       {summary.usage.completionTokens}
                     </div>
                     <div>
-                      <strong>Total tokens:</strong>{" "}
+                      <strong>{t("preview.totalTokens")}</strong>{" "}
                       {summary.usage.totalTokens}
                     </div>
                     {summary.latencyMs != null && (
                       <div>
-                        <strong>Latency:</strong> {summary.latencyMs}ms
+                        <strong>{t("preview.latency")}</strong> {summary.latencyMs}ms
                       </div>
                     )}
                     {summary.finishReason && (
                       <div>
-                        <strong>Finish reason:</strong>{" "}
+                        <strong>{t("preview.finishReason")}</strong>{" "}
                         {summary.finishReason}
                       </div>
                     )}
                     {(summary.promptName || summary.requestPromptName) && (
                       <div>
-                        <strong>Prompt:</strong>{" "}
+                        <strong>{t("preview.prompt")}</strong>{" "}
                         {summary.promptName ??
                           summary.requestPromptName}
                       </div>

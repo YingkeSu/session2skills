@@ -5,6 +5,7 @@ import type {
   VerifierReport,
 } from "../runs.js";
 import { EvidencePanel } from "./EvidencePanel.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 type AuditViewTabProps = {
   manifest: ClaimManifest;
@@ -49,6 +50,7 @@ export function AuditViewTab({
   verifierReport,
   runName,
 }: AuditViewTabProps): JSX.Element {
+  const { t, tEnum } = useLocale();
   const trustMap = buildTrustMap(verifierReport);
   const skepticMap = buildSkepticIssueMap(skepticReport);
 
@@ -72,7 +74,7 @@ export function AuditViewTab({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <section>
-        <h3 style={{ margin: "0 0 8px" }}>Evidence Summary</h3>
+        <h3 style={{ margin: "0 0 8px" }}>{t("audit.evidenceSummary")}</h3>
         <p style={{ color: "#555", lineHeight: 1.6 }}>
           {manifest.evidenceSummary}
         </p>
@@ -80,7 +82,7 @@ export function AuditViewTab({
 
       {manifest.evidence && manifest.evidence.length > 0 && (
         <section>
-          <h3 style={{ margin: "0 0 8px" }}>Evidence Excerpts</h3>
+          <h3 style={{ margin: "0 0 8px" }}>{t("audit.evidenceExcerpts")}</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {manifest.evidence.map((excerpt) => (
               <details
@@ -99,7 +101,7 @@ export function AuditViewTab({
                       color: "#495057",
                     }}
                   >
-                    {excerpt.sourceType}
+                    {tEnum("sourceType", excerpt.sourceType)}
                   </span>
                 </summary>
                 <pre
@@ -123,9 +125,9 @@ export function AuditViewTab({
       )}
 
       <section>
-        <h3 style={{ margin: "0 0 12px" }}>Claims</h3>
+        <h3 style={{ margin: "0 0 12px" }}>{t("audit.claims")}</h3>
         {manifest.dimensionsCovered.length === 0 && (
-          <p style={{ color: "#666" }}>No claims extracted.</p>
+          <p style={{ color: "#666" }}>{t("audit.noClaims")}</p>
         )}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "16px" }}
@@ -194,7 +196,7 @@ export function AuditViewTab({
                                   trustColors[trustStatus] ?? "#6c757d",
                               }}
                             >
-                              {trustStatus}
+                              {tEnum("status", trustStatus)}
                             </span>
                           )}
                           {issueCount > 0 && (
@@ -207,8 +209,7 @@ export function AuditViewTab({
                                 color: "#856404",
                               }}
                             >
-                              {issueCount} skeptic issue
-                              {issueCount === 1 ? "" : "s"}
+                              {t("audit.skepticIssue", { count: issueCount })}
                             </span>
                           )}
                         </div>
@@ -223,7 +224,7 @@ export function AuditViewTab({
                             color: "#495057",
                           }}
                         >
-                          <span>confidence</span>
+                          <span>{t("audit.confidence")}</span>
                           <div
                             style={{
                               flex: 1,

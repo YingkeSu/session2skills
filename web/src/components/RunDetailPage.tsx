@@ -3,6 +3,8 @@ import { fetchRunDetail, type RunDetail } from "../runs.js";
 import { AuditViewTab } from "./AuditViewTab.js";
 import { ReportsTab } from "./ReportsTab.js";
 import { PreviewTracesTab } from "./PreviewTracesTab.js";
+import { LanguageToggle } from "../i18n/LanguageToggle.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 type Tab = "audit" | "reports" | "preview";
 
@@ -15,6 +17,7 @@ export function RunDetailPage({
   runName,
   onBack,
 }: RunDetailPageProps): JSX.Element {
+  const { t } = useLocale();
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [status, setStatus] = useState<
     "loading" | "error" | "ready"
@@ -47,9 +50,9 @@ export function RunDetailPage({
   }, [runName]);
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "audit", label: "Audit View" },
-    { id: "reports", label: "Reports" },
-    { id: "preview", label: "Preview & Traces" },
+    { id: "audit", label: t("tab.audit") },
+    { id: "reports", label: t("tab.reports") },
+    { id: "preview", label: t("tab.preview") },
   ];
 
   return (
@@ -72,7 +75,7 @@ export function RunDetailPage({
           marginBottom: "16px",
         }}
       >
-        ← Back to runs
+        {t("detail.back")}
       </button>
 
       <div
@@ -85,6 +88,7 @@ export function RunDetailPage({
         }}
       >
         <h1 style={{ fontSize: "22px", margin: 0 }}>{runName}</h1>
+        <LanguageToggle />
       </div>
 
       <nav
@@ -95,13 +99,13 @@ export function RunDetailPage({
           borderBottom: "1px solid #dee2e6",
         }}
       >
-        {tabs.map((t) => {
-          const active = tab === t.id;
+        {tabs.map((tabItem) => {
+          const active = tab === tabItem.id;
           return (
             <button
-              key={t.id}
+              key={tabItem.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => setTab(tabItem.id)}
               style={{
                 padding: "8px 14px",
                 border: "none",
@@ -116,7 +120,7 @@ export function RunDetailPage({
                 marginBottom: "-1px",
               }}
             >
-              {t.label}
+              {tabItem.label}
             </button>
           );
         })}
@@ -130,13 +134,13 @@ export function RunDetailPage({
             color: "#666",
           }}
         >
-          Loading run details…
+          {t("detail.loading")}
         </div>
       )}
 
       {status === "error" && (
         <div style={{ color: "#c0392b", padding: "16px" }}>
-          Error loading run: {error}
+          {t("detail.errorPrefix", { message: error })}
         </div>
       )}
 

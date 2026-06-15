@@ -1,18 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMergedRuleClaims, buildPreferenceProfile, extractAllRuleClaims } from "../src/profile/build-profile.js";
+import { buildMergedRuleClaims, extractAllRuleClaims } from "../src/profile/build-profile.js";
 import { buildProfileV2 } from "../src/profile/profile-v2.js";
 import { sampleNormalizedSessions } from "./fixtures/sample-normalized-session.js";
-
-describe("buildPreferenceProfile", () => {
-  it("extracts stable top-level signals from normalized sessions", () => {
-    const profile = buildPreferenceProfile(sampleNormalizedSessions);
-
-    expect(profile.workStyle[0]?.value).toBe("analysis-first");
-    expect(profile.validationHabits[0]?.value).toBe("run-diagnostics");
-    expect(profile.communicationStyle.length).toBeGreaterThan(0);
-  });
-});
 
 describe("extractAllRuleClaims", () => {
   it("produces CandidateClaim[] with required fields", () => {

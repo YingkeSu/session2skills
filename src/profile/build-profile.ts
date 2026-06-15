@@ -1,10 +1,7 @@
 import type {
   CandidateClaim,
-  EvidenceRef,
   MergedClaim,
   NormalizedSession,
-  PreferenceProfile,
-  WorkflowSignal,
 } from "../normalize/models.js";
 
 import { extractCommunicationStyleClaims } from "../analyze/extract-communication-style.js";
@@ -29,36 +26,6 @@ export function extractAllRuleClaims(sessions: Array<NormalizedSession>): Array<
   ];
 
   return claims.sort((a, b) => b.confidence - a.confidence);
-}
-
-export function buildPreferenceProfile(sessions: Array<NormalizedSession>): PreferenceProfile {
-  const workStyleClaims = extractWorkStyleClaims(sessions);
-  const communicationStyleClaims = extractCommunicationStyleClaims(sessions);
-  const validationHabitsClaims = extractValidationHabitClaims(sessions);
-  const constraintsClaims = extractConstraintClaims(sessions);
-
-  const tokenEfficiencyClaims = extractTokenEfficiencyClaims(sessions);
-  const modelSelectionClaims = extractModelSelectionClaims(sessions);
-  const delegationPatternClaims = extractDelegationPatternClaims(sessions);
-
-  const workStyle = claimsToLegacySignals(workStyleClaims);
-  const communicationStyle = claimsToLegacySignals(communicationStyleClaims);
-  const validationHabits = claimsToLegacySignals(validationHabitsClaims);
-  const constraints = claimsToLegacySignals(constraintsClaims);
-  const tokenEfficiency = claimsToLegacySignals(tokenEfficiencyClaims);
-  const modelSelection = claimsToLegacySignals(modelSelectionClaims);
-  const delegationPattern = claimsToLegacySignals(delegationPatternClaims);
-
-  return {
-    workStyle,
-    communicationStyle,
-    validationHabits,
-    constraints,
-    tokenEfficiency,
-    modelSelection,
-    delegationPattern,
-    confidenceNotes: buildConfidenceNotes({ workStyle, communicationStyle, validationHabits, constraints, tokenEfficiency, modelSelection, delegationPattern }),
-  };
 }
 
 export function buildMergedRuleClaims(sessions: Array<NormalizedSession>): Array<MergedClaim> {
@@ -117,34 +84,4 @@ function dedupeCitations(citations: MergedClaim["citations"]): MergedClaim["cita
   }
 
   return [...seen.values()];
-}
-
-function claimsToLegacySignals(claims: Array<CandidateClaim>): Array<WorkflowSignal> {
-  return claims.map((claim) => ({
-    kind: claim.dimension,
-    value: claim.label as string,
-    weight: Math.round(claim.confidence * 10),
-    evidence: claim.citations.map((cit): EvidenceRef => ({
-      sessionID: cit.sessionID,
-      messageID: cit.messageID,
-      partID: cit.partID,
-      sourceType: cit.sourceType,
-      excerpt: cit.excerpt,
-    })),
-  }));
-}
-
-function buildConfidenceNotes(profile: Omit<PreferenceProfile, "confidenceNotes">): Array<string> {
-  const notes: Array<string> = [];
-
-  for (const [key, signals] of Object.entries(profile)) {
-    if (signals.length === 0) {
-      notes.push(`${key}: no strong evidence detected yet`);
-      continue;
-    }
-
-    notes.push(`${key}: strongest signal \`${signals[0].value}\` with weight ${signals[0].weight}`);
-  }
-
-  return notes;
 }

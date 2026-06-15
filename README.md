@@ -2,7 +2,7 @@
 
 CLI that reads your local OpenCode sessions, figures out how you work, and writes a `SKILL.md` file your AI assistant can pick up.
 
-It has three modes. **Legacy** mode runs purely local heuristics, fast and private. **Hybrid** mode sends session evidence to an LLM you configure, producing richer claims, a full audit trail, and a structured skill plan. **Harness** mode runs a multi-stage LLM pipeline (Analyst → Skeptic → Writer → Verifier) and is the default when LLM environment variables are set.
+The `analyze` command extracts evidence from sessions using local heuristics. The `generate` command runs a multi-stage LLM pipeline — the **harness** (Analyst → Skeptic → Writer → Verifier) — and requires LLM environment variables to be set.
 
 ## Install
 
@@ -59,9 +59,7 @@ Use `--force` to overwrite an existing output directory.
 
 ### Generate final artifacts
 
-When LLM environment variables (`SESSION2SKILLS_LLM_BASE_URL` + `SESSION2SKILLS_LLM_MODEL`) are set, `generate` defaults to **harness** mode — no flag needed. Without them, it falls back to **legacy** mode.
-
-**Harness** (default when LLM env vars are set):
+`generate` runs the **harness** pipeline and requires LLM environment variables (`SESSION2SKILLS_LLM_BASE_URL` + `SESSION2SKILLS_LLM_MODEL`). If they are not set, the command exits with a clear error.
 
 ```bash
 export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
@@ -77,58 +75,11 @@ node dist/cli/main.js generate \
 
 Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`. The harness pipeline runs 4 stages: Analyst → Skeptic → Writer → Verifier. Each claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier stages.
 
-You can also pass `--harness` explicitly to force harness mode regardless of env vars.
-
-**Legacy** (offline, no LLM):
-
-```bash
-node dist/cli/main.js generate \
-  --directory /absolute/project/path \
-  --recent 5 \
-  --output generated-skills/my-skill \
-  --tone balanced
-```
-
-Writes `summary.md` and `SKILL.md`.
-
-**Hybrid** (deprecated, use harness instead):
-
-```bash
-node dist/cli/main.js generate \
-  --directory /absolute/project/path \
-  --recent 5 \
-  --output generated-skills/my-skill \
-  --hybrid \
-  --tone balanced
-```
-
-Writes `summary.md`, `SKILL.md`, `merged-claims.json`, and `skill-plan.json`. The `--hybrid` flag prints a deprecation warning; harness mode is the recommended LLM-enhanced path.
-
-**From a saved profile:**
-
-```bash
-node dist/cli/main.js generate \
-  --profile .session2skills/runs/latest/profile.json \
-  --output generated-skills/from-profile \
-  --tone concise
-```
-
-You can also pass the analyze output directory itself:
-
-```bash
-node dist/cli/main.js generate \
-  --profile .session2skills/runs/latest \
-  --output generated-skills/from-profile \
-  --tone concise
-```
-
-If the profile was produced by `analyze --hybrid` (a `profile/v2` artifact), `generate` will detect it and use the hybrid rendering path automatically. Sibling artifacts such as `skill-plan.json` and `manifest.json` are reused when present.
-
 Use `--force` to overwrite existing output files.
 
 ## Configuration
 
-Hybrid mode reads these environment variables:
+The harness pipeline reads these environment variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -140,13 +91,13 @@ Hybrid mode reads these environment variables:
 
 ### Privacy note
 
-Hybrid mode sends your **raw session evidence** (message text, tool invocations, diffs) to the LLM endpoint you configure. By default, that endpoint is whatever you set in `SESSION2SKILLS_LLM_BASE_URL`. Nothing is sent to any server maintained by the session2skills authors.
+The harness pipeline sends your **raw session evidence** (message text, tool invocations, diffs) to the LLM endpoint you configure. By default, that endpoint is whatever you set in `SESSION2SKILLS_LLM_BASE_URL`. Nothing is sent to any server maintained by the session2skills authors.
 
 Generated artifacts such as `normalized.json`, `evidence-index.json`, and claim files can still contain session evidence. `llm-traces.json` is safer by default: request message content and raw model text are redacted before writing, while model/provider metadata, token usage, and parsed structured output are retained for auditing.
 
 If your sessions contain sensitive code or credentials, you should:
 - Point `SESSION2SKILLS_LLM_BASE_URL` at a self-hosted or private endpoint, or
-- Stick with legacy mode, which never leaves your machine.
+- Use `analyze` (local heuristics only), which never leaves your machine.
 
 ## Output artifacts
 
@@ -213,4 +164,4 @@ npm test
 - Heuristics are intentionally simple and evidence-driven
 - Profile quality depends on the quality and quantity of available sessions
 - Constraint detection is weaker than workflow or validation detection
-- Hybrid mode is not hallucination-free. LLM claims are cross-checked against rule claims and scored for confidence, but the final output still reflects what the model inferred from your sessions
+- The harness pipeline is not hallucination-free. LLM claims are cross-checked against rule claims and scored for confidence, but the final output still reflects what the model inferred from your sessions

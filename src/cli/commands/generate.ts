@@ -3,12 +3,13 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { buildSkillPlan } from "../../generate/skill-plan.js";
+import { buildSkillIntent } from "../../generate/build-skill-intent.js";
 import { analyzeRecentSessions, analyzeWithLLM } from "../../analyze/run-analysis.js";
 import { renderSkill, renderSkillArtifact } from "../../generate/render-skill.js";
 import { renderSummary } from "../../generate/render-summary.js";
 import { LlmProviderRegistry, OpenAiCompatibleProvider, createPromptRegistry } from "../../llm/index.js";
 import { allPrompts } from "../../llm/prompts/index.js";
-import type { MergedClaim, ProfileV2, SkillPlan } from "../../normalize/models.js";
+import type { MergedClaim, ProfileV2, SkillIntent, SkillPlan } from "../../normalize/models.js";
 import { writeGeneratedArtifacts, writeHybridGeneratedArtifacts, writeHarnessGeneratedArtifacts } from "../../persist/generated-artifacts.js";
 import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../shared/cli.js";
 import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../../shared/errors.js";
@@ -146,6 +147,7 @@ export function registerGenerateCommand(program: Command): void {
               force: options.force,
               skillRenderer: legacyOrHybridSource.skillRenderer,
               manifestPath: legacyOrHybridSource.manifestPath,
+              skillIntent: legacyOrHybridSource.skillIntent,
             },
             null,
             2,
@@ -207,6 +209,7 @@ type HybridGenerateSource = {
   skillRenderer: "llm" | "fallback";
   manifestPath: string | null;
   profileSourcePath?: string;
+  skillIntent?: SkillIntent;
 };
 
 type HarnessGenerateSource = {
@@ -223,15 +226,24 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     const profile = await loadProfileFromFile(profilePath);
 
     if (isProfileV2(profile)) {
+      const skillPlan = await loadOrBuildHybridSkillPlan(profilePath, profile);
+      const acceptedClaims = profile.mergedClaims
+        .filter((claim) => isAcceptedClaim(profile, claim))
+        .map((claim) => toRankedMergedClaim(claim, "accepted"));
+      const tentativeClaims = profile.mergedClaims
+        .filter((claim) => !isAcceptedClaim(profile, claim) && isTentativeClaim(profile, claim))
+        .map((claim) => toRankedMergedClaim(claim, "tentative"));
+
       return {
         mode: "hybrid",
         profile,
         normalizedSessions: [],
         warnings: [],
-        skillPlan: await loadOrBuildHybridSkillPlan(profilePath, profile),
+        skillPlan,
         skillRenderer: "fallback",
         manifestPath: await findSiblingArtifact(profilePath, "manifest.json"),
         profileSourcePath: profilePath,
+        skillIntent: buildSkillIntent(skillPlan, acceptedClaims, tentativeClaims),
       };
     }
 
@@ -346,6 +358,7 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     skillMarkdown: analysis.skill,
     skillRenderer: analysis.skillRenderMode,
     manifestPath: null,
+    skillIntent: analysis.skillIntent,
   };
 }
 

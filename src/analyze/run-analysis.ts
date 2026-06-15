@@ -6,6 +6,7 @@ import type {
   LLMTrace,
   NormalizedSession,
   ProfileV2,
+  SkillIntent,
   SkillPlan,
   WorkflowSignalKind,
 } from "../normalize/models.js";
@@ -151,6 +152,7 @@ export async function analyzeWithLLM(
   skill: string;
   skillTrace?: LLMTrace;
   skillRenderMode: "llm" | "fallback";
+  skillIntent?: SkillIntent;
 }> {
   const base = await analyzeRecentSessions(options);
 
@@ -231,6 +233,8 @@ export async function analyzeWithLLM(
   const renderedSkill = await renderSkillArtifact(profile, options.tone ?? "balanced", {
     skillPlan,
     llmClient: llmOptions.resolved,
+    acceptedClaims: mergedClaims.accepted,
+    tentativeClaims: mergedClaims.tentative,
   });
 
   if (renderedSkill.renderer === "fallback" && renderedSkill.reason) {
@@ -258,6 +262,7 @@ export async function analyzeWithLLM(
     skill: renderedSkill.markdown,
     skillTrace: renderedSkill.trace,
     skillRenderMode: renderedSkill.renderer,
+    skillIntent: renderedSkill.skillIntent,
   };
 }
 

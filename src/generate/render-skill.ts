@@ -1,13 +1,15 @@
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import { DEFAULT_PROMPT_SET_VERSION } from "../normalize/models.js";
-import type { PreferenceProfile, ProfileV2, SkillDirective, SkillPlan, WorkflowSignal } from "../normalize/models.js";
+import type { PreferenceProfile, ProfileV2, SkillDirective, SkillIntent, SkillPlan, WorkflowSignal } from "../normalize/models.js";
 import type { TonePreset } from "../shared/cli.js";
+import type { RankedMergedClaim } from "../analyze/claim-merge.js";
 import {
   composeSkillViaLLM,
   fallbackSkillRenderer,
   type ComposedSkillResult,
   type SkillComposerBudget,
 } from "./composer.js";
+import { buildSkillIntent } from "./build-skill-intent.js";
 
 type RenderableProfile = (PreferenceProfile | ProfileV2) & { skillPlan?: SkillPlan };
 
@@ -15,6 +17,8 @@ export type RenderSkillOptions = {
   skillPlan?: SkillPlan;
   llmClient?: ResolvedLlmProvider;
   composerBudget?: Partial<SkillComposerBudget>;
+  acceptedClaims?: Array<RankedMergedClaim>;
+  tentativeClaims?: Array<RankedMergedClaim>;
 };
 
 export type RenderSkillResult = {
@@ -23,6 +27,7 @@ export type RenderSkillResult = {
   reason?: string;
   trace?: ComposedSkillResult["trace"];
   skillPlan: SkillPlan;
+  skillIntent?: SkillIntent;
 };
 
 const OVERVIEW_TEXT = "Use this skill when working in the user's repository context and you want your execution style to mirror their established OpenCode habits.";
@@ -78,6 +83,7 @@ export async function renderSkillArtifact(
   options: RenderSkillOptions = {},
 ): Promise<RenderSkillResult> {
   const skillPlan = resolveSkillPlan(profile, options.skillPlan);
+  const skillIntent = buildSkillIntentIfClaims(skillPlan, options.acceptedClaims, options.tentativeClaims);
 
   if (options.llmClient) {
     try {
@@ -93,6 +99,7 @@ export async function renderSkillArtifact(
         renderer: "llm",
         trace: composed.trace,
         skillPlan,
+        skillIntent,
       };
     } catch (error) {
       return {
@@ -100,6 +107,7 @@ export async function renderSkillArtifact(
         renderer: "fallback",
         reason: error instanceof Error ? error.message : String(error),
         skillPlan,
+        skillIntent,
       };
     }
   }
@@ -108,6 +116,7 @@ export async function renderSkillArtifact(
     markdown: fallbackSkillRenderer(skillPlan, tone),
     renderer: "fallback",
     skillPlan,
+    skillIntent,
   };
 }
 
@@ -221,4 +230,20 @@ function buildObservedSummary(signals: Array<WorkflowSignal>, fallback: string):
     : `preferences for ${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
 
   return `Default to the observed ${summary} when it fits the current task.`;
+}
+
+function buildSkillIntentIfClaims(
+  skillPlan: SkillPlan,
+  acceptedClaims?: Array<RankedMergedClaim>,
+  tentativeClaims?: Array<RankedMergedClaim>,
+): SkillIntent | undefined {
+  if (!acceptedClaims && !tentativeClaims) {
+    return undefined;
+  }
+
+  return buildSkillIntent(
+    skillPlan,
+    acceptedClaims ?? [],
+    tentativeClaims ?? [],
+  );
 }

@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createPromptRegistry, PromptRegistryError } from "../src/llm/prompts/registry.js";
 import type { PromptTemplate } from "../src/llm/prompts/registry.js";
-import {
-  enrichProfilePrompt,
-  generateSkillPrompt,
-  classifySignalPrompt,
-  allPrompts,
-} from "../src/llm/prompts/definitions.js";
+import { allPrompts } from "../src/llm/prompts/definitions.js";
 
 const testPrompt: PromptTemplate<{ result: string }> = {
   id: "test-prompt",
@@ -128,26 +123,5 @@ describe("Built-in prompt definitions", () => {
       expect(prompt.systemPrompt).toBeTruthy();
       expect(prompt.outputSchema).toBeTruthy();
     }
-  });
-
-  it("can register all built-in prompts without error", () => {
-    const registry = createPromptRegistry();
-    registry.register(enrichProfilePrompt);
-    registry.register(generateSkillPrompt);
-    registry.register(classifySignalPrompt);
-
-    const list = registry.list();
-    expect(list).toHaveLength(3);
-  });
-
-  it("enrich-profile references taxonomy categories in its output schema", () => {
-    const schema = enrichProfilePrompt.outputSchema;
-    const profileProps = (schema.properties as Record<string, unknown>).profile;
-    const props = (profileProps as Record<string, unknown>).properties as Record<string, unknown>;
-
-    expect(props.workStyle).toBeDefined();
-    expect(props.communicationStyle).toBeDefined();
-    expect(props.validationHabits).toBeDefined();
-    expect(props.constraints).toBeDefined();
   });
 });

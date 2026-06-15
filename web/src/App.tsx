@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { fetchRuns, type RunSummary } from "./runs.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
+import { LanguageToggle } from "./i18n/LanguageToggle.js";
+import { useLocale } from "./i18n/LocaleContext.js";
 
 type LoadState =
   | { status: "loading" }
@@ -9,6 +11,7 @@ type LoadState =
   | { status: "ready"; runs: RunSummary[] };
 
 export function App(): JSX.Element {
+  const { t } = useLocale();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
 
@@ -43,15 +46,19 @@ export function App(): JSX.Element {
   }
 
   if (state.status === "loading") {
-    return <Shell>Loading runs…</Shell>;
+    return <Shell>{t("app.loading")}</Shell>;
   }
 
   if (state.status === "error") {
-    return <Shell style={{ color: "#c0392b" }}>Error: {state.message}</Shell>;
+    return (
+      <Shell style={{ color: "#c0392b" }}>
+        {t("app.errorPrefix", { message: state.message })}
+      </Shell>
+    );
   }
 
   if (state.runs.length === 0) {
-    return <Shell>No harness runs found</Shell>;
+    return <Shell>{t("app.noRuns")}</Shell>;
   }
 
   return (
@@ -71,17 +78,18 @@ function RunTable({
   runs: RunSummary[];
   onSelect: (name: string) => void;
 }): JSX.Element {
+  const { t } = useLocale();
   return (
     <table style={tableStyle}>
       <thead>
         <tr>
-          <th style={thStyle}>Name</th>
-          <th style={thStyle}>Model</th>
-          <th style={thStyle}>Generated At</th>
-          <th style={thStyle}>Verifier</th>
-          <th style={thStyle}>Claims</th>
-          <th style={thStyle}>Skeptic Score</th>
-          <th style={thStyle}>Issues</th>
+          <th style={thStyle}>{t("runTable.name")}</th>
+          <th style={thStyle}>{t("runTable.model")}</th>
+          <th style={thStyle}>{t("runTable.generatedAt")}</th>
+          <th style={thStyle}>{t("runTable.verifier")}</th>
+          <th style={thStyle}>{t("runTable.claims")}</th>
+          <th style={thStyle}>{t("runTable.skepticScore")}</th>
+          <th style={thStyle}>{t("runTable.issues")}</th>
         </tr>
       </thead>
       <tbody>
@@ -108,6 +116,7 @@ function RunTable({
 }
 
 function Badge({ pass }: { pass: boolean }): JSX.Element {
+  const { t } = useLocale();
   return (
     <span
       style={{
@@ -119,7 +128,7 @@ function Badge({ pass }: { pass: boolean }): JSX.Element {
         background: pass ? "#27ae60" : "#f8d7da",
       }}
     >
-      {pass ? "PASS" : "FAIL"}
+      {pass ? t("badge.pass") : t("badge.fail")}
     </span>
   );
 }
@@ -131,9 +140,20 @@ function Shell({
   children: React.ReactNode;
   style?: React.CSSProperties;
 }): JSX.Element {
+  const { t } = useLocale();
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", padding: "24px", ...style }}>
-      <h1 style={{ fontSize: "20px", marginBottom: "16px" }}>Harness Runs</h1>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "16px",
+        }}
+      >
+        <h1 style={{ fontSize: "20px", margin: 0 }}>{t("app.title")}</h1>
+        <LanguageToggle />
+      </div>
       {children}
     </div>
   );

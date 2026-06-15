@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { EvidenceDetail } from "../runs.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 type EvidencePanelProps = {
   evidenceId: string;
@@ -20,6 +21,7 @@ export function EvidencePanel({
   sourceType,
   runName,
 }: EvidencePanelProps): JSX.Element {
+  const { t, tEnum } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [fullText, setFullText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,12 +39,14 @@ export function EvidencePanel({
           `/api/runs/${encodeURIComponent(runName)}/evidence/${encodeURIComponent(evidenceId)}`
         );
         if (!res.ok) {
-          throw new Error(`Failed to load evidence: ${res.status}`);
+          throw new Error(t("evidence.loadFailed", { status: res.status }));
         }
         const data = (await res.json()) as EvidenceDetail;
         setFullText(data.excerpt);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load evidence");
+        setError(
+          err instanceof Error ? err.message : t("evidence.loadFailedGeneric"),
+        );
       } finally {
         setLoading(false);
       }
@@ -88,11 +92,15 @@ export function EvidencePanel({
               fontSize: "11px",
             }}
           >
-            {sourceType}
+            {tEnum("sourceType", sourceType)}
           </span>
         </div>
         <span style={{ fontSize: "12px", color: "#495057" }}>
-          {expanded ? "Hide" : loading ? "Loading..." : "Show"}
+          {expanded
+            ? t("evidence.hide")
+            : loading
+              ? t("evidence.loading")
+              : t("evidence.show")}
         </span>
       </button>
 

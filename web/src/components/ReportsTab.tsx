@@ -1,4 +1,5 @@
 import type { SkepticReport, VerifierReport } from "../runs.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 type ReportsTabProps = {
   skepticReport: SkepticReport | null;
@@ -34,6 +35,7 @@ export function ReportsTab({
   skepticReport,
   verifierReport,
 }: ReportsTabProps): JSX.Element {
+  const { t, tEnum } = useLocale();
   const hasSkeptic = skepticReport !== null;
   const hasVerifier = verifierReport !== null;
 
@@ -54,12 +56,12 @@ export function ReportsTab({
             marginBottom: "12px",
           }}
         >
-          <h3 style={{ margin: 0 }}>Skeptic Report</h3>
+          <h3 style={{ margin: 0 }}>{t("reports.skepticTitle")}</h3>
           {hasSkeptic && scoreBadge(skepticReport.overallScore)}
         </div>
 
         {!hasSkeptic ? (
-          <p style={{ color: "#666" }}>No skeptic report available.</p>
+          <p style={{ color: "#666" }}>{t("reports.noSkeptic")}</p>
         ) : (
           <>
             <div
@@ -69,12 +71,13 @@ export function ReportsTab({
                 marginBottom: "12px",
               }}
             >
-              {skepticReport.metadata.issueCount} issue
-              {skepticReport.metadata.issueCount === 1 ? "" : "s"} across{" "}
-              {skepticReport.metadata.claimCount} claims
+              {t("reports.skepticSummary", {
+                count: skepticReport.metadata.issueCount,
+                claims: skepticReport.metadata.claimCount,
+              })}
             </div>
             {skepticReport.issues.length === 0 ? (
-              <p style={{ color: "#28a745" }}>No issues found.</p>
+              <p style={{ color: "#28a745" }}>{t("reports.noIssues")}</p>
             ) : (
               <div
                 style={{
@@ -119,13 +122,13 @@ export function ReportsTab({
                             color: "#fff",
                           }}
                         >
-                          {issue.severity}
+                          {tEnum("severity", issue.severity)}
                         </span>
                         <strong style={{ fontSize: "13px" }}>
                           {issue.problemType}
                         </strong>
                         <span style={{ fontSize: "12px", color: "#666" }}>
-                          claim {issue.claimId}
+                          {t("reports.claimLabel", { id: issue.claimId })}
                         </span>
                       </span>
                     </summary>
@@ -139,7 +142,7 @@ export function ReportsTab({
                     >
                       <p style={{ margin: "0 0 6px" }}>{issue.detail}</p>
                       <p style={{ margin: 0, color: "#495057" }}>
-                        <strong>Suggestion:</strong> {issue.suggestion}
+                        <strong>{t("reports.suggestion")}</strong> {issue.suggestion}
                       </p>
                     </div>
                   </details>
@@ -165,7 +168,7 @@ export function ReportsTab({
             marginBottom: "12px",
           }}
         >
-          <h3 style={{ margin: 0 }}>Verifier Report</h3>
+          <h3 style={{ margin: 0 }}>{t("reports.verifierTitle")}</h3>
           {hasVerifier && (
             <span
               style={{
@@ -177,13 +180,13 @@ export function ReportsTab({
                 background: verifierReport.pass ? "#27ae60" : "#c0392b",
               }}
             >
-              {verifierReport.pass ? "PASS" : "FAIL"}
+              {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
             </span>
           )}
         </div>
 
         {!hasVerifier ? (
-          <p style={{ color: "#666" }}>No verifier report available.</p>
+          <p style={{ color: "#666" }}>{t("reports.noVerifier")}</p>
         ) : (
           <>
             <div
@@ -193,9 +196,11 @@ export function ReportsTab({
                 marginBottom: "12px",
               }}
             >
-              {verifierReport.metadata.directiveCount} directives checked ·{" "}
-              {verifierReport.metadata.verifiedCount} verified ·{" "}
-              {verifierReport.metadata.fabricatedCount} fabricated
+              {t("reports.verifierSummary", {
+                directives: verifierReport.metadata.directiveCount,
+                verified: verifierReport.metadata.verifiedCount,
+                fabricated: verifierReport.metadata.fabricatedCount,
+              })}
             </div>
 
             {verifierReport.issues.length > 0 && (
@@ -243,7 +248,7 @@ export function ReportsTab({
                             color: "#fff",
                           }}
                         >
-                          {issue.severity}
+                          {tEnum("severity", issue.severity)}
                         </span>
                         <strong style={{ fontSize: "13px" }}>
                           {issue.location}
@@ -275,9 +280,9 @@ export function ReportsTab({
               >
                 <thead>
                   <tr>
-                    <th style={thStyle}>Directive</th>
-                    <th style={thStyle}>Claim</th>
-                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>{t("reports.directive")}</th>
+                    <th style={thStyle}>{t("reports.claim")}</th>
+                    <th style={thStyle}>{t("reports.status")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -298,7 +303,7 @@ export function ReportsTab({
                               trustColors[item.status] ?? "#6c757d",
                           }}
                         >
-                          {item.status}
+                          {tEnum("status", item.status)}
                         </span>
                       </td>
                     </tr>

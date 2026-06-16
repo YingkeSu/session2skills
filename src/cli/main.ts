@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
 
-import { registerAnalyzeCommand } from "./commands/analyze.js";
 import { registerEvaluateCommand } from "./commands/evaluate.js";
 import { registerGenerateCommand } from "./commands/generate.js";
 import { registerInspectCommand } from "./commands/inspect.js";
@@ -32,7 +31,6 @@ async function main(): Promise<void> {
 
   registerInspectCommand(program);
   registerEvaluateCommand(program);
-  registerAnalyzeCommand(program);
   registerGenerateCommand(program);
   registerServeCommand(program);
 

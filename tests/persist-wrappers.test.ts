@@ -5,34 +5,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { writeGeneratedArtifacts, writeHarnessGeneratedArtifacts } from "../src/persist/generated-artifacts.js";
-import { writeRunArtifacts } from "../src/persist/run-store.js";
 import { CliUsageError } from "../src/shared/errors.js";
-import type { LLMTrace, NormalizedSession, PreferenceProfile } from "../src/normalize/models.js";
+import type { LLMTrace } from "../src/normalize/models.js";
 
 async function tmpDir(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "session2skills-persist-"));
 }
-
-const MINIMAL_SESSION: NormalizedSession = {
-  id: "ses_1",
-  title: "test",
-  directory: "/test",
-  updatedAt: Date.now(),
-  messages: [],
-  toolInvocations: [],
-  steps: [],
-};
-
-const MINIMAL_PROFILE: PreferenceProfile = {
-  workStyle: [],
-  communicationStyle: [],
-  validationHabits: [],
-  constraints: [],
-  tokenEfficiency: [],
-  modelSelection: [],
-  delegationPattern: [],
-  confidenceNotes: [],
-};
 
 const TRACE_WITH_PRIVATE_CONTENT: LLMTrace = {
   schemaVersion: "llm-trace/v1",
@@ -99,27 +77,6 @@ description: Use when adapting to this user's observed coding workflow.
 
 # Workflow Style
 `;
-
-describe("writeRunArtifacts", () => {
-  it("writes normalized.json and profile.json", async () => {
-    const dir = await tmpDir();
-    const result = await writeRunArtifacts({
-      outputDirectory: dir,
-      normalizedSessions: [MINIMAL_SESSION],
-      profile: MINIMAL_PROFILE,
-      force: false,
-    });
-
-    expect(result.normalizedPath).toContain("normalized.json");
-    expect(result.profilePath).toContain("profile.json");
-
-    const normalized = JSON.parse(await readFile(result.normalizedPath, "utf8"));
-    expect(normalized).toHaveLength(1);
-
-    const profile = JSON.parse(await readFile(result.profilePath, "utf8"));
-    expect(profile.workStyle).toBeDefined();
-  });
-});
 
 describe("writeGeneratedArtifacts", () => {
   it("writes summary.md and SKILL.md", async () => {

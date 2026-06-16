@@ -7,10 +7,6 @@ import type {
   WorkflowSignalKind,
 } from "../normalize/models.js";
 import type { RawSessionDiff } from "../normalize/raw-session.js";
-import {
-  buildMergedRuleClaims,
-  buildProfileV2,
-} from "../profile/build-profile.js";
 import { filterSessions } from "./session-tree.js";
 import type { TonePreset } from "../shared/cli.js";
 
@@ -70,10 +66,7 @@ export async function analyzeRecentSessions(options: AnalysisOptions): Promise<{
     }
 
     const skippedSessions = listedSessions.length - filteredSessions.length;
-    const mergedClaims = buildMergedRuleClaims(normalizedSessions);
-    const profile = buildProfileV2(mergedClaims, {
-      confidenceNotes: buildAnalysisConfidenceNotes(skippedSessions, warnings),
-    });
+    const profile = createPlaceholderProfile(buildAnalysisConfidenceNotes(skippedSessions, warnings));
 
     return {
       normalizedSessions,
@@ -100,4 +93,36 @@ function buildAnalysisConfidenceNotes(
   }
 
   return notes;
+}
+
+/**
+ * Transitional shim: returns an empty ProfileV2 carrying only confidenceNotes.
+ * Slated for removal once generate stops depending on ProfileV2 (later slice).
+ */
+export function createPlaceholderProfile(confidenceNotes: Array<string>): ProfileV2 {
+  return {
+    schemaVersion: "profile/v2",
+    promptSetVersion: "prompt-set/v1",
+    workStyle: [],
+    communicationStyle: [],
+    validationHabits: [],
+    constraints: [],
+    tokenEfficiency: [],
+    modelSelection: [],
+    delegationPattern: [],
+    strongestSignals: {
+      "work-style": [],
+      "communication-style": [],
+      "validation-habit": [],
+      constraint: [],
+      "token-efficiency": [],
+      "model-selection": [],
+      "delegation-pattern": [],
+    },
+    acceptedClaims: [],
+    tentativeClaims: [],
+    unresolvedAreas: [],
+    confidenceNotes,
+    mergedClaims: [],
+  };
 }

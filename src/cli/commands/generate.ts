@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-import { analyzeRecentSessions } from "../../analyze/run-analysis.js";
+import { analyzeRecentSessions, createPlaceholderProfile } from "../../analyze/run-analysis.js";
 import { renderSummary } from "../../generate/render-summary.js";
 import { LlmProviderRegistry, OpenAiCompatibleProvider, createPromptRegistry } from "../../llm/index.js";
 import { allPrompts } from "../../llm/prompts/index.js";
@@ -11,7 +11,6 @@ import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../../shared/errors.js";
 import { resolveGeneratedSkillsDirectory, resolveProjectDirectory, validateProjectDirectory } from "../../shared/paths.js";
 import { analyzeWithHarness } from "../../harness/run-harness.js";
 import { buildEvidenceIndex } from "../../analyze/evidence-index.js";
-import { buildProfileV2 } from "../../profile/build-profile.js";
 import { enrichManifestWithEvidence } from "../../harness/enrich-evidence.js";
 
 type GenerateOptions = {
@@ -135,14 +134,12 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     tone: options.tone,
   });
 
-  const profile = buildProfileV2([], {
-    confidenceNotes: [
-      ...analysis.profile.confidenceNotes,
-      `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
-      `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
-      `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
-    ],
-  });
+  const profile: ProfileV2 = createPlaceholderProfile([
+    ...analysis.profile.confidenceNotes,
+    `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
+    `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
+    `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
+  ]);
 
   const selfContainedManifest = enrichManifestWithEvidence(
     harnessResult.revisedManifest,

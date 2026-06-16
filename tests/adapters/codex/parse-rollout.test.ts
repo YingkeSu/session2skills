@@ -7,9 +7,14 @@ import { parseRolloutFile } from "../../../src/adapters/codex/parse-rollout.js";
 import { OpenCodeAdapterError } from "../../../src/shared/errors.js";
 import {
   CODEX_ASSISTANT_TS,
+  CODEX_REASONING_TS,
   CODEX_THREAD_ID,
   CODEX_USER_TS,
+  makeAgentEventMessageLine,
   makeAssistantMessageLine,
+  makeFunctionCallLine,
+  makeFunctionCallOutputLine,
+  makeReasoningLine,
   makeSessionMetaLine,
   makeUnknownItemLine,
   makeUserMessageLine,
@@ -18,6 +23,7 @@ import {
 const SESSION_ID = CODEX_THREAD_ID;
 const USER_EPOCH = Date.parse(CODEX_USER_TS);
 const ASSISTANT_EPOCH = Date.parse(CODEX_ASSISTANT_TS);
+const REASONING_EPOCH = Date.parse(CODEX_REASONING_TS);
 
 let tmpDir: string;
 let rolloutPath: string;
@@ -66,7 +72,7 @@ describe("parseRolloutFile", () => {
     expect(assistant.parts[0]?.text).toBe("hi there");
   });
 
-  it("skips session_meta / turn_context / compacted and unknown item types without throwing", () => {
+  it("skips session_meta / turn_context / compacted and unknown top-level types without throwing", () => {
     writeRollout([
       makeSessionMetaLine(),
       makeUnknownItemLine("compacted"),
@@ -82,6 +88,60 @@ describe("parseRolloutFile", () => {
     expect(messages[0]?.parts[0]?.text).toBe("only user text survives");
   });
 
+  it("maps event_msg agent_message to an assistant text message", () => {
+    writeRollout([makeAgentEventMessageLine("agent says hi")]);
+
+    const messages = parseRolloutFile(rolloutPath, SESSION_ID);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.info.role).toBe("assistant");
+    expect(messages[0]?.parts[0]?.type).toBe("text");
+    expect(messages[0]?.parts[0]?.text).toBe("agent says hi");
+  });
+
+  it("maps response_item reasoning into a reasoning part, skipping it when no text", () => {
+    writeRollout([
+      makeReasoningLine("thinking about the plan"),
+      makeAssistantMessageLine("final answer"),
+    ]);
+
+    const messages = parseRolloutFile(rolloutPath, SESSION_ID);
+    expect(messages).toHaveLength(2);
+
+    const [reasoning, answer] = messages;
+    expect(reasoning.info.role).toBe("assistant");
+    expect(reasoning.info.createdAt).toBe(REASONING_EPOCH);
+    expect(reasoning.parts).toHaveLength(1);
+    expect(reasoning.parts[0]?.type).toBe("reasoning");
+    expect(reasoning.parts[0]?.text).toBe("thinking about the plan");
+
+    expect(answer.parts[0]?.type).toBe("text");
+  });
+
+  it("skips reasoning lines whose summary/content carry no extractable text", () => {
+    const line = JSON.stringify({
+      timestamp: CODEX_REASONING_TS,
+      type: "response_item",
+      payload: { type: "reasoning", summary: [], content: null },
+    });
+    writeFileSync(rolloutPath, line + "\n" + makeUserMessageLine("kept"), "utf8");
+
+    const messages = parseRolloutFile(rolloutPath, SESSION_ID);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.info.role).toBe("user");
+  });
+
+  it("skips function_call and function_call_output without throwing", () => {
+    writeRollout([
+      makeFunctionCallLine(),
+      makeFunctionCallOutputLine(),
+      makeUserMessageLine("survives"),
+    ]);
+
+    const messages = parseRolloutFile(rolloutPath, SESSION_ID);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.info.role).toBe("user");
+  });
+
   it("returns an empty array for an empty file", () => {
     writeFileSync(rolloutPath, "", "utf8");
     expect(parseRolloutFile(rolloutPath, SESSION_ID)).toEqual([]);
@@ -95,7 +155,7 @@ describe("parseRolloutFile", () => {
   it("produces stable, well-formed message and part ids", () => {
     writeRollout([
       makeUserMessageLine("q1"),
-      makeAssistantMessageLine("a1 with two parts", undefined, undefined),
+      makeAssistantMessageLine("a1 with two parts"),
       makeUserMessageLine("q2"),
     ]);
 
@@ -116,18 +176,16 @@ describe("parseRolloutFile", () => {
   it("maps response_item content with input_text and output_text entries to text parts", () => {
     const line = JSON.stringify({
       timestamp: CODEX_ASSISTANT_TS,
-      item: {
-        type: "response_item",
-        payload: {
-          type: "message",
-          role: "assistant",
-          content: [
-            { type: "input_text", text: "remembered context" },
-            { type: "output_text", text: "final answer" },
-            { type: "input_image", url: "ignored" },
-            { type: "output_text", text: "second chunk" },
-          ],
-        },
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [
+          { type: "input_text", text: "remembered context" },
+          { type: "output_text", text: "final answer" },
+          { type: "input_image", url: "ignored" },
+          { type: "output_text", text: "second chunk" },
+        ],
       },
     });
     writeFileSync(rolloutPath, line + "\n", "utf8");
@@ -143,9 +201,7 @@ describe("parseRolloutFile", () => {
   });
 
   it("maps response_item with role user to a user message", () => {
-    writeRollout([
-      makeAssistantMessageLine("echoed", undefined, "user"),
-    ]);
+    writeRollout([makeAssistantMessageLine("echoed", undefined, "user")]);
 
     const messages = parseRolloutFile(rolloutPath, SESSION_ID);
     expect(messages).toHaveLength(1);
@@ -169,7 +225,29 @@ describe("parseRolloutFile", () => {
   it("throws OpenCodeAdapterError when a line lacks a timestamp", () => {
     writeFileSync(
       rolloutPath,
-      JSON.stringify({ item: { type: "event_msg", payload: {} } }) + "\n",
+      JSON.stringify({ type: "event_msg", payload: {} }) + "\n",
+      "utf8",
+    );
+    expect(() => parseRolloutFile(rolloutPath, SESSION_ID)).toThrow(
+      OpenCodeAdapterError,
+    );
+  });
+
+  it("throws OpenCodeAdapterError when a line lacks a top-level type string", () => {
+    writeFileSync(
+      rolloutPath,
+      JSON.stringify({ timestamp: CODEX_USER_TS, payload: {} }) + "\n",
+      "utf8",
+    );
+    expect(() => parseRolloutFile(rolloutPath, SESSION_ID)).toThrow(
+      OpenCodeAdapterError,
+    );
+  });
+
+  it("throws OpenCodeAdapterError when a line lacks a payload object", () => {
+    writeFileSync(
+      rolloutPath,
+      JSON.stringify({ timestamp: CODEX_USER_TS, type: "event_msg" }) + "\n",
       "utf8",
     );
     expect(() => parseRolloutFile(rolloutPath, SESSION_ID)).toThrow(

@@ -18,14 +18,20 @@ export type CodexThreadRow = {
   git_origin_url: string | null;
 };
 
-export type CodexRolloutItemPayload = Record<string, unknown>;
-
-export type CodexRolloutItem = {
-  type: string;
-  payload: CodexRolloutItemPayload;
-};
-
+/**
+ * One line of a Codex rollout `.jsonl` file.
+ *
+ * Real rollout files store `type` and `payload` at the TOP LEVEL of each line
+ * (alongside `timestamp`), NOT nested under an `item` key. Verified against
+ * `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`.
+ *
+ * Known top-level `type` values: `session_meta`, `event_msg`, `response_item`,
+ * `turn_context`, `compacted`. `payload` is an arbitrary JSON object whose
+ * shape depends on `type` (and often on `payload.type` for `event_msg` and
+ * `response_item` lines).
+ */
 export type CodexRolloutLine = {
   timestamp: string;
-  item: CodexRolloutItem;
+  type: string;
+  payload: Record<string, unknown>;
 };

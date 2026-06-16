@@ -6,10 +6,7 @@ import type {
   RawSessionMessages,
 } from "../../normalize/raw-session.js";
 import { OpenCodeAdapterError, toErrorMessage } from "../../shared/errors.js";
-import type {
-  CodexRolloutItem,
-  CodexRolloutLine,
-} from "./types.js";
+import type { CodexRolloutLine } from "./types.js";
 
 type ParsedMessage = {
   info: Omit<RawMessageInfo, "id" | "sessionID">;
@@ -52,7 +49,7 @@ export function parseRolloutFile(
     const rolloutLine = narrowRolloutLine(parsed, filePath, lineIndex);
     const createdAt = parseTimestamp(rolloutLine.timestamp, filePath, lineIndex);
 
-    const parsedMessage = mapRolloutLineToMessage(rolloutLine.item, createdAt);
+    const parsedMessage = mapRolloutLineToMessage(rolloutLine, createdAt);
     if (!parsedMessage) continue;
 
     const messageID = `${sessionId}:${messageIndex}`;
@@ -76,14 +73,14 @@ export function parseRolloutFile(
 }
 
 function mapRolloutLineToMessage(
-  item: CodexRolloutItem,
+  line: CodexRolloutLine,
   createdAt: number,
 ): ParsedMessage | undefined {
-  if (item.type === "event_msg") {
-    return mapEventMessage(item.payload, createdAt);
+  if (line.type === "event_msg") {
+    return mapEventMessage(line.payload, createdAt);
   }
-  if (item.type === "response_item") {
-    return mapResponseItem(item.payload, createdAt);
+  if (line.type === "response_item") {
+    return mapResponseItem(line.payload, createdAt);
   }
   return undefined;
 }
@@ -93,26 +90,39 @@ function mapEventMessage(
   createdAt: number,
 ): ParsedMessage | undefined {
   const type = payload.type;
-  if (type !== "user_message") return undefined;
-
-  const inner = payload.payload;
-  const messageText =
-    typeof inner === "object" && inner !== null
-      ? readStringProperty(inner as Record<string, unknown>, "message")
-      : undefined;
-
-  return {
-    info: { role: "user", createdAt },
-    parts: [{ type: "text", text: messageText ?? "" }],
-  };
+  if (type === "user_message") {
+    return {
+      info: { role: "user", createdAt },
+      parts: [{ type: "text", text: readStringProperty(payload, "message") ?? "" }],
+    };
+  }
+  if (type === "agent_message") {
+    return {
+      info: { role: "assistant", createdAt },
+      parts: [{ type: "text", text: readStringProperty(payload, "message") ?? "" }],
+    };
+  }
+  return undefined;
 }
 
 function mapResponseItem(
   payload: Record<string, unknown>,
   createdAt: number,
 ): ParsedMessage | undefined {
-  if (payload.type !== "message") return undefined;
+  const type = payload.type;
+  if (type === "message") {
+    return mapMessagePayload(payload, createdAt);
+  }
+  if (type === "reasoning") {
+    return mapReasoningPayload(payload, createdAt);
+  }
+  return undefined;
+}
 
+function mapMessagePayload(
+  payload: Record<string, unknown>,
+  createdAt: number,
+): ParsedMessage | undefined {
   const role = readStringProperty(payload, "role");
   if (!role) return undefined;
 
@@ -135,6 +145,35 @@ function mapResponseItem(
   };
 }
 
+function mapReasoningPayload(
+  payload: Record<string, unknown>,
+  createdAt: number,
+): ParsedMessage | undefined {
+  const text = joinTextArray(payload, "summary") ?? joinTextArray(payload, "content");
+  if (text === undefined) return undefined;
+
+  return {
+    info: { role: "assistant", createdAt },
+    parts: [{ type: "reasoning", text }],
+  };
+}
+
+function joinTextArray(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  if (!Array.isArray(value)) return undefined;
+
+  const collected: Array<string> = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const text = readStringProperty(entry as Record<string, unknown>, "text");
+    if (text) collected.push(text);
+  }
+  return collected.length > 0 ? collected.join("\n") : undefined;
+}
+
 function readStringProperty(
   record: Record<string, unknown>,
   key: string,
@@ -154,34 +193,32 @@ function narrowRolloutLine(
     );
   }
   const record = value as Record<string, unknown>;
+
   const timestamp = record.timestamp;
   if (typeof timestamp !== "string") {
     throw new OpenCodeAdapterError(
       `Codex rollout line ${lineIndex + 1} in ${filePath} missing string timestamp`,
     );
   }
-  const itemValue = record.item;
-  if (typeof itemValue !== "object" || itemValue === null) {
+
+  const type = record.type;
+  if (typeof type !== "string") {
     throw new OpenCodeAdapterError(
-      `Codex rollout line ${lineIndex + 1} in ${filePath} missing item object`,
+      `Codex rollout line ${lineIndex + 1} in ${filePath} missing string type`,
     );
   }
-  const itemRecord = itemValue as Record<string, unknown>;
-  const itemType = itemRecord.type;
-  if (typeof itemType !== "string") {
+
+  const payload = record.payload;
+  if (typeof payload !== "object" || payload === null) {
     throw new OpenCodeAdapterError(
-      `Codex rollout line ${lineIndex + 1} in ${filePath} missing item.type string`,
+      `Codex rollout line ${lineIndex + 1} in ${filePath} missing payload object`,
     );
   }
-  const itemPayload = itemRecord.payload;
-  if (typeof itemPayload !== "object" || itemPayload === null) {
-    throw new OpenCodeAdapterError(
-      `Codex rollout line ${lineIndex + 1} in ${filePath} missing item.payload object`,
-    );
-  }
+
   return {
     timestamp,
-    item: { type: itemType, payload: itemPayload as Record<string, unknown> },
+    type,
+    payload: payload as Record<string, unknown>,
   };
 }
 

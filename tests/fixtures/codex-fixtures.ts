@@ -4,27 +4,25 @@ export const CODEX_THREAD_ID = "cde_thread_001";
 export const CODEX_SESSION_META_TS = "2026-05-01T10:00:00.000Z";
 export const CODEX_USER_TS = "2026-05-01T10:00:05.000Z";
 export const CODEX_ASSISTANT_TS = "2026-05-01T10:00:12.000Z";
+export const CODEX_REASONING_TS = "2026-05-01T10:00:10.000Z";
+
+// Every rollout line mirrors the REAL Codex JSONL shape verified against
+// ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl: {timestamp, type, payload} at
+// the TOP LEVEL (no `item` wrapper). payload.type disambiguates event/response
+// subtypes.
 
 export function makeSessionMetaLine(cwd = "/tmp/project"): string {
   return JSON.stringify({
     timestamp: CODEX_SESSION_META_TS,
-    item: {
-      type: "session_meta",
-      payload: {
-        meta: {
-          id: CODEX_THREAD_ID,
-          cwd,
-          source: "cli",
-          model_provider: "openai",
-          timestamp: CODEX_SESSION_META_TS,
-          cli_version: "0.10.0",
-          git: {
-            commit_hash: "abc123",
-            branch: "main",
-            repository_url: "git@example.com:foo/bar.git",
-          },
-        },
-      },
+    type: "session_meta",
+    payload: {
+      id: CODEX_THREAD_ID,
+      cwd,
+      originator: "Codex Desktop",
+      cli_version: "0.137.0-alpha.4",
+      source: "vscode",
+      model_provider: "openai",
+      timestamp: CODEX_SESSION_META_TS,
     },
   });
 }
@@ -35,12 +33,29 @@ export function makeUserMessageLine(
 ): string {
   return JSON.stringify({
     timestamp,
-    item: {
-      type: "event_msg",
-      payload: {
-        type: "user_message",
-        payload: { message },
-      },
+    type: "event_msg",
+    payload: {
+      type: "user_message",
+      message,
+      images: [],
+      local_images: [],
+      text_elements: [],
+    },
+  });
+}
+
+export function makeAgentEventMessageLine(
+  message: string,
+  timestamp = CODEX_ASSISTANT_TS,
+): string {
+  return JSON.stringify({
+    timestamp,
+    type: "event_msg",
+    payload: {
+      type: "agent_message",
+      message,
+      phase: null,
+      memory_citation: null,
     },
   });
 }
@@ -52,13 +67,56 @@ export function makeAssistantMessageLine(
 ): string {
   return JSON.stringify({
     timestamp,
-    item: {
-      type: "response_item",
-      payload: {
-        type: "message",
-        role,
-        content: [{ type: "output_text", text }],
-      },
+    type: "response_item",
+    payload: {
+      type: "message",
+      role,
+      content: [{ type: "output_text", text }],
+    },
+  });
+}
+
+export function makeReasoningLine(
+  summaryText: string,
+  timestamp = CODEX_REASONING_TS,
+): string {
+  return JSON.stringify({
+    timestamp,
+    type: "response_item",
+    payload: {
+      type: "reasoning",
+      summary: [{ type: "summary_text", text: summaryText }],
+      content: null,
+      encrypted_content: null,
+    },
+  });
+}
+
+export function makeFunctionCallLine(
+  timestamp = CODEX_ASSISTANT_TS,
+): string {
+  return JSON.stringify({
+    timestamp,
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      name: "shell",
+      arguments: JSON.stringify({ cmd: ["ls", "-la"] }),
+      call_id: "chatcmpl-tool-abc",
+    },
+  });
+}
+
+export function makeFunctionCallOutputLine(
+  timestamp = CODEX_ASSISTANT_TS,
+): string {
+  return JSON.stringify({
+    timestamp,
+    type: "response_item",
+    payload: {
+      type: "function_call_output",
+      call_id: "chatcmpl-tool-abc",
+      output: "total 0",
     },
   });
 }
@@ -69,10 +127,8 @@ export function makeUnknownItemLine(
 ): string {
   return JSON.stringify({
     timestamp,
-    item: {
-      type,
-      payload: { foo: "bar" },
-    },
+    type,
+    payload: { foo: "bar" },
   });
 }
 

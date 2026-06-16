@@ -2,7 +2,7 @@
 
 CLI that reads your local OpenCode sessions, figures out how you work, and writes a `SKILL.md` file your AI assistant can pick up.
 
-The `analyze` command extracts evidence from sessions using local heuristics. The `generate` command runs a multi-stage LLM pipeline — the **harness** (Analyst → Skeptic → Writer → Verifier) — and requires LLM environment variables to be set.
+The `generate` command runs a multi-stage LLM pipeline — the **harness** (Analyst → Skeptic → Writer → Verifier) — and requires LLM environment variables to be set.
 
 ## Install
 
@@ -24,39 +24,6 @@ npm run build
 node dist/cli/main.js inspect --directory /absolute/project/path --recent 5
 ```
 
-### Analyze sessions
-
-**Legacy** (local heuristics only):
-
-```bash
-node dist/cli/main.js analyze \
-  --directory /absolute/project/path \
-  --recent 5 \
-  --out .session2skills/runs/latest \
-  --tone balanced
-```
-
-Writes `normalized.json` and `profile.json`.
-
-**Hybrid** (LLM-enhanced):
-
-```bash
-export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
-export SESSION2SKILLS_LLM_MODEL="gpt-4o"
-export SESSION2SKILLS_LLM_API_KEY="sk-..."
-
-node dist/cli/main.js analyze \
-  --directory /absolute/project/path \
-  --recent 5 \
-  --out .session2skills/runs/latest \
-  --hybrid \
-  --tone balanced
-```
-
-Writes a full artifact tree: `normalized.json`, `profile.json`, `evidence-index.json`, `rule-claims.json`, `llm-session-claims.json`, `llm-category-claims.json`, `merged-claims.json`, `skill-plan.json`, `llm-traces.json`, `manifest.json`.
-
-Use `--force` to overwrite an existing output directory.
-
 ### Generate final artifacts
 
 `generate` runs the **harness** pipeline and requires LLM environment variables (`SESSION2SKILLS_LLM_BASE_URL` + `SESSION2SKILLS_LLM_MODEL`). If they are not set, the command exits with a clear error.
@@ -77,6 +44,22 @@ Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `
 
 Use `--force` to overwrite existing output files.
 
+### Evaluate a generated skill
+
+```bash
+node dist/cli/main.js evaluate --skill generated-skills/my-skill/SKILL.md
+```
+
+Runs deterministic quality gates (lint, redaction, grounding) against a skill file and reports a pass/fail verdict with scores.
+
+### Serve the web UI
+
+```bash
+node dist/cli/main.js serve --directory /absolute/project/path
+```
+
+Starts a local web server for browsing sessions and generated skills.
+
 ## Configuration
 
 The harness pipeline reads these environment variables:
@@ -95,39 +78,9 @@ The harness pipeline sends your **raw session evidence** (message text, tool inv
 
 Generated artifacts such as `normalized.json`, `evidence-index.json`, and claim files can still contain session evidence. `llm-traces.json` is safer by default: request message content and raw model text are redacted before writing, while model/provider metadata, token usage, and parsed structured output are retained for auditing.
 
-If your sessions contain sensitive code or credentials, you should:
-- Point `SESSION2SKILLS_LLM_BASE_URL` at a self-hosted or private endpoint, or
-- Use `analyze` (local heuristics only), which never leaves your machine.
+If your sessions contain sensitive code or credentials, you should point `SESSION2SKILLS_LLM_BASE_URL` at a self-hosted or private endpoint.
 
 ## Output artifacts
-
-### Legacy artifacts
-
-| File | Description |
-|------|-------------|
-| `normalized.json` | Raw normalized session data |
-| `profile.json` | Heuristic preference profile |
-| `summary.md` | Human-readable summary |
-| `SKILL.md` | Skill file for your AI assistant |
-
-### Hybrid artifacts
-
-See [docs/hybrid-artifacts.md](docs/hybrid-artifacts.md) for the full guide. Quick reference:
-
-| File | Description |
-|------|-------------|
-| `normalized.json` | Raw normalized session data |
-| `profile.json` | Profile with merged claims (`profile/v2` schema) |
-| `evidence-index.json` | Evidence items with stable IDs |
-| `rule-claims.json` | Claims from heuristic rules |
-| `llm-session-claims.json` | Claims extracted by the LLM per session |
-| `llm-category-claims.json` | Claims synthesized by the LLM per dimension |
-| `merged-claims.json` | Final claims after cross-source reconciliation |
-| `skill-plan.json` | Structured directives derived from accepted claims |
-| `llm-traces.json` | Every LLM call: redacted prompt messages, parsed responses, token usage |
-| `manifest.json` | Run metadata: schema versions, timestamps, config |
-| `summary.md` | Debug-friendly audit summary with evidence excerpts |
-| `SKILL.md` | Final skill file |
 
 ### Harness artifacts
 
@@ -161,7 +114,4 @@ npm test
 - OpenCode only (no other session sources yet)
 - Historical session analysis only
 - CLI only, no service/daemon mode
-- Heuristics are intentionally simple and evidence-driven
-- Profile quality depends on the quality and quantity of available sessions
-- Constraint detection is weaker than workflow or validation detection
-- The harness pipeline is not hallucination-free. LLM claims are cross-checked against rule claims and scored for confidence, but the final output still reflects what the model inferred from your sessions
+- The harness pipeline is not hallucination-free. LLM claims are cross-checked against session evidence and scored for confidence, but the final output still reflects what the model inferred from your sessions

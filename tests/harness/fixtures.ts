@@ -46,7 +46,6 @@ export function makeEvidenceItem(
     evidenceID: "ev_001",
     citation: makeEvidenceCitation(),
     summaryText: "Test evidence item",
-    dimensions: ["work-style" as WorkflowSignalKind],
     ...overrides,
   };
 }
@@ -59,11 +58,6 @@ export function makeEvidenceItems(count: number): Array<EvidenceItem> {
         evidenceID: `ev_${String(i + 1).padStart(3, "0")}`,
       }),
       summaryText: `Evidence item ${i + 1}`,
-      dimensions: [
-        (["work-style", "communication-style", "validation-habit", "constraint", "token-efficiency", "model-selection", "delegation-pattern"] as const)[
-          i % 7
-        ],
-      ],
     }),
   );
 }

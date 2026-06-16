@@ -112,7 +112,6 @@ export type EvidenceItem = {
   evidenceID: string;
   citation: EvidenceCitation;
   summaryText: string;
-  dimensions: Array<WorkflowSignalKind>;
 };
 
 export type SkillGateStatus = "pass" | "fail";

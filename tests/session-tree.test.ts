@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RawSession } from "../src/normalize/raw-session.js";
-import { buildSessionTree, filterSessions, getSessionDepth, isSubagentSession } from "../src/analyze/session-tree.js";
+import { buildSessionTree, filterSessions, getSessionDepth, isSubagentSession } from "../src/sessions/session-tree.js";
 
 function makeSession(id: string, parentID?: string): RawSession {
   return {

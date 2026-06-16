@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { writeHarnessGeneratedArtifacts } from "../../src/persist/generated-artifacts.js";
+import { writeGeneratedArtifacts } from "../../src/persist/generated-artifacts.js";
 import type { ClaimManifest } from "../../src/harness/types.js";
 import {
   makeClaimManifest,
@@ -18,7 +18,7 @@ async function makeTempDir(): Promise<string> {
 
 const VALID_SKILL = "---\nname: test-skill\ndescription: A test skill for persist tests.\n---\n\n# Test Skill\n\nSome content.\n";
 
-describe("writeHarnessGeneratedArtifacts", () => {
+describe("writeGeneratedArtifacts", () => {
   it("embeds evidence excerpts in claim-manifest.json when present on manifest", async () => {
     const outDir = await makeTempDir();
     try {
@@ -30,7 +30,7 @@ describe("writeHarnessGeneratedArtifacts", () => {
         ],
       });
 
-      const paths = await writeHarnessGeneratedArtifacts({
+      const paths = await writeGeneratedArtifacts({
         outputDirectory: outDir,
         summary: "summary",
         skill: VALID_SKILL,
@@ -71,7 +71,7 @@ describe("writeHarnessGeneratedArtifacts", () => {
         ],
       });
 
-      const paths = await writeHarnessGeneratedArtifacts({
+      const paths = await writeGeneratedArtifacts({
         outputDirectory: outDir,
         summary: "summary",
         skill: VALID_SKILL,
@@ -102,7 +102,7 @@ describe("writeHarnessGeneratedArtifacts", () => {
     try {
       const manifest: ClaimManifest = makeClaimManifest();
 
-      const paths = await writeHarnessGeneratedArtifacts({
+      const paths = await writeGeneratedArtifacts({
         outputDirectory: outDir,
         summary: "summary",
         skill: VALID_SKILL,

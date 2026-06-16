@@ -5,24 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { writeDirectoryArtifacts } from "../src/persist/staged-directory-write.js";
-import { writeGeneratedArtifacts } from "../src/persist/generated-artifacts.js";
 import { CliUsageError } from "../src/shared/errors.js";
-
-const FIRST_VALID_SKILL = `---
-name: first-skill
-description: Use when testing first generated skill output.
----
-
-# First Skill
-`;
-
-const SECOND_VALID_SKILL = `---
-name: second-skill
-description: Use when testing overwritten generated skill output.
----
-
-# Second Skill
-`;
 
 describe("writeDirectoryArtifacts", () => {
   it("writes multiple files atomically", async () => {
@@ -178,38 +161,5 @@ describe("writeDirectoryArtifacts", () => {
 
     await expect(readFile(resultPaths["normalized.json"], "utf8")).resolves.toBe(artifacts["normalized.json"]);
     await expect(readFile(resultPaths["profile.json"], "utf8")).resolves.toBe(artifacts["profile.json"]);
-  });
-});
-
-describe("writeGeneratedArtifacts", () => {
-  it("refuses overwrite without force and supports force", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "session2skills-generated-"));
-    const outputDirectory = path.join(root, "skill-output");
-
-    await writeGeneratedArtifacts({
-      outputDirectory,
-      summary: "first summary",
-      skill: FIRST_VALID_SKILL,
-      force: false,
-    });
-
-    await expect(
-      writeGeneratedArtifacts({
-        outputDirectory,
-        summary: "second summary",
-        skill: SECOND_VALID_SKILL,
-        force: false,
-      }),
-    ).rejects.toBeInstanceOf(CliUsageError);
-
-    await writeGeneratedArtifacts({
-      outputDirectory,
-      summary: "second summary",
-      skill: SECOND_VALID_SKILL,
-      force: true,
-    });
-
-    await expect(readFile(path.join(outputDirectory, "summary.md"), "utf8")).resolves.toBe("second summary");
-    await expect(readFile(path.join(outputDirectory, "SKILL.md"), "utf8")).resolves.toBe(SECOND_VALID_SKILL);
   });
 });

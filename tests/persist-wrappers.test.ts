@@ -4,8 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { writeGeneratedArtifacts, writeHarnessGeneratedArtifacts } from "../src/persist/generated-artifacts.js";
-import { CliUsageError } from "../src/shared/errors.js";
+import { writeGeneratedArtifacts } from "../src/persist/generated-artifacts.js";
 import type { LLMTrace } from "../src/normalize/models.js";
 
 async function tmpDir(): Promise<string> {
@@ -78,37 +77,9 @@ description: Use when adapting to this user's observed coding workflow.
 `;
 
 describe("writeGeneratedArtifacts", () => {
-  it("writes summary.md and SKILL.md", async () => {
-    const dir = await tmpDir();
-    const result = await writeGeneratedArtifacts({
-      outputDirectory: dir,
-      summary: "# Summary",
-      skill: VALID_SKILL,
-      force: false,
-    });
-
-    expect(result.summaryPath).toContain("summary.md");
-    expect(result.skillPath).toContain("SKILL.md");
-
-    const summary = await readFile(result.summaryPath, "utf8");
-    expect(summary).toBe("# Summary");
-  });
-
-  it("refuses to write invalid skill markdown", async () => {
-    const dir = await tmpDir();
-    await expect(writeGeneratedArtifacts({
-      outputDirectory: dir,
-      summary: "# Summary",
-      skill: "# Skill",
-      force: false,
-    })).rejects.toThrow(CliUsageError);
-  });
-});
-
-describe("writeHarnessGeneratedArtifacts", () => {
   it("redacts trace prompt content and raw output by default", async () => {
     const dir = await tmpDir();
-    const result = await writeHarnessGeneratedArtifacts({
+    const result = await writeGeneratedArtifacts({
       outputDirectory: dir,
       summary: "# Summary",
       skill: VALID_SKILL,

@@ -9,32 +9,6 @@ export async function writeGeneratedArtifacts(input: {
   outputDirectory: string;
   summary: string;
   skill: string;
-  force: boolean;
-}): Promise<{
-  summaryPath: string;
-  skillPath: string;
-}> {
-  assertValidSkillMarkdown(input.skill);
-
-  const paths = await writeDirectoryArtifacts({
-    outputDirectory: input.outputDirectory,
-    force: input.force,
-    files: {
-      "summary.md": redactSecretsFromString(input.summary),
-      "SKILL.md": input.skill,
-    },
-  });
-
-  return {
-    summaryPath: paths["summary.md"]!,
-    skillPath: paths["SKILL.md"]!,
-  };
-}
-
-export async function writeHarnessGeneratedArtifacts(input: {
-  outputDirectory: string;
-  summary: string;
-  skill: string;
   claimManifest: ClaimManifest;
   skepticReport: SkepticReport;
   verifierReport: VerifierReport;

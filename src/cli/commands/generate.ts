@@ -71,7 +71,10 @@ export function registerGenerateCommand(program: Command): void {
         `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
       ];
 
-      const summary = renderSummary({ confidenceNotes }, { tone: options.tone });
+      const summary = renderSummary(
+        { ...harnessResult, revisedManifest: selfContainedManifest },
+        { tone: options.tone, confidenceNotes },
+      );
       const skill = harnessResult.writerOutput.skillMarkdown;
 
       console.log("--- summary preview ---");

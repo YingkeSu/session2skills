@@ -426,20 +426,6 @@ export type LLMTraceCacheInfo = {
   storedAt?: string;
 };
 
-export type LLMStructuredOutput =
-  | {
-      kind: "candidate-claims";
-      claims: Array<CandidateClaim>;
-    }
-  | {
-      kind: "merged-claims";
-      claims: Array<MergedClaim>;
-    }
-  | {
-      kind: "skill-plan";
-      plan: SkillPlan;
-    };
-
 export type LLMTrace = {
   schemaVersion: LLMTraceSchemaVersion;
   traceID: string;
@@ -459,7 +445,6 @@ export type LLMTrace = {
   response: {
     finishReason: LLMFinishReason;
     rawText?: string;
-    structuredOutput?: LLMStructuredOutput;
   };
   usage?: {
     inputTokens?: number;

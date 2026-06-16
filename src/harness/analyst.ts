@@ -94,7 +94,6 @@ export async function runAnalystStage(
         response: {
           finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
           rawText: result.rawText,
-          structuredOutput: { kind: "candidate-claims", claims: [] },
         },
         usage: result.metadata.usage,
       };
@@ -120,7 +119,6 @@ export async function runAnalystStage(
     response: {
       finishReason: (lastResult!.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
       rawText: lastResult!.rawText,
-      structuredOutput: { kind: "candidate-claims", claims: [] },
     },
     usage: lastResult!.metadata.usage,
   };

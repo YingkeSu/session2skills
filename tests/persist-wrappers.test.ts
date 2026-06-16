@@ -30,7 +30,6 @@ const TRACE_WITH_PRIVATE_CONTENT: LLMTrace = {
   response: {
     finishReason: "stop",
     rawText: "{\"private\":\"raw model output\"}",
-    structuredOutput: { kind: "candidate-claims", claims: [] },
   },
 };
 

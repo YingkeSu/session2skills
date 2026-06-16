@@ -32,7 +32,6 @@ export type LLMTrace = {
  */
 export type TracePolicy = {
   persistMetadata: boolean;
-  persistParsedOutput: boolean;
   /** Full prompt/message content may include raw user code or secrets. Default false. */
   persistRequestContent?: boolean;
   /** Unbounded, potentially sensitive. Default false. */
@@ -41,7 +40,6 @@ export type TracePolicy = {
 
 export const DEFAULT_TRACE_POLICY: TracePolicy = {
   persistMetadata: true,
-  persistParsedOutput: true,
   persistRequestContent: false,
   persistRawOutput: false,
 };
@@ -69,7 +67,7 @@ export function applyTracePolicy(
     inputArtifactRef: trace.inputArtifactRef,
     latencyMs: trace.latencyMs,
     usage: trace.usage,
-    parsedOutput: policy.persistParsedOutput ? redactSecretsDeep(trace.parsedOutput) : undefined,
+    parsedOutput: redactSecretsDeep(trace.parsedOutput),
   };
 
   if (policy.persistRawOutput && trace.rawOutput !== undefined) {
@@ -87,7 +85,7 @@ export function applyPersistedTracePolicy(
     return null;
   }
 
-  const { rawText, structuredOutput, ...responseMetadata } = trace.response;
+  const { rawText, ...responseMetadata } = trace.response;
 
   return {
     ...trace,
@@ -99,9 +97,6 @@ export function applyPersistedTracePolicy(
     },
     response: {
       ...responseMetadata,
-      ...(policy.persistParsedOutput && structuredOutput !== undefined
-        ? { structuredOutput: redactSecretsDeep(structuredOutput) }
-        : {}),
       ...(policy.persistRawOutput && rawText !== undefined
         ? { rawText: redactSecretsFromString(rawText) }
         : {}),

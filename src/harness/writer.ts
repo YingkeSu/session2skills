@@ -76,7 +76,6 @@ export async function runWriterStage(
       response: {
         finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
         rawText: result.rawText,
-        structuredOutput: { kind: "skill-plan", plan: null as never },
       },
       usage: result.metadata.usage,
     },

@@ -10,6 +10,9 @@ import { analyzeWithHarness } from "../../harness/run-harness.js";
 import { buildEvidenceIndex } from "../../harness/evidence-index.js";
 import { enrichManifestWithEvidence } from "../../harness/enrich-evidence.js";
 import { loadSessions, buildSessionLoadNotes } from "../../sessions/load-sessions.js";
+import { EvidenceStore } from "../../evidence-store/index.js";
+import { getDefaultEvidenceStorePath } from "../../evidence-store/paths.js";
+import { persistRawEvidence } from "../../evidence-store/persist.js";
 
 type GenerateOptions = {
   directory?: string;
@@ -48,6 +51,14 @@ export function registerGenerateCommand(program: Command): void {
       }
 
       const evidenceIndex = buildEvidenceIndex(normalizedSessions);
+
+      const evidenceStore = new EvidenceStore(getDefaultEvidenceStorePath(directory));
+      try {
+        persistRawEvidence(normalizedSessions, evidenceStore);
+      } finally {
+        evidenceStore.close();
+      }
+
       const resolved = resolveHybridLlmProvider();
       const registry = buildPromptRegistry();
 

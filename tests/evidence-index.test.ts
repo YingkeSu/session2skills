@@ -6,7 +6,7 @@ import {
   estimateTokens,
   selectEvidenceForBudget,
   isDirectUserEvidence,
-} from "../src/analyze/evidence-index.js";
+} from "../src/harness/evidence-index.js";
 import type { NormalizedSession, EvidenceItem } from "../src/normalize/models.js";
 
 const makeSession = (overrides: Partial<NormalizedSession> = {}): NormalizedSession => ({

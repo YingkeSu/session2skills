@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAnalystPacket, buildVerifierPacket, buildWriterPacket } from "../../src/harness/packets.js";
-import { buildEvidenceIndex, makeEvidenceID } from "../../src/analyze/evidence-index.js";
+import { buildEvidenceIndex, makeEvidenceID } from "../../src/harness/evidence-index.js";
 import { makeEvidenceItems, makeEvidenceItem, makeClaimManifest, makeManifestClaim } from "./fixtures.js";
 import type { NormalizedSession } from "../../src/normalize/models.js";
 

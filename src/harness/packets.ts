@@ -2,7 +2,7 @@ import type { LlmMessage, LlmStructuredOutputSchema } from "../llm/index.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest } from "./types.js";
-import { estimateTokens, selectEvidenceForBudget } from "../analyze/evidence-index.js";
+import { estimateTokens, selectEvidenceForBudget } from "./evidence-index.js";
 
 // ---------------------------------------------------------------------------
 // Taxonomy (all 7 dimensions for harness pipeline)

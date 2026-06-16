@@ -8,10 +8,14 @@ import { CliUsageError, OpenCodeAdapterError } from "../src/shared/errors.js";
 
 const ORIGINAL_ADAPTER = process.env.SESSION2SKILLS_ADAPTER;
 const ORIGINAL_DB_PATH = process.env.SESSION2SKILLS_DB_PATH;
+const ORIGINAL_CODEX_HOME = process.env.CODEX_HOME;
+const ORIGINAL_CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
 
 afterEach(() => {
   restoreEnv("SESSION2SKILLS_ADAPTER", ORIGINAL_ADAPTER);
   restoreEnv("SESSION2SKILLS_DB_PATH", ORIGINAL_DB_PATH);
+  restoreEnv("CODEX_HOME", ORIGINAL_CODEX_HOME);
+  restoreEnv("CLAUDE_CONFIG_DIR", ORIGINAL_CLAUDE_CONFIG_DIR);
 });
 
 describe("createSessionProvider", () => {
@@ -23,7 +27,7 @@ describe("createSessionProvider", () => {
     ).rejects.toThrow(CliUsageError);
     await expect(
       createSessionProvider({ directory: "/tmp" }),
-    ).rejects.toThrow("Expected \"sdk\" or \"sqlite\"");
+    ).rejects.toThrow("Expected \"sdk\", \"sqlite\", \"codex\", or \"claude\"");
   });
 
   it("eagerly validates the sqlite adapter when explicitly selected", async () => {
@@ -33,6 +37,30 @@ describe("createSessionProvider", () => {
     await expect(
       createSessionProvider({ directory: "/tmp" }),
     ).rejects.toThrow(OpenCodeAdapterError);
+  });
+
+  it("creates a codex provider when SESSION2SKILLS_ADAPTER=codex", async () => {
+    process.env.SESSION2SKILLS_ADAPTER = "codex";
+    process.env.CODEX_HOME = join(tmpdir(), "session2skills-missing-codex");
+
+    const handle = await createSessionProvider({ directory: "/tmp" });
+    expect(handle.provider).toBeDefined();
+    expect(typeof handle.close).toBe("function");
+    const sessions = await handle.provider.listRecentSessions({ directory: "/tmp" }, 5);
+    expect(sessions).toEqual([]);
+    await handle.close();
+  });
+
+  it("creates a claude provider when SESSION2SKILLS_ADAPTER=claude", async () => {
+    process.env.SESSION2SKILLS_ADAPTER = "claude";
+    process.env.CLAUDE_CONFIG_DIR = join(tmpdir(), "session2skills-missing-claude");
+
+    const handle = await createSessionProvider({ directory: "/tmp" });
+    expect(handle.provider).toBeDefined();
+    expect(typeof handle.close).toBe("function");
+    const sessions = await handle.provider.listRecentSessions({ directory: "/tmp" }, 5);
+    expect(sessions).toEqual([]);
+    await handle.close();
   });
 });
 

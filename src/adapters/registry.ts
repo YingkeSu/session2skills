@@ -22,9 +22,17 @@ export async function createSessionProvider(
     return createSqliteProvider({ eager: true });
   }
 
+  if (adapter === "codex") {
+    return createCodexProvider();
+  }
+
+  if (adapter === "claude") {
+    return createClaudeProvider();
+  }
+
   if (adapter) {
     throw new CliUsageError(
-      `Unknown SESSION2SKILLS_ADAPTER value "${adapter}". Expected "sdk" or "sqlite".`,
+      `Unknown SESSION2SKILLS_ADAPTER value "${adapter}". Expected "sdk", "sqlite", "codex", or "claude".`,
     );
   }
 
@@ -44,6 +52,26 @@ function createSqliteProvider(options: { eager?: boolean } = {}): ProviderHandle
   return {
     provider,
     close: () => provider.close(),
+  };
+}
+
+async function createCodexProvider(): Promise<ProviderHandle> {
+  const { createCodexSessionProvider } = await import("./codex/sessions.js");
+  const provider = createCodexSessionProvider();
+  return {
+    provider,
+    close: () => provider.close(),
+  };
+}
+
+async function createClaudeProvider(): Promise<ProviderHandle> {
+  const { createClaudeSessionProvider } = await import("./claude/sessions.js");
+  const provider = createClaudeSessionProvider();
+  return {
+    provider,
+    close: async () => {
+      await provider.close?.();
+    },
   };
 }
 

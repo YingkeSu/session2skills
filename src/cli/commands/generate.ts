@@ -1,10 +1,9 @@
 import { Command } from "commander";
 
-import { analyzeRecentSessions, createPlaceholderProfile } from "../../analyze/run-analysis.js";
+import { analyzeRecentSessions, createPlaceholderProfile, type PlaceholderProfile } from "../../analyze/run-analysis.js";
 import { renderSummary } from "../../generate/render-summary.js";
 import { LlmProviderRegistry, OpenAiCompatibleProvider, createPromptRegistry } from "../../llm/index.js";
 import { allPrompts } from "../../llm/prompts/index.js";
-import type { ProfileV2 } from "../../normalize/models.js";
 import { writeHarnessGeneratedArtifacts } from "../../persist/generated-artifacts.js";
 import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../shared/cli.js";
 import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../../shared/errors.js";
@@ -92,7 +91,7 @@ export function registerGenerateCommand(program: Command): void {
 }
 
 type HarnessGenerateSource = {
-  profile: ProfileV2;
+  profile: PlaceholderProfile;
   normalizedSessions: Awaited<ReturnType<typeof analyzeRecentSessions>>["normalizedSessions"];
   harnessResult: Awaited<ReturnType<typeof analyzeWithHarness>>;
   warnings: Array<string>;
@@ -134,7 +133,7 @@ async function resolveGenerateSource(options: GenerateOptions, directory: string
     tone: options.tone,
   });
 
-  const profile: ProfileV2 = createPlaceholderProfile([
+  const profile = createPlaceholderProfile([
     ...analysis.profile.confidenceNotes,
     `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
     `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,

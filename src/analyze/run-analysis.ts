@@ -3,7 +3,6 @@ import { normalizeSession } from "../normalize/normalize-session.js";
 import type {
   EvidenceItem,
   NormalizedSession,
-  ProfileV2,
   WorkflowSignalKind,
 } from "../normalize/models.js";
 import type { RawSessionDiff } from "../normalize/raw-session.js";
@@ -26,9 +25,13 @@ export type AnalysisOptions = {
   tone?: TonePreset;
 };
 
+export type PlaceholderProfile = {
+  confidenceNotes: Array<string>;
+};
+
 export async function analyzeRecentSessions(options: AnalysisOptions): Promise<{
   normalizedSessions: Array<NormalizedSession>;
-  profile: ProfileV2;
+  profile: PlaceholderProfile;
   warnings: Array<AnalysisWarning>;
   evidenceIndex?: Array<EvidenceItem>;
 }> {
@@ -95,34 +98,6 @@ function buildAnalysisConfidenceNotes(
   return notes;
 }
 
-/**
- * Transitional shim: returns an empty ProfileV2 carrying only confidenceNotes.
- * Slated for removal once generate stops depending on ProfileV2 (later slice).
- */
-export function createPlaceholderProfile(confidenceNotes: Array<string>): ProfileV2 {
-  return {
-    schemaVersion: "profile/v2",
-    promptSetVersion: "prompt-set/v1",
-    workStyle: [],
-    communicationStyle: [],
-    validationHabits: [],
-    constraints: [],
-    tokenEfficiency: [],
-    modelSelection: [],
-    delegationPattern: [],
-    strongestSignals: {
-      "work-style": [],
-      "communication-style": [],
-      "validation-habit": [],
-      constraint: [],
-      "token-efficiency": [],
-      "model-selection": [],
-      "delegation-pattern": [],
-    },
-    acceptedClaims: [],
-    tentativeClaims: [],
-    unresolvedAreas: [],
-    confidenceNotes,
-    mergedClaims: [],
-  };
+export function createPlaceholderProfile(confidenceNotes: Array<string>): PlaceholderProfile {
+  return { confidenceNotes };
 }

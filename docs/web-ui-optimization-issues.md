@@ -52,10 +52,14 @@ Acceptance criteria:
 - Run after both backend and web assets are built.
 - Include desktop and mobile viewport smoke checks.
 
+Audit status: **not complete**. `tests/e2e/serve.test.ts` now seeds fixture artifacts for list, detail, audit, reports, preview, traces, and evidence APIs, but it still uses HTTP-level checks rather than a browser-driven interaction flow. Desktop and mobile viewport smoke checks are also still absent.
+
 ### 5. Pipeline and design cleanup
 
 Acceptance criteria:
-- Decide whether `writerSections` should be rendered in the UI or removed from the browser payload.
-- Decide whether selected run state should be reflected in URL/query state for refresh and back-button behavior.
-- Document the intentionally limited markdown preview renderer or replace it with a safer complete renderer.
+- `writerSections` should remain in the browser payload and render in the Preview tab as compact writer output. Covered by `web/src/components/PreviewTracesTab.test.tsx`.
+- Selected run state should be reflected in the `run` query parameter for refresh and back-button behavior. Covered by `web/src/App.test.tsx`.
+- The markdown preview renderer is intentionally limited: it renders headings, unordered lists, paragraphs, and fenced code blocks as React text nodes; it does not render inline HTML or full Markdown syntax. Long previews are capped at 500 lines and long code blocks at 120 lines. Covered by `web/src/components/PreviewTracesTab.test.tsx`.
 - Track the cost of the new `jsdom` dev dependency against the value of DOM-level component coverage.
+
+Audit status: **partially complete**. The product decisions are implemented and tested. The remaining item is dependency-cost tracking for `jsdom`; the current value is DOM-level interaction coverage for evidence expansion, preview rendering safety, locale persistence, and translated UI behavior.

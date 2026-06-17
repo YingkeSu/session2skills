@@ -183,6 +183,8 @@ function mapLintCodeToSeverity(code: SkillLintIssueCode): SkillEvaluationIssueSe
       return "medium";
     case "debug-phrase":
       return "medium";
+    case "report-prose":
+      return "medium";
     case "secret-material":
       return "high";
     case "env-payload":

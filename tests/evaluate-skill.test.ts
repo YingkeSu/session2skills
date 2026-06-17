@@ -146,6 +146,31 @@ Use 3 directive(s) for best results.
     expect(result.evaluation.issues.some((i) => i.message.includes("debug"))).toBe(true);
   });
 
+  it("flags report-style confidence and rationale prose", async () => {
+    const skillDir = createSkillDirectory({
+      skillContent: `---
+name: report-skill
+description: Contains report-style prose.
+---
+
+# Report Skill
+
+## Work Style
+- analysis-first (confidence: 0.90)
+  The user repeatedly inspects code before editing.
+
+## Confidence notes
+- workStyle: strongest signal \`analysis-first\` with weight 3
+`,
+    });
+
+    const result = await evaluateSkill({ skillDirectory: skillDir });
+
+    expect(result.evaluation.gates.lint).toBe("fail");
+    expect(result.evaluation.verdict).toBe("reject");
+    expect(result.evaluation.issues.some((i) => i.message.includes("confidence/rationale report prose"))).toBe(true);
+  });
+
   it("enforces size budget and escalates verdict to needs-patch", async () => {
     const skillDir = createSkillDirectory({
       skillContent: `---

@@ -6,6 +6,7 @@ export type SkillLintIssueCode =
   | "missing-frontmatter-name"
   | "missing-frontmatter-description"
   | "debug-phrase"
+  | "report-prose"
   | "secret-material"
   | "env-payload";
 
@@ -15,6 +16,8 @@ export type SkillLintIssue = {
 };
 
 const DEBUG_PHRASE_PATTERN = /\bdirective\(s\)/i;
+const REPORT_PROSE_PATTERN =
+  /\b(?:confidence\s*:\s*\d(?:\.\d+)?|confidence notes|strongest signal|summary-only (?:observation|insight)s?)\b/i;
 const ENV_PAYLOAD_PATTERN =
   /(?:^|[\r\n])(?:[^\r\n]*(?:generated-skills|\.session2skills)[^\r\n]*)?(?:\.env\b[^\r\n]*[\r\n])?(?:[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|ACCESS_KEY|AUTH_TOKEN|CLIENT_SECRET|SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY)[A-Za-z0-9_]*\s*=)/i;
 
@@ -47,6 +50,13 @@ export function lintSkillMarkdown(markdown: string): Array<SkillLintIssue> {
     issues.push({
       code: "debug-phrase",
       message: "SKILL.md must not include debug phrasing such as directive(s).",
+    });
+  }
+
+  if (REPORT_PROSE_PATTERN.test(markdown)) {
+    issues.push({
+      code: "report-prose",
+      message: "SKILL.md must contain concise agent-facing instructions, not confidence/rationale report prose.",
     });
   }
 

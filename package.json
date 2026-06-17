@@ -30,6 +30,7 @@
     "build": "tsc -p tsconfig.json",
     "build:web": "vite build --config web/vite.config.ts",
     "build:all": "npm run build && npm run build:web",
+    "verify:web": "npm run build:all && vitest run tests/e2e/serve.test.ts",
     "postbuild": "node scripts/fix-bin-mode.mjs",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",

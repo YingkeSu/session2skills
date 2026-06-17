@@ -142,6 +142,7 @@ export function RunDetailPageView({
             >
               <PreviewTracesTab
                 skillMarkdown={readyDetail.skillMarkdown}
+                writerSections={readyDetail.writerSections}
                 traces={readyDetail.traces}
               />
             </section>

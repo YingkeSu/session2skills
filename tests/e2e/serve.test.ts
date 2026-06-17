@@ -79,9 +79,52 @@ describe("serve command (e2e)", () => {
       join(runsDir, "claim-manifest.json"),
       JSON.stringify({
         schemaVersion: "claim-manifest/v1",
-        claims: [{ id: "c1" }, { id: "c2" }, { id: "c3" }],
-        evidenceSummary: "",
-        dimensionsCovered: [],
+        claims: [
+          {
+            id: "c1",
+            dimension: "planning",
+            label: "Clarify constraints before editing",
+            confidence: 0.84,
+            rationale:
+              "The user explicitly asks the worker to read task constraints before implementation.",
+            evidenceRefs: ["ev-1"],
+          },
+          {
+            id: "c2",
+            dimension: "verification",
+            label: "Run focused checks after changes",
+            confidence: 0.91,
+            rationale:
+              "The task packet requires focused e2e verification after changing fixture coverage.",
+            evidenceRefs: ["ev-2"],
+          },
+          {
+            id: "c3",
+            dimension: "verification",
+            label: "Report commands and results",
+            confidence: 0.78,
+            rationale:
+              "The handoff format asks for command results in the final response and completion report.",
+            evidenceRefs: [],
+          },
+        ],
+        evidenceSummary:
+          "The session shows a repeated preference for constraint-first implementation and focused verification.",
+        dimensionsCovered: ["planning", "verification"],
+        evidence: [
+          {
+            evidenceID: "ev-1",
+            sourceType: "message",
+            excerpt:
+              "Constraint-first short preview; full evidence text loaded by the expandable evidence panel.",
+          },
+          {
+            evidenceID: "ev-2",
+            sourceType: "tool",
+            excerpt:
+              "Focused e2e command output confirms the serve flow after fixture updates.",
+          },
+        ],
         metadata: { generatedAt: "2026-06-14T12:00:00.000Z", sessionCount: 2, totalEvidenceItems: 5 },
       }),
     );
@@ -89,7 +132,16 @@ describe("serve command (e2e)", () => {
       join(runsDir, "skeptic-report.json"),
       JSON.stringify({
         schemaVersion: "skeptic-report/v1",
-        issues: [{ claimId: "c1" }],
+        issues: [
+          {
+            claimId: "c1",
+            severity: "medium",
+            problemType: "thin-evidence",
+            detail: "Only one direct excerpt supports the planning claim.",
+            suggestion:
+              "Keep the directive narrow and tie it to explicit task packets.",
+          },
+        ],
         overallScore: 0.72,
         metadata: { generatedAt: "2026-06-14T12:00:00.000Z", claimCount: 3, issueCount: 1 },
       }),
@@ -99,7 +151,23 @@ describe("serve command (e2e)", () => {
       JSON.stringify({
         schemaVersion: "verifier-report/v1",
         pass: true,
-        checkedItems: [],
+        checkedItems: [
+          {
+            directive: "Ask for constraints before touching files.",
+            claimId: "c1",
+            status: "verified",
+          },
+          {
+            directive: "Run focused tests after each e2e fixture change.",
+            claimId: "c2",
+            status: "verified",
+          },
+          {
+            directive: "Include command outcomes in the completion report.",
+            claimId: "c3",
+            status: "verified",
+          },
+        ],
         issues: [],
         metadata: { generatedAt: "2026-06-14T12:00:00.000Z", directiveCount: 3, verifiedCount: 3, fabricatedCount: 0 },
       }),
@@ -107,10 +175,43 @@ describe("serve command (e2e)", () => {
     await writeFile(
       join(runsDir, "llm-traces.json"),
       JSON.stringify([
-        { schemaVersion: "llm-trace/v1", traceID: "t1", model: "glm-4.7", stage: "harness-analyst", provider: "zhipuai", request: { promptName: "x", messages: [] }, response: { finishReason: "stop" } },
+        {
+          schemaVersion: "llm-trace/v1",
+          traceID: "t1",
+          model: "glm-4.7",
+          stage: "analyst",
+          provider: "zhipuai",
+          usage: { prompt_tokens: 30, completion_tokens: 12, total_tokens: 42 },
+          latencyMs: 1200,
+          finishReason: "stop",
+          promptName: "claim-analysis",
+          request: { promptName: "claim-analysis", messages: [] },
+          response: { finishReason: "stop" },
+        },
       ]),
     );
-    await writeFile(join(runsDir, "SKILL.md"), "# Alpha Skill\n");
+    await writeFile(
+      join(runsDir, "writer-output.json"),
+      JSON.stringify({
+        sections: [
+          {
+            title: "Constraints and anti-patterns",
+            summary: "Keep directives grounded in observed evidence.",
+            groundingClaimIds: ["c1", "c2"],
+            directives: [
+              {
+                text: "Use evidence before generalizing.",
+                sourceClaimId: "c2",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      join(runsDir, "SKILL.md"),
+      "# Alpha Skill\n\n- Use evidence before generalizing.\n",
+    );
 
     try {
       serverProcess = spawn(
@@ -158,6 +259,141 @@ describe("serve command (e2e)", () => {
     expect(body[0]!.claimCount).toBe(3);
     expect(body[0]!.skepticScore).toBe(0.72);
     expect(body[0]!.skepticIssueCount).toBe(1);
+  });
+
+  test("served APIs expose the data needed for the list-detail-tab-evidence UI flow", async () => {
+    if (shouldSkip) return;
+
+    const runsRes = await fetch(`http://127.0.0.1:${port}/api/runs`);
+    expect(runsRes.status).toBe(200);
+    const runs = (await runsRes.json()) as Array<Record<string, unknown>>;
+    expect(runs).toEqual([
+      expect.objectContaining({
+        name: "alpha-run",
+        model: "glm-4.7",
+        verifierPassed: true,
+        claimCount: 3,
+        skepticScore: 0.72,
+        skepticIssueCount: 1,
+      }),
+    ]);
+
+    const detailRes = await fetch(`http://127.0.0.1:${port}/api/runs/alpha-run`);
+    expect(detailRes.status).toBe(200);
+    const detail = (await detailRes.json()) as Record<string, unknown>;
+    expect(detail["name"]).toBe("alpha-run");
+    expect(detail["skillMarkdown"]).toContain(
+      "Use evidence before generalizing",
+    );
+
+    const manifest = detail["claimManifest"] as Record<string, unknown>;
+    expect(manifest["evidenceSummary"]).toContain(
+      "The session shows a repeated preference",
+    );
+    expect(manifest["dimensionsCovered"]).toEqual(["planning", "verification"]);
+    expect(manifest["evidence"]).toEqual([
+      expect.objectContaining({
+        evidenceID: "ev-1",
+        sourceType: "message",
+        excerpt: expect.stringContaining("short preview"),
+      }),
+      expect.objectContaining({
+        evidenceID: "ev-2",
+        sourceType: "tool",
+        excerpt: expect.stringContaining("Focused e2e command output"),
+      }),
+    ]);
+    expect(manifest["claims"]).toEqual([
+      expect.objectContaining({
+        id: "c1",
+        dimension: "planning",
+        label: "Clarify constraints before editing",
+        evidenceRefs: ["ev-1"],
+      }),
+      expect.objectContaining({
+        id: "c2",
+        dimension: "verification",
+        label: "Run focused checks after changes",
+        evidenceRefs: ["ev-2"],
+      }),
+      expect.objectContaining({
+        id: "c3",
+        dimension: "verification",
+        label: "Report commands and results",
+        evidenceRefs: [],
+      }),
+    ]);
+
+    const skepticReport = detail["skepticReport"] as Record<string, unknown>;
+    expect(skepticReport["issues"]).toEqual([
+      expect.objectContaining({
+        claimId: "c1",
+        severity: "medium",
+        problemType: "thin-evidence",
+        detail: expect.stringContaining("Only one direct excerpt"),
+      }),
+    ]);
+
+    const verifierReport = detail["verifierReport"] as Record<string, unknown>;
+    expect(verifierReport["checkedItems"]).toEqual([
+      expect.objectContaining({
+        directive: "Ask for constraints before touching files.",
+        claimId: "c1",
+        status: "verified",
+      }),
+      expect.objectContaining({
+        directive: "Run focused tests after each e2e fixture change.",
+        claimId: "c2",
+        status: "verified",
+      }),
+      expect.objectContaining({
+        directive: "Include command outcomes in the completion report.",
+        claimId: "c3",
+        status: "verified",
+      }),
+    ]);
+
+    const writerSections = detail["writerSections"] as Record<string, unknown>;
+    expect(writerSections["sections"]).toEqual([
+      expect.objectContaining({
+        title: "Constraints and anti-patterns",
+        groundingClaimIds: ["c1", "c2"],
+        directives: [
+          expect.objectContaining({
+            text: "Use evidence before generalizing.",
+            sourceClaimId: "c2",
+          }),
+        ],
+      }),
+    ]);
+
+    const traces = detail["traces"] as Array<Record<string, unknown>>;
+    expect(traces).toEqual([
+      expect.objectContaining({
+        stage: "analyst",
+        model: "glm-4.7",
+        provider: "zhipuai",
+        usage: expect.objectContaining({ total_tokens: 42 }),
+        latencyMs: 1200,
+        finishReason: "stop",
+        promptName: "claim-analysis",
+      }),
+    ]);
+
+    const evidenceRes = await fetch(
+      `http://127.0.0.1:${port}/api/runs/alpha-run/evidence/ev-1`,
+    );
+    expect(evidenceRes.status).toBe(200);
+    const evidence = (await evidenceRes.json()) as Record<string, unknown>;
+    expect(evidence).toEqual(
+      expect.objectContaining({
+        evidenceID: "ev-1",
+        sourceType: "message",
+        excerpt: expect.stringContaining(
+          "full evidence text loaded by the expandable evidence panel",
+        ),
+      }),
+    );
   });
 
   test("GET / serves the SPA shell", async () => {

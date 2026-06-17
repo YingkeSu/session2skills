@@ -74,6 +74,7 @@ export const messages: Record<Locale, MessageDictionary> = {
 
     "preview.skillTitle": "SKILL.md 预览",
     "preview.noSkill": "此运行没有可用的 SKILL.md。",
+    "preview.writerSectionsTitle": "Writer 输出",
     "preview.tracesTitle": "LLM 追踪",
     "preview.noTraces": "没有记录的 LLM 追踪。",
     "preview.tokens": "tokens",
@@ -187,6 +188,7 @@ export const messages: Record<Locale, MessageDictionary> = {
 
     "preview.skillTitle": "SKILL.md Preview",
     "preview.noSkill": "No SKILL.md available for this run.",
+    "preview.writerSectionsTitle": "Writer Output",
     "preview.tracesTitle": "LLM Traces",
     "preview.noTraces": "No LLM traces recorded.",
     "preview.tokens": "tokens",

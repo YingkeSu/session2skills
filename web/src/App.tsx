@@ -14,7 +14,9 @@ type LoadState =
 export function App(): JSX.Element {
   const { t } = useLocale();
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [selectedRun, setSelectedRun] = useState<string | null>(null);
+  const [selectedRun, setSelectedRun] = useState<string | null>(() =>
+    getInitialSelectedRun(),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -37,11 +39,50 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onPopState = (): void => {
+      setSelectedRun(resolveSelectedRunFromLocation(window.location));
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const currentRun = resolveSelectedRunFromLocation(window.location);
+    if (currentRun === selectedRun) return;
+
+    const url = buildSelectedRunUrl(window.location, selectedRun);
+    if (selectedRun === null) {
+      window.history.replaceState({ run: null }, "", url);
+      return;
+    }
+
+    window.history.pushState({ run: selectedRun }, "", url);
+  }, [selectedRun]);
+
+  const closeRun = (): void => {
+    if (
+      typeof window !== "undefined" &&
+      window.history.state?.run === selectedRun
+    ) {
+      window.history.back();
+      return;
+    }
+    setSelectedRun(null);
+  };
+
   if (selectedRun) {
     return (
       <RunDetailPage
         runName={selectedRun}
-        onBack={() => setSelectedRun(null)}
+        onBack={closeRun}
       />
     );
   }
@@ -70,6 +111,48 @@ export function App(): JSX.Element {
       />
     </Shell>
   );
+}
+
+export function resolveSelectedRunFromLocation({
+  search,
+  hash,
+}: Pick<Location, "search" | "hash">): string | null {
+  const queryRun = new URLSearchParams(search).get("run");
+  if (queryRun) return queryRun;
+
+  return parseRunFromHash(hash);
+}
+
+function getInitialSelectedRun(): string | null {
+  if (typeof window === "undefined") return null;
+  return resolveSelectedRunFromLocation(window.location);
+}
+
+function parseRunFromHash(hash: string): string | null {
+  if (!hash) return null;
+
+  const normalized = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!normalized) return null;
+
+  const hashParams = new URLSearchParams(
+    normalized.startsWith("?") ? normalized.slice(1) : normalized,
+  );
+  return hashParams.get("run") || null;
+}
+
+export function buildSelectedRunUrl(
+  locationLike: Pick<Location, "pathname" | "search">,
+  run: string | null,
+): string {
+  const params = new URLSearchParams(locationLike.search);
+  if (run) {
+    params.set("run", run);
+  } else {
+    params.delete("run");
+  }
+
+  const query = params.toString();
+  return query ? `${locationLike.pathname}?${query}` : locationLike.pathname;
 }
 
 export function RunsDashboard({

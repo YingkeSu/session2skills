@@ -26,14 +26,29 @@ Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
 });
 
-function renderPreview(): void {
+function renderPreview(
+  skillMarkdown = "# Title\n\n- item one\n- item two",
+): void {
   localStorage.setItem("session2skills-locale", "en");
   const container = document.createElement("div");
   document.body.append(container);
   createRoot(container).render(
     <LocaleProvider>
       <PreviewTracesTab
-        skillMarkdown={"# Title\n\n- item one\n- item two"}
+        skillMarkdown={skillMarkdown}
+        writerSections={{
+          sections: [
+            {
+              title: "Constraints and anti-patterns",
+              directives: [
+                {
+                  text: "Preserve the existing command shape.",
+                  sourceClaimId: "claim_001",
+                },
+              ],
+            },
+          ],
+        }}
         traces={[
           {
             stage: "verifier",
@@ -68,6 +83,53 @@ describe("PreviewTracesTab", () => {
     expect(await waitForText("gpt-4.1")).toBeTruthy();
     expect(await waitForText("openai")).toBeTruthy();
     expect(await waitForText("20 tokens")).toBeTruthy();
+  });
+
+  it("renders compact writer sections when writer output is available", async () => {
+    renderPreview();
+
+    expect(await waitForText("Writer Output")).toBeTruthy();
+    expect(await waitForText("Constraints and anti-patterns")).toBeTruthy();
+    expect(await waitForText("Preserve the existing command shape.")).toBeTruthy();
+    expect(await waitForText("claim_001")).toBeTruthy();
+  });
+
+  it("renders unsupported HTML as text instead of DOM nodes", async () => {
+    renderPreview(
+      [
+        "# <img src=x onerror=alert(1)>",
+        "",
+        "- <script>alert(1)</script>",
+        "Plain <strong>bold</strong>",
+      ].join("\n"),
+    );
+
+    expect(await waitForText("<img src=x onerror=alert(1)>")).toBeTruthy();
+    expect(await waitForText("<script>alert(1)</script>")).toBeTruthy();
+    expect(await waitForText("Plain <strong>bold</strong>")).toBeTruthy();
+    const markdownBox = document.body.querySelector("section > div");
+    expect(markdownBox?.querySelector("img")).toBeNull();
+    expect(markdownBox?.querySelector("script")).toBeNull();
+    expect(markdownBox?.querySelector("strong")).toBeNull();
+  });
+
+  it("renders fenced code literally and caps long previews", async () => {
+    const markdown = [
+      "```html",
+      "<div>literal</div>",
+      "```",
+      ...Array.from({ length: 501 }, (_, index) => `line ${index + 1}`),
+    ].join("\n");
+
+    renderPreview(markdown);
+
+    expect(await waitForText("<div>literal</div>")).toBeTruthy();
+    expect(document.body.querySelector("code")?.textContent).toContain(
+      "<div>literal</div>",
+    );
+    expect(await waitForText("Preview truncated after 500 lines.")).toBeTruthy();
+    expect(document.body.textContent).toContain("line 497");
+    expect(document.body.textContent).not.toContain("line 498");
   });
 });
 

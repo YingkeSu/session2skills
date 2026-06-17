@@ -3,7 +3,20 @@ import { useLocale } from "../i18n/LocaleContext.js";
 
 type PreviewTracesTabProps = {
   skillMarkdown: string | null;
+  writerSections: Record<string, unknown> | null;
   traces: Array<Record<string, unknown>>;
+};
+
+type WriterDirectivePreview = {
+  text: string;
+  sourceClaimId: string | null;
+};
+
+type WriterSectionPreview = {
+  title: string;
+  summary: string | null;
+  directives: Array<WriterDirectivePreview>;
+  groundingClaimIds: Array<string>;
 };
 
 const stageColors: Record<string, string> = {
@@ -12,6 +25,9 @@ const stageColors: Record<string, string> = {
   writer: "#6610f2",
   verifier: "#198754",
 };
+
+const MAX_MARKDOWN_LINES = 500;
+const MAX_CODE_BLOCK_LINES = 120;
 
 function extractTraceSummary(
   trace: Record<string, unknown>
@@ -57,16 +73,90 @@ function extractTraceSummary(
   };
 }
 
+function extractWriterSections(
+  writerSections: Record<string, unknown> | null,
+): Array<WriterSectionPreview> {
+  if (!writerSections || !Array.isArray(writerSections.sections)) {
+    return [];
+  }
+
+  return writerSections.sections.flatMap(
+    (section): Array<WriterSectionPreview> => {
+      if (typeof section !== "object" || section === null) {
+        return [];
+      }
+
+      const source = section as Record<string, unknown>;
+      const title = typeof source.title === "string" ? source.title.trim() : "";
+      const summary =
+        typeof source.summary === "string" && source.summary.trim().length > 0
+          ? source.summary.trim()
+          : null;
+      const directives = Array.isArray(source.directives)
+        ? source.directives.flatMap(
+            (directive): Array<WriterDirectivePreview> => {
+              if (typeof directive !== "object" || directive === null) {
+                return [];
+              }
+
+              const directiveSource = directive as Record<string, unknown>;
+              const text =
+                typeof directiveSource.text === "string"
+                  ? directiveSource.text.trim()
+                  : "";
+              if (!text) {
+                return [];
+              }
+
+              return [
+                {
+                  text,
+                  sourceClaimId:
+                    typeof directiveSource.sourceClaimId === "string"
+                      ? directiveSource.sourceClaimId
+                      : null,
+                },
+              ];
+            },
+          )
+        : [];
+      const groundingClaimIds = Array.isArray(source.groundingClaimIds)
+        ? source.groundingClaimIds.filter(
+            (claimId): claimId is string => typeof claimId === "string",
+          )
+        : [];
+
+      if (!title && !summary && directives.length === 0) {
+        return [];
+      }
+
+      return [
+        {
+          title: title || "Untitled section",
+          summary,
+          directives,
+          groundingClaimIds,
+        },
+      ];
+    },
+  );
+}
+
 function renderMarkdown(md: string): JSX.Element {
-  const lines = md.split("\n");
+  const allLines = md.split(/\r?\n/);
+  const wasTruncated = allLines.length > MAX_MARKDOWN_LINES;
+  const lines = allLines.slice(0, MAX_MARKDOWN_LINES);
   const elements: JSX.Element[] = [];
-  let inList = false;
-  let listItems: string[] = [];
   let listKey = 0;
+  let codeBlockKey = 0;
+  let paragraphKey = 0;
+  let inCodeBlock = false;
+  let codeLines: string[] = [];
+  let codeBlockTruncated = false;
+  let listItems: string[] = [];
 
   function flushList(): JSX.Element | null {
-    if (!inList || listItems.length === 0) return null;
-    inList = false;
+    if (listItems.length === 0) return null;
     const items = [...listItems];
     listItems = [];
     listKey += 1;
@@ -79,21 +169,73 @@ function renderMarkdown(md: string): JSX.Element {
           <li
             key={idx}
             style={{ marginBottom: "4px", lineHeight: 1.5 }}
-            dangerouslySetInnerHTML={{ __html: item }}
-          />
+          >
+            {item}
+          </li>
         ))}
       </ul>
     );
   }
 
+  function flushCodeBlock(): JSX.Element | null {
+    if (!inCodeBlock && codeLines.length === 0) return null;
+    const text = codeBlockTruncated
+      ? `${codeLines.join("\n")}\n... code block truncated after ${MAX_CODE_BLOCK_LINES} lines`
+      : codeLines.join("\n");
+    codeLines = [];
+    codeBlockTruncated = false;
+    inCodeBlock = false;
+    codeBlockKey += 1;
+    return (
+      <pre
+        key={`code-${codeBlockKey}`}
+        style={{
+          margin: "0 0 10px",
+          padding: "10px",
+          borderRadius: "4px",
+          background: "#f8f9fa",
+          border: "1px solid #e9ecef",
+          overflowX: "auto",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        <code>{text}</code>
+      </pre>
+    );
+  }
+
   for (const line of lines) {
+    if (line.trimStart().startsWith("```")) {
+      const listEnd = flushList();
+      if (listEnd) elements.push(listEnd);
+
+      if (inCodeBlock) {
+        const codeBlock = flushCodeBlock();
+        if (codeBlock) elements.push(codeBlock);
+      } else {
+        inCodeBlock = true;
+        codeLines = [];
+        codeBlockTruncated = false;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      if (codeLines.length < MAX_CODE_BLOCK_LINES) {
+        codeLines.push(line);
+      } else {
+        codeBlockTruncated = true;
+      }
+      continue;
+    }
+
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
     const listMatch = line.match(/^\s*[-*]\s+(.*)$/);
 
-    const listEnd = flushList();
-    if (listEnd) elements.push(listEnd);
-
     if (headingMatch) {
+      const listEnd = flushList();
+      if (listEnd) elements.push(listEnd);
+
       const level = headingMatch[1].length;
       const text = headingMatch[2].trim();
       const Tag = `h${level}` as keyof JSX.IntrinsicElements;
@@ -107,46 +249,71 @@ function renderMarkdown(md: string): JSX.Element {
             fontWeight: 600,
             lineHeight: 1.4,
           }}
-          dangerouslySetInnerHTML={{ __html: text }}
-        />
+        >
+          {text}
+        </Tag>
       );
       continue;
     }
 
     if (listMatch) {
-      inList = true;
       listItems.push(listMatch[1]);
       continue;
     }
+
+    const listEnd = flushList();
+    if (listEnd) elements.push(listEnd);
 
     if (line.trim() === "") {
       continue;
     }
 
+    paragraphKey += 1;
     elements.push(
       <p
-        key={`p-${elements.length}`}
+        key={`p-${paragraphKey}`}
         style={{
           margin: "0 0 8px",
           lineHeight: 1.6,
           color: "#212529",
         }}
-        dangerouslySetInnerHTML={{ __html: line }}
-      />
+      >
+        {line}
+      </p>
     );
   }
 
   const trailingList = flushList();
   if (trailingList) elements.push(trailingList);
 
+  const trailingCodeBlock = flushCodeBlock();
+  if (trailingCodeBlock) elements.push(trailingCodeBlock);
+
+  if (wasTruncated) {
+    elements.push(
+      <p
+        key="markdown-truncated"
+        style={{
+          margin: "8px 0 0",
+          color: "#666",
+          fontStyle: "italic",
+        }}
+      >
+        Preview truncated after {MAX_MARKDOWN_LINES} lines.
+      </p>,
+    );
+  }
+
   return <>{elements}</>;
 }
 
 export function PreviewTracesTab({
   skillMarkdown,
+  writerSections,
   traces,
 }: PreviewTracesTabProps): JSX.Element {
   const { t, tEnum } = useLocale();
+  const writerSectionPreviews = extractWriterSections(writerSections);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <section style={sectionStyle}>
@@ -159,6 +326,46 @@ export function PreviewTracesTab({
           </div>
         )}
       </section>
+
+      {writerSectionPreviews.length > 0 && (
+        <section style={sectionStyle}>
+          <h3 style={sectionTitleStyle}>{t("preview.writerSectionsTitle")}</h3>
+          <div style={writerSectionsGridStyle}>
+            {writerSectionPreviews.map((section, sectionIndex) => (
+              <article
+                key={`${section.title}-${sectionIndex}`}
+                style={writerSectionCardStyle}
+              >
+                <div style={writerSectionHeaderStyle}>
+                  <strong>{section.title}</strong>
+                  {section.groundingClaimIds.length > 0 && (
+                    <span style={traceMetaStyle}>
+                      {section.groundingClaimIds.join(", ")}
+                    </span>
+                  )}
+                </div>
+                {section.summary && (
+                  <p style={writerSectionSummaryStyle}>{section.summary}</p>
+                )}
+                {section.directives.length > 0 && (
+                  <ul style={writerDirectiveListStyle}>
+                    {section.directives.map((directive, directiveIndex) => (
+                      <li key={`${directive.text}-${directiveIndex}`}>
+                        <span>{directive.text}</span>
+                        {directive.sourceClaimId && (
+                          <span style={writerClaimStyle}>
+                            {directive.sourceClaimId}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>{t("preview.tracesTitle")}</h3>
@@ -297,6 +504,55 @@ const markdownBoxStyle: React.CSSProperties = {
   padding: "14px",
   background: "#fff",
   lineHeight: 1.6,
+  overflowWrap: "anywhere",
+};
+
+const writerSectionsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "10px",
+};
+
+const writerSectionCardStyle: React.CSSProperties = {
+  border: "1px solid #e9ecef",
+  borderRadius: "4px",
+  padding: "10px",
+  background: "#fbfcfd",
+  minWidth: 0,
+};
+
+const writerSectionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "8px",
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  fontSize: "13px",
+  color: "#212529",
+  overflowWrap: "anywhere",
+};
+
+const writerSectionSummaryStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  fontSize: "13px",
+  lineHeight: 1.45,
+  color: "#495057",
+  overflowWrap: "anywhere",
+};
+
+const writerDirectiveListStyle: React.CSSProperties = {
+  margin: "8px 0 0",
+  paddingLeft: "18px",
+  fontSize: "13px",
+  lineHeight: 1.5,
+  color: "#212529",
+};
+
+const writerClaimStyle: React.CSSProperties = {
+  display: "inline-block",
+  marginLeft: "6px",
+  color: "#6c757d",
+  fontSize: "12px",
   overflowWrap: "anywhere",
 };
 

@@ -44,7 +44,7 @@ export function createServer(runsDirectory: string): Hono {
           readJsonSafe(join(runDir, "claim-manifest.json")),
           readJsonSafe(join(runDir, "skeptic-report.json")),
           readJsonSafe(join(runDir, "verifier-report.json")),
-          readJsonSafe(join(runDir, "llm-traces.json")),
+          readJsonArraySafe(join(runDir, "llm-traces.json")),
         ]);
 
       const claimManifest = claimManifestRaw as Record<string, unknown> | null;
@@ -203,6 +203,16 @@ async function readJsonSafe(filePath: string): Promise<Record<string, unknown> |
       return parsed as Record<string, unknown>;
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+async function readJsonArraySafe(filePath: string): Promise<unknown[] | null> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }

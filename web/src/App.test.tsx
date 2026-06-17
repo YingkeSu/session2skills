@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { RunsDashboard } from "./App.js";
+import {
+  buildSelectedRunUrl,
+  resolveSelectedRunFromLocation,
+  RunsDashboard,
+} from "./App.js";
 import { LocaleProvider } from "./i18n/LocaleContext.js";
 import type { RunSummary } from "./runs.js";
 
@@ -39,5 +43,43 @@ describe("RunsDashboard", () => {
     expect(html).toContain("4");
     expect(html).toContain("0.75");
     expect(html).toContain("skeptic-needs-review");
+  });
+});
+
+describe("run URL state", () => {
+  it("reads the selected run from either query or hash URL state", () => {
+    expect(
+      resolveSelectedRunFromLocation(
+        new URL("https://example.test/?run=skeptic-needs-review"),
+      ),
+    ).toBe("skeptic-needs-review");
+
+    expect(
+      resolveSelectedRunFromLocation(
+        new URL("https://example.test/#run=writer-pass"),
+      ),
+    ).toBe("writer-pass");
+  });
+
+  it("writes the selected run into the query string and removes it when returning to the list", () => {
+    expect(
+      buildSelectedRunUrl(
+        {
+          pathname: "/runs",
+          search: "?page=2",
+        },
+        "skeptic-needs-review",
+      ),
+    ).toBe("/runs?page=2&run=skeptic-needs-review");
+
+    expect(
+      buildSelectedRunUrl(
+        {
+          pathname: "/runs",
+          search: "?page=2&run=skeptic-needs-review",
+        },
+        null,
+      ),
+    ).toBe("/runs?page=2");
   });
 });

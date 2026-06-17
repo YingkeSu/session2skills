@@ -59,7 +59,21 @@ npm run build:all
 node dist/cli/main.js serve --directory /absolute/project/path
 ```
 
-Starts a local web server for browsing sessions and generated skills. In a built checkout, run `npm run build:all` first so both `dist/cli/main.js` and `web/dist/` exist.
+Starts a local web server for browsing generated harness runs. Preconditions:
+
+- Backend CLI is built: `dist/cli/main.js` exists. `npm run build:all` creates it.
+- Web assets are built: `web/dist/index.html` exists. `npm run build:all` creates it.
+- The served project directory contains a seeded `generated-skills/<run-name>/` directory with the generated run artifacts, such as `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`.
+
+Use `generate --output generated-skills/<run-name>` to seed a real run before serving a project directory.
+
+To verify the local web pipeline without relying on local OpenCode sessions:
+
+```bash
+npm run verify:web
+```
+
+This builds the backend and web assets, seeds a temporary `generated-skills/alpha-run`, starts `serve`, and checks health, `/api/runs`, the SPA shell, and bundled asset serving.
 
 ## Configuration
 
@@ -107,6 +121,8 @@ The `--tone` flag controls output verbosity:
 ```bash
 npm run typecheck
 npm run build
+npm run build:web
+npm run verify:web
 npm test
 ```
 

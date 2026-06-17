@@ -30,6 +30,16 @@ No dedicated tracked web UI PRD exists in this repository. The current tracked p
   - `web/src/components/ReportsTab.test.tsx`
   - `web/src/components/PreviewTracesTab.test.tsx`
 
+## Web Pipeline Preconditions
+
+Manual `serve` runs and browser e2e checks both require the same build artifacts and fixture shape:
+
+- Build backend CLI first so `dist/cli/main.js` exists.
+- Build web assets first so `web/dist/index.html` and `/assets/` exist.
+- Serve a project directory that already has `generated-skills/<run-name>/` populated with the generated run artifacts.
+
+For focused verification, run `npm run verify:web`. It builds backend and web assets, seeds a temporary `generated-skills/alpha-run`, starts the real `serve` command, and checks server health, `/api/runs`, SPA shell serving, and bundled asset serving.
+
 ## Follow-Up Issues
 
 ### 4. Browser UI flow e2e coverage

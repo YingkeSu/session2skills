@@ -290,4 +290,34 @@ describe("harness analyst stage", () => {
     expect(result.manifest.claims[1]!.id).toBe("claim_002");
     expect(result.manifest.claims[1]!.label).toBe("iterative");
   });
+
+  it("accepts evidence refs under the 'evidence' field alias (some models emit this instead of evidenceRefs)", async () => {
+    const evidence = makeEvidenceItems(3);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_001",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "Grounded claim",
+                evidence: ["ev_001", "ev_002"],
+              },
+            ],
+            evidenceSummary: "3 items",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.evidenceRefs).toEqual(["ev_001", "ev_002"]);
+  });
 });

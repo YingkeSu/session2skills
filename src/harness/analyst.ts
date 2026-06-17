@@ -19,6 +19,7 @@ type RawAnalystOutput = {
     reasoning?: unknown;
     evidenceRefs?: unknown;
     evidence_ids?: unknown;
+    evidence?: unknown;
   }>;
   evidenceSummary?: unknown;
   dimensionsCovered?: unknown;
@@ -137,7 +138,7 @@ function parseAnalystOutput(
   const claims = rawClaims
     .filter((c) => c.dimension && c.label && typeof c.confidence === "number")
     .map((c) => {
-      const evidenceRefsRaw = c.evidenceRefs ?? c.evidence_ids;
+      const evidenceRefsRaw = c.evidenceRefs ?? c.evidence_ids ?? c.evidence;
       const rawRefs = Array.isArray(evidenceRefsRaw)
         ? evidenceRefsRaw.filter((r): r is string => typeof r === "string")
         : [];

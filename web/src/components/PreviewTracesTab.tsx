@@ -142,51 +142,26 @@ function renderMarkdown(md: string): JSX.Element {
   return <>{elements}</>;
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  return `${(n / 1024).toFixed(1)} KB`;
-}
-
 export function PreviewTracesTab({
   skillMarkdown,
   traces,
 }: PreviewTracesTabProps): JSX.Element {
   const { t, tEnum } = useLocale();
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <section
-        style={{
-          border: "1px solid #dee2e6",
-          borderRadius: "6px",
-          padding: "16px",
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px" }}>{t("preview.skillTitle")}</h3>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <section style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>{t("preview.skillTitle")}</h3>
         {skillMarkdown == null ? (
           <p style={{ color: "#666" }}>{t("preview.noSkill")}</p>
         ) : (
-          <div
-            style={{
-              border: "1px solid #e9ecef",
-              borderRadius: "4px",
-              padding: "14px",
-              background: "#fff",
-              lineHeight: 1.6,
-            }}
-          >
+          <div style={markdownBoxStyle}>
             {renderMarkdown(skillMarkdown)}
           </div>
         )}
       </section>
 
-      <section
-        style={{
-          border: "1px solid #dee2e6",
-          borderRadius: "6px",
-          padding: "16px",
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px" }}>{t("preview.tracesTitle")}</h3>
+      <section style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>{t("preview.tracesTitle")}</h3>
         {traces.length === 0 ? (
           <p style={{ color: "#666" }}>{t("preview.noTraces")}</p>
         ) : (
@@ -202,12 +177,7 @@ export function PreviewTracesTab({
               return (
                 <details
                   key={`trace-${idx}`}
-                  style={{
-                    border: "1px solid #e9ecef",
-                    borderRadius: "4px",
-                    padding: "10px",
-                    background: "#fff",
-                  }}
+                  style={traceCardStyle}
                 >
                   <summary
                     style={{
@@ -244,13 +214,8 @@ export function PreviewTracesTab({
                         {summary.model}
                       </span>
                     </span>
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        color: "#666",
-                      }}
-                    >
-                      {formatBytes(summary.usage.totalTokens)} {t("preview.tokens")}
+                    <span style={traceMetaStyle}>
+                      {summary.usage.totalTokens} {t("preview.tokens")}
                       {summary.latencyMs
                         ? ` · ${summary.latencyMs}ms`
                         : ""}
@@ -263,8 +228,9 @@ export function PreviewTracesTab({
                       fontSize: "13px",
                       color: "#495057",
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                       gap: "6px",
+                      overflowWrap: "anywhere",
                     }}
                   >
                     <div>
@@ -310,3 +276,40 @@ export function PreviewTracesTab({
     </div>
   );
 }
+
+const sectionStyle: React.CSSProperties = {
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "14px",
+  background: "#fff",
+  minWidth: 0,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: "0 0 10px",
+  fontSize: "15px",
+  fontWeight: 700,
+};
+
+const markdownBoxStyle: React.CSSProperties = {
+  border: "1px solid #e9ecef",
+  borderRadius: "4px",
+  padding: "14px",
+  background: "#fff",
+  lineHeight: 1.6,
+  overflowWrap: "anywhere",
+};
+
+const traceCardStyle: React.CSSProperties = {
+  border: "1px solid #e9ecef",
+  borderRadius: "4px",
+  padding: "10px",
+  background: "#fff",
+  minWidth: 0,
+};
+
+const traceMetaStyle: React.CSSProperties = {
+  fontSize: "12px",
+  color: "#666",
+  overflowWrap: "anywhere",
+};

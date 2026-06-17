@@ -72,23 +72,25 @@ export function AuditViewTab({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <section>
-        <h3 style={{ margin: "0 0 8px" }}>{t("audit.evidenceSummary")}</h3>
-        <p style={{ color: "#555", lineHeight: 1.6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <h3 style={sectionTitleStyle}>{t("audit.evidenceSummary")}</h3>
+          <span style={metaBadgeStyle}>
+            {t("audit.claimCount", { count: manifest.claims.length })}
+          </span>
+        </div>
+        <p style={{ color: "#495057", lineHeight: 1.6, margin: 0 }}>
           {manifest.evidenceSummary}
         </p>
       </section>
 
       {manifest.evidence && manifest.evidence.length > 0 && (
-        <section>
-          <h3 style={{ margin: "0 0 8px" }}>{t("audit.evidenceExcerpts")}</h3>
+        <section style={sectionStyle}>
+          <h3 style={sectionTitleStyle}>{t("audit.evidenceExcerpts")}</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {manifest.evidence.map((excerpt) => (
-              <details
-                key={excerpt.evidenceID}
-                style={detailsStyle}
-              >
+              <details key={excerpt.evidenceID} style={detailsStyle}>
                 <summary style={summaryStyle}>
                   <strong>{excerpt.evidenceID}</strong>
                   <span
@@ -124,37 +126,32 @@ export function AuditViewTab({
         </section>
       )}
 
-      <section>
-        <h3 style={{ margin: "0 0 12px" }}>{t("audit.claims")}</h3>
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <h3 style={sectionTitleStyle}>{t("audit.claims")}</h3>
+          <span style={metaBadgeStyle}>
+            {t("audit.dimensionCount", {
+              count: manifest.dimensionsCovered.length,
+            })}
+          </span>
+        </div>
         {manifest.dimensionsCovered.length === 0 && (
           <p style={{ color: "#666" }}>{t("audit.noClaims")}</p>
         )}
         <div
-          style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          style={{ display: "flex", flexDirection: "column", gap: "12px" }}
         >
           {manifest.dimensionsCovered.map((dimension) => {
             const claims = claimsByDimension.get(dimension);
             if (!claims || claims.length === 0) return null;
             return (
-              <div
-                key={dimension}
-                style={{
-                  border: "1px solid #dee2e6",
-                  borderRadius: "6px",
-                  padding: "12px",
-                }}
-              >
-                <h4
-                  style={{
-                    margin: "0 0 10px",
-                    fontSize: "14px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "#495057",
-                  }}
-                >
-                  {dimension}
-                </h4>
+              <div key={dimension} style={dimensionStyle}>
+                <div style={sectionHeaderStyle}>
+                  <h4 style={dimensionTitleStyle}>{dimension}</h4>
+                  <span style={metaBadgeStyle}>
+                    {t("audit.claimsInDimension", { count: claims.length })}
+                  </span>
+                </div>
                 <div
                   style={{
                     display: "flex",
@@ -185,6 +182,9 @@ export function AuditViewTab({
                           <strong style={{ fontSize: "14px" }}>
                             {claim.label}
                           </strong>
+                          <span style={confidenceBadgeStyle}>
+                            {Math.round(claim.confidence * 100)}%
+                          </span>
                           {trustStatus && (
                             <span
                               style={{
@@ -228,7 +228,7 @@ export function AuditViewTab({
                           <div
                             style={{
                               flex: 1,
-                              height: "8px",
+                              height: "6px",
                               background: "#e9ecef",
                               borderRadius: "4px",
                               overflow: "hidden",
@@ -240,11 +240,8 @@ export function AuditViewTab({
                                 width: `${Math.round(claim.confidence * 100)}%`,
                                 background: "#0d6efd",
                               }}
-                            />
-                          </div>
-                          <span>
-                            {Math.round(claim.confidence * 100)}%
-                          </span>
+                              />
+                            </div>
                         </div>
 
                         <p
@@ -265,23 +262,15 @@ export function AuditViewTab({
                               display: "flex",
                               flexDirection: "column",
                               gap: "4px",
+                              flexWrap: "wrap",
                             }}
                           >
                             {claim.evidenceRefs.map((ref) => {
                               const evidence = evidenceByEvidenceId.get(ref);
                               if (!evidence) {
                                 return (
-                                  <span
-                                    key={ref}
-                                    style={{
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      background: "#e7f1ff",
-                                      color: "#084298",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    {ref}
+                                  <span key={ref} style={missingEvidenceStyle}>
+                                    {t("audit.missingEvidence", { ref })}
                                   </span>
                                 );
                               }
@@ -309,6 +298,70 @@ export function AuditViewTab({
     </div>
   );
 }
+
+const sectionStyle: React.CSSProperties = {
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "14px",
+  background: "#fff",
+};
+
+const dimensionStyle: React.CSSProperties = {
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "12px",
+  background: "#fff",
+};
+
+const sectionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+  marginBottom: "10px",
+  flexWrap: "wrap",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "15px",
+  fontWeight: 700,
+};
+
+const dimensionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "13px",
+  textTransform: "uppercase",
+  letterSpacing: 0,
+  color: "#495057",
+};
+
+const metaBadgeStyle: React.CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: "999px",
+  background: "#f1f3f5",
+  color: "#495057",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
+
+const confidenceBadgeStyle: React.CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: "999px",
+  background: "#e7f1ff",
+  color: "#084298",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
+
+const missingEvidenceStyle: React.CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: "999px",
+  background: "#fff3cd",
+  color: "#856404",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
 
 const detailsStyle: React.CSSProperties = {
   border: "1px solid #dee2e6",

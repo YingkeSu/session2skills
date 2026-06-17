@@ -29,9 +29,18 @@ export function EvidencePanel({
 
   const displayText = fullText ?? excerpt;
   const badgeColor = sourceTypeColors[sourceType] ?? "#6c757d";
+  const panelId = `evidence-${runName}-${evidenceId}`.replace(/\s+/g, "-");
 
   const handleToggle = async () => {
-    if (!expanded && fullText === null) {
+    if (loading) return;
+    if (!expanded) {
+      setExpanded(true);
+    } else {
+      setExpanded(false);
+      return;
+    }
+
+    if (fullText === null) {
       setLoading(true);
       setError(null);
       try {
@@ -51,7 +60,6 @@ export function EvidencePanel({
         setLoading(false);
       }
     }
-    setExpanded(!expanded);
   };
 
   return (
@@ -67,6 +75,9 @@ export function EvidencePanel({
       <button
         type="button"
         onClick={handleToggle}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        aria-busy={loading}
         disabled={loading}
         style={{
           width: "100%",
@@ -105,6 +116,7 @@ export function EvidencePanel({
       </button>
 
       <div
+        id={panelId}
         style={{
           maxHeight: expanded ? "600px" : "0px",
           opacity: expanded ? 1 : 0,
@@ -113,6 +125,11 @@ export function EvidencePanel({
         }}
       >
         <div style={{ padding: "0 10px 10px" }}>
+          {loading && (
+            <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#495057" }}>
+              {t("evidence.loading")}
+            </p>
+          )}
           <pre
             style={{
               margin: 0,

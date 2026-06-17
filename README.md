@@ -55,10 +55,11 @@ Runs deterministic quality gates (lint, redaction, grounding) against a skill fi
 ### Serve the web UI
 
 ```bash
+npm run build:all
 node dist/cli/main.js serve --directory /absolute/project/path
 ```
 
-Starts a local web server for browsing sessions and generated skills.
+Starts a local web server for browsing sessions and generated skills. In a built checkout, run `npm run build:all` first so both `dist/cli/main.js` and `web/dist/` exist.
 
 ## Configuration
 

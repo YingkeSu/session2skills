@@ -35,6 +35,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "audit.claims": "声明",
     "audit.noClaims": "未提取到声明。",
     "audit.confidence": "置信度",
+    "audit.claimCount": {
+      one: "{count} 条声明",
+      other: "{count} 条声明",
+    },
+    "audit.dimensionCount": {
+      one: "{count} 个维度",
+      other: "{count} 个维度",
+    },
+    "audit.claimsInDimension": {
+      one: "{count} 条",
+      other: "{count} 条",
+    },
+    "audit.missingEvidence": "缺失证据: {ref}",
     "audit.skepticIssue": {
       one: "{count} 个质疑问题",
       other: "{count} 个质疑问题",
@@ -122,6 +135,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "audit.claims": "Claims",
     "audit.noClaims": "No claims extracted.",
     "audit.confidence": "confidence",
+    "audit.claimCount": {
+      one: "{count} claim",
+      other: "{count} claims",
+    },
+    "audit.dimensionCount": {
+      one: "{count} dimension",
+      other: "{count} dimensions",
+    },
+    "audit.claimsInDimension": {
+      one: "{count} claim",
+      other: "{count} claims",
+    },
+    "audit.missingEvidence": "Missing evidence: {ref}",
     "audit.skepticIssue": {
       one: "{count} skeptic issue",
       other: "{count} skeptic issues",

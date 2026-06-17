@@ -40,23 +40,10 @@ export function ReportsTab({
   const hasVerifier = verifierReport !== null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <section
-        style={{
-          border: "1px solid #dee2e6",
-          borderRadius: "6px",
-          padding: "16px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "12px",
-          }}
-        >
-          <h3 style={{ margin: 0 }}>{t("reports.skepticTitle")}</h3>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <h3 style={sectionTitleStyle}>{t("reports.skepticTitle")}</h3>
           {hasSkeptic && scoreBadge(skepticReport.overallScore)}
         </div>
 
@@ -64,13 +51,7 @@ export function ReportsTab({
           <p style={{ color: "#666" }}>{t("reports.noSkeptic")}</p>
         ) : (
           <>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#495057",
-                marginBottom: "12px",
-              }}
-            >
+            <div style={summaryStyle}>
               {t("reports.skepticSummary", {
                 count: skepticReport.metadata.issueCount,
                 claims: skepticReport.metadata.claimCount,
@@ -83,18 +64,13 @@ export function ReportsTab({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
+                  gap: "6px",
                 }}
               >
                 {skepticReport.issues.map((issue, idx) => (
                   <details
                     key={`${issue.claimId}-${issue.problemType}-${idx}`}
-                    style={{
-                      border: "1px solid #e9ecef",
-                      borderRadius: "4px",
-                      padding: "10px",
-                      background: "#fff",
-                    }}
+                    style={issueCardStyle}
                   >
                     <summary
                       style={{
@@ -104,6 +80,7 @@ export function ReportsTab({
                         gap: "8px",
                         listStyle: "none",
                         justifyContent: "space-between",
+                        flexWrap: "wrap",
                       }}
                     >
                       <span
@@ -127,7 +104,7 @@ export function ReportsTab({
                         <strong style={{ fontSize: "13px" }}>
                           {issue.problemType}
                         </strong>
-                        <span style={{ fontSize: "12px", color: "#666" }}>
+                        <span style={metaChipStyle}>
                           {t("reports.claimLabel", { id: issue.claimId })}
                         </span>
                       </span>
@@ -153,22 +130,9 @@ export function ReportsTab({
         )}
       </section>
 
-      <section
-        style={{
-          border: "1px solid #dee2e6",
-          borderRadius: "6px",
-          padding: "16px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "12px",
-          }}
-        >
-          <h3 style={{ margin: 0 }}>{t("reports.verifierTitle")}</h3>
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <h3 style={sectionTitleStyle}>{t("reports.verifierTitle")}</h3>
           {hasVerifier && (
             <span
               style={{
@@ -189,13 +153,7 @@ export function ReportsTab({
           <p style={{ color: "#666" }}>{t("reports.noVerifier")}</p>
         ) : (
           <>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#495057",
-                marginBottom: "12px",
-              }}
-            >
+            <div style={summaryStyle}>
               {t("reports.verifierSummary", {
                 directives: verifierReport.metadata.directiveCount,
                 verified: verifierReport.metadata.verifiedCount,
@@ -208,19 +166,14 @@ export function ReportsTab({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
-                  marginBottom: "16px",
+                  gap: "6px",
+                  marginBottom: "12px",
                 }}
               >
                 {verifierReport.issues.map((issue, idx) => (
                   <details
                     key={`verifier-issue-${idx}`}
-                    style={{
-                      border: "1px solid #e9ecef",
-                      borderRadius: "4px",
-                      padding: "10px",
-                      background: "#fff",
-                    }}
+                    style={issueCardStyle}
                   >
                     <summary
                       style={{
@@ -230,6 +183,7 @@ export function ReportsTab({
                         gap: "8px",
                         listStyle: "none",
                         justifyContent: "space-between",
+                        flexWrap: "wrap",
                       }}
                     >
                       <span
@@ -317,6 +271,51 @@ export function ReportsTab({
     </div>
   );
 }
+
+const sectionStyle: React.CSSProperties = {
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "14px",
+  background: "#fff",
+};
+
+const sectionHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "10px",
+  marginBottom: "10px",
+  flexWrap: "wrap",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "15px",
+  fontWeight: 700,
+};
+
+const summaryStyle: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#495057",
+  marginBottom: "10px",
+  lineHeight: 1.5,
+};
+
+const issueCardStyle: React.CSSProperties = {
+  border: "1px solid #e9ecef",
+  borderRadius: "4px",
+  padding: "10px",
+  background: "#fff",
+};
+
+const metaChipStyle: React.CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: "999px",
+  background: "#f1f3f5",
+  color: "#495057",
+  fontSize: "12px",
+  whiteSpace: "nowrap",
+};
 
 const trustColors: Record<string, string> = {
   verified: "#27ae60",

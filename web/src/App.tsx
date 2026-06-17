@@ -4,6 +4,7 @@ import { fetchRuns, type RunSummary } from "./runs.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
+import "./styles.css";
 
 type LoadState =
   | { status: "loading" }
@@ -63,7 +64,7 @@ export function App(): JSX.Element {
 
   return (
     <Shell>
-      <RunTable
+      <RunsDashboard
         runs={state.runs}
         onSelect={(name) => setSelectedRun(name)}
       />
@@ -71,7 +72,7 @@ export function App(): JSX.Element {
   );
 }
 
-function RunTable({
+export function RunsDashboard({
   runs,
   onSelect,
 }: {
@@ -79,58 +80,173 @@ function RunTable({
   onSelect: (name: string) => void;
 }): JSX.Element {
   const { t } = useLocale();
+  const summary = summarizeRuns(runs);
+
   return (
-    <table style={tableStyle}>
-      <thead>
-        <tr>
-          <th style={thStyle}>{t("runTable.name")}</th>
-          <th style={thStyle}>{t("runTable.model")}</th>
-          <th style={thStyle}>{t("runTable.generatedAt")}</th>
-          <th style={thStyle}>{t("runTable.verifier")}</th>
-          <th style={thStyle}>{t("runTable.claims")}</th>
-          <th style={thStyle}>{t("runTable.skepticScore")}</th>
-          <th style={thStyle}>{t("runTable.issues")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {runs.map((run) => (
-          <tr
-            key={run.name}
-            onClick={() => onSelect(run.name)}
-            style={{ cursor: "pointer" }}
-          >
-            <td style={tdStyle}>{run.name}</td>
-            <td style={tdStyle}>{run.model}</td>
-            <td style={tdStyle}>{run.generatedAt}</td>
-            <td style={tdStyle}>
-              <Badge pass={run.verifierPassed} />
-            </td>
-            <td style={tdStyle}>{run.claimCount}</td>
-            <td style={tdStyle}>{run.skepticScore.toFixed(2)}</td>
-            <td style={tdStyle}>{run.skepticIssueCount}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <main className="runs-dashboard" aria-label={t("dashboard.label")}>
+      <section className="dashboard-summary" aria-label={t("dashboard.summary")}>
+        <MetricCard label={t("dashboard.totalRuns")} value={summary.totalRuns} />
+        <MetricCard
+          label={t("dashboard.verifierFailures")}
+          value={summary.verifierFailures}
+          tone={summary.verifierFailures > 0 ? "danger" : "good"}
+        />
+        <MetricCard
+          label={t("dashboard.totalIssues")}
+          value={summary.totalIssues}
+          tone={summary.totalIssues > 0 ? "warning" : "good"}
+        />
+        <MetricCard
+          label={t("dashboard.averageSkepticScore")}
+          value={summary.averageSkepticScore.toFixed(2)}
+          tone={scoreTone(summary.averageSkepticScore)}
+        />
+      </section>
+
+      <section className="runs-panel" aria-label={t("dashboard.runsList")}>
+        <div className="runs-panel-header">
+          <div>
+            <h2>{t("dashboard.runsList")}</h2>
+            <p>{t("dashboard.runsHelp")}</p>
+          </div>
+          <span className="runs-count">
+            {t("dashboard.runCount", { count: runs.length })}
+          </span>
+        </div>
+
+        <div className="runs-table-wrap">
+          <table className="runs-table">
+            <thead>
+              <tr>
+                <th>{t("runTable.name")}</th>
+                <th>{t("runTable.model")}</th>
+                <th>{t("runTable.generatedAt")}</th>
+                <th>{t("runTable.verifier")}</th>
+                <th>{t("runTable.claims")}</th>
+                <th>{t("runTable.skepticScore")}</th>
+                <th>{t("runTable.issues")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((run) => (
+                <tr
+                  key={run.name}
+                  className={run.verifierPassed ? "run-row" : "run-row is-failed"}
+                  onClick={() => onSelect(run.name)}
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(run.name);
+                    }
+                  }}
+                >
+                  <td>
+                    <div className="run-name">{run.name}</div>
+                  </td>
+                  <td>{run.model}</td>
+                  <td>
+                    <time dateTime={run.generatedAt}>
+                      {formatGeneratedAt(run.generatedAt)}
+                    </time>
+                  </td>
+                  <td>
+                    <Badge pass={run.verifierPassed} />
+                  </td>
+                  <td>{run.claimCount}</td>
+                  <td>
+                    <ScorePill score={run.skepticScore} />
+                  </td>
+                  <td>
+                    <IssuePill count={run.skepticIssueCount} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   );
 }
 
 function Badge({ pass }: { pass: boolean }): JSX.Element {
   const { t } = useLocale();
   return (
-    <span
-      style={{
-        padding: "2px 8px",
-        borderRadius: "4px",
-        fontSize: "12px",
-        fontWeight: 600,
-        color: pass ? "#fff" : "#721c24",
-        background: pass ? "#27ae60" : "#f8d7da",
-      }}
-    >
+    <span className={pass ? "status-badge pass" : "status-badge fail"}>
       {pass ? t("badge.pass") : t("badge.fail")}
     </span>
   );
+}
+
+function MetricCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  tone?: "neutral" | "good" | "warning" | "danger";
+}): JSX.Element {
+  return (
+    <div className={`metric-card metric-${tone}`}>
+      <div className="metric-value">{value}</div>
+      <div className="metric-label">{label}</div>
+    </div>
+  );
+}
+
+function ScorePill({ score }: { score: number }): JSX.Element {
+  return (
+    <span className={`score-pill score-${scoreTone(score)}`}>
+      {score.toFixed(2)}
+    </span>
+  );
+}
+
+function IssuePill({ count }: { count: number }): JSX.Element {
+  return (
+    <span className={count > 0 ? "issue-pill has-issues" : "issue-pill"}>
+      {count}
+    </span>
+  );
+}
+
+function summarizeRuns(runs: RunSummary[]): {
+  totalRuns: number;
+  verifierFailures: number;
+  totalIssues: number;
+  averageSkepticScore: number;
+} {
+  const totalIssues = runs.reduce(
+    (sum, run) => sum + run.skepticIssueCount,
+    0,
+  );
+  const scoreTotal = runs.reduce((sum, run) => sum + run.skepticScore, 0);
+  return {
+    totalRuns: runs.length,
+    verifierFailures: runs.filter((run) => !run.verifierPassed).length,
+    totalIssues,
+    averageSkepticScore: runs.length === 0 ? 0 : scoreTotal / runs.length,
+  };
+}
+
+function scoreTone(score: number): "good" | "warning" | "danger" {
+  if (score >= 0.8) return "good";
+  if (score >= 0.6) return "warning";
+  return "danger";
+}
+
+function formatGeneratedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function Shell({
@@ -142,36 +258,12 @@ function Shell({
 }): JSX.Element {
   const { t } = useLocale();
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", padding: "24px", ...style }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "16px",
-        }}
-      >
-        <h1 style={{ fontSize: "20px", margin: 0 }}>{t("app.title")}</h1>
+    <div className="app-shell" style={style}>
+      <div className="app-header">
+        <h1>{t("app.title")}</h1>
         <LanguageToggle />
       </div>
       {children}
     </div>
   );
 }
-
-const tableStyle: React.CSSProperties = {
-  borderCollapse: "collapse",
-  width: "100%",
-  fontSize: "14px",
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  borderBottom: "2px solid #ddd",
-  padding: "8px 12px",
-};
-
-const tdStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eee",
-  padding: "8px 12px",
-};

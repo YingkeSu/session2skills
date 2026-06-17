@@ -11,6 +11,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "app.errorPrefix": "错误: {message}",
     "app.noRuns": "未找到测试运行记录",
 
+    "dashboard.label": "运行仪表盘",
+    "dashboard.summary": "运行摘要",
+    "dashboard.totalRuns": "运行总数",
+    "dashboard.verifierFailures": "验证失败",
+    "dashboard.totalIssues": "问题总数",
+    "dashboard.averageSkepticScore": "平均质疑分数",
+    "dashboard.runsList": "运行列表",
+    "dashboard.runsHelp": "选择一条运行记录查看审计、报告和预览。",
+    "dashboard.runCount": {
+      one: "{count} 条运行",
+      other: "{count} 条运行",
+    },
+
     "runTable.name": "名称",
     "runTable.model": "模型",
     "runTable.generatedAt": "生成时间",
@@ -97,6 +110,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "app.loading": "Loading runs…",
     "app.errorPrefix": "Error: {message}",
     "app.noRuns": "No harness runs found",
+
+    "dashboard.label": "Runs dashboard",
+    "dashboard.summary": "Run summary",
+    "dashboard.totalRuns": "Total runs",
+    "dashboard.verifierFailures": "Verifier failures",
+    "dashboard.totalIssues": "Total issues",
+    "dashboard.averageSkepticScore": "Avg skeptic score",
+    "dashboard.runsList": "Runs list",
+    "dashboard.runsHelp": "Select a run to inspect audit data, reports, and preview output.",
+    "dashboard.runCount": {
+      one: "{count} run",
+      other: "{count} runs",
+    },
 
     "runTable.name": "Name",
     "runTable.model": "Model",

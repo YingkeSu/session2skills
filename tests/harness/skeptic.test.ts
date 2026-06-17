@@ -232,4 +232,38 @@ describe("harness skeptic stage", () => {
       }).toResolved()),
     ).rejects.toBeInstanceOf(LlmProviderError);
   });
+
+  it("rejects malformed issues with empty detail and suggestion (model did not explain the critique)", async () => {
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({ id: "c1" }),
+        makeManifestClaim({ id: "c2" }),
+        makeManifestClaim({ id: "c3" }),
+      ],
+    });
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            issues: [
+              { claimId: "c1", severity: "high", problemType: "vague", detail: "", suggestion: "" },
+              { claimId: "c2", severity: "high", problemType: "vague", detail: "   ", suggestion: "" },
+              { claimId: "c3", severity: "high", problemType: "unsupported", detail: "", suggestion: "" },
+            ],
+            overallScore: 0.25,
+          },
+        },
+        {
+          kind: "success",
+          object: { issues: [], overallScore: 0.9 },
+        },
+      ],
+    });
+
+    const result = await runSkepticStage(manifest, evidence, provider.toResolved());
+
+    expect(result.report.issues).toHaveLength(0);
+  });
 });

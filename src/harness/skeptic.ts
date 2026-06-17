@@ -138,6 +138,11 @@ function parseSkepticOutput(raw: RawSkepticOutput, claimCount: number): SkepticR
 
   const issues = rawIssues
     .filter((i) => (i.claimId ?? i.claim_id) && i.severity && (i.problemType ?? i.problem_type ?? i.type))
+    .filter((i) => {
+      const detail = typeof i.detail === "string" ? i.detail.trim() : "";
+      const suggestion = typeof i.suggestion === "string" ? i.suggestion.trim() : "";
+      return detail.length > 0 || suggestion.length > 0;
+    })
     .map((i) => ({
       claimId: String(i.claimId ?? i.claim_id),
       severity: (validSeverities.has(String(i.severity)) ? String(i.severity) : "low") as SkepticReport["issues"][number]["severity"],

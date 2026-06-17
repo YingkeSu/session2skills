@@ -22,7 +22,7 @@ export function registerServeCommand(program: Command): void {
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
       const runsDirectory = getDefaultGeneratedSkillsDirectory(directory);
 
-      const app = createServer(runsDirectory);
+      const app = createServer(runsDirectory, { projectDirectory: directory });
 
       const server = serve(
         { fetch: app.fetch, port: options.port, hostname: options.host },

@@ -62,10 +62,32 @@ describe("scanRuns", () => {
   test("returns empty array for directory with no harness runs", async () => {
     const runsDir = join(tempRoot, "empty");
     await mkdir(join(runsDir, "not-a-run"), { recursive: true });
-    await writeFile(join(runsDir, "not-a-run", "SKILL.md"), "# no manifest");
+    await writeFile(join(runsDir, "not-a-run", "notes.txt"), "no generated artifacts");
 
     const result = await scanRuns(runsDir);
     expect(result).toEqual([]);
+  });
+
+  test("summarizes a legacy SKILL-only run", async () => {
+    const runsDir = join(tempRoot, "legacy");
+    const runDir = join(runsDir, "legacy-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "SKILL.md"), "# Legacy Skill\n");
+
+    const [run] = await scanRuns(runsDir);
+
+    expect(run).toEqual({
+      name: "legacy-run",
+      model: "unknown",
+      generatedAt: "",
+      verifierPassed: false,
+      claimCount: 0,
+      skepticScore: 0,
+      skepticIssueCount: 0,
+      artifactStatus: "legacy",
+      skillAvailable: true,
+      summaryAvailable: false,
+    });
   });
 
   test("summarizes a complete harness run", async () => {
@@ -87,6 +109,31 @@ describe("scanRuns", () => {
       claimCount: 2,
       skepticScore: 0.85,
       skepticIssueCount: 1,
+      artifactStatus: "partial",
+      skillAvailable: false,
+      summaryAvailable: false,
+    });
+  });
+
+  test("summarizes a summary-only run", async () => {
+    const runsDir = join(tempRoot, "summary-only");
+    const runDir = join(runsDir, "summary-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "summary.md"), "# Summary\n");
+
+    const [run] = await scanRuns(runsDir);
+
+    expect(run).toEqual({
+      name: "summary-run",
+      model: "unknown",
+      generatedAt: "",
+      verifierPassed: false,
+      claimCount: 0,
+      skepticScore: 0,
+      skepticIssueCount: 0,
+      artifactStatus: "partial",
+      skillAvailable: false,
+      summaryAvailable: true,
     });
   });
 
@@ -132,6 +179,10 @@ describe("Hono app", () => {
     await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
     await writeFile(join(runDir, "skeptic-report.json"), JSON.stringify(validSkeptic(1, 0)));
     await writeFile(join(runDir, "verifier-report.json"), JSON.stringify(validVerifier(true)));
+    await writeFile(
+      join(runDir, "SKILL.md"),
+      "---\nname: app-run\ndescription: Test generated skill.\n---\n\n# App Run\n\nUse the verified output.\n",
+    );
   });
 
   afterAll(async () => {
@@ -139,14 +190,14 @@ describe("Hono app", () => {
   });
 
   test("GET /api/health returns ok", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "ok" });
   });
 
   test("GET /api/runs returns summarized array", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs");
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -157,14 +208,14 @@ describe("Hono app", () => {
   });
 
   test("GET /api/runs returns empty array for missing directory", async () => {
-    const app = createServer(join(tempRoot, "no-such-dir"));
+    const app = createServer(join(tempRoot, "no-such-dir"), { projectDirectory: tempRoot });
     const res = await app.request("/api/runs");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([]);
   });
 
   test("GET /api/runs/:name returns combined run data", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs/app-run");
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -173,12 +224,12 @@ describe("Hono app", () => {
     expect(body.skepticReport).toEqual(validSkeptic(1, 0));
     expect(body.verifierReport).toEqual(validVerifier(true));
     expect(body.writerSections).toBeNull();
-    expect(body.skillMarkdown).toBeNull();
+    expect(body.skillMarkdown).toContain("Use the verified output.");
     expect(body.traces).toEqual([]);
   });
 
   test("GET /api/runs/:name returns 404 for missing run", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs/does-not-exist");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Run not found: does-not-exist" });
@@ -190,7 +241,7 @@ describe("Hono app", () => {
     await mkdir(partialRun, { recursive: true });
     await writeFile(join(partialRun, "claim-manifest.json"), JSON.stringify(validManifest()));
 
-    const app = createServer(partialDir);
+    const app = createServer(partialDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs/only-manifest");
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -203,7 +254,7 @@ describe("Hono app", () => {
   });
 
   test("GET /api/runs/:name/evidence/:evidenceId returns evidence item", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const manifest = validManifest({
       evidence: [
         { evidenceID: "ev-1", sourceType: "message", excerpt: "hello" },
@@ -219,17 +270,99 @@ describe("Hono app", () => {
   });
 
   test("GET /api/runs/:name/evidence/:evidenceId returns 404 for missing evidence", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs/app-run/evidence/missing");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Evidence not found" });
   });
 
   test("GET /api/runs/:name/evidence/:evidenceId handles missing evidence array", async () => {
-    const app = createServer(runsDir);
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
     await writeFile(join(runsDir, "app-run", "claim-manifest.json"), JSON.stringify(validManifest()));
     const res = await app.request("/api/runs/app-run/evidence/ev-1");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Evidence array not found" });
+  });
+
+  test("POST /api/runs/:name/evaluate returns deterministic evaluation", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs/app-run/evaluate", {
+      method: "POST",
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body["evaluation"]).toEqual(
+      expect.objectContaining({
+        schemaVersion: "skill-evaluation/v1",
+        skillID: "app-run",
+        verdict: expect.any(String),
+      }),
+    );
+    expect(body["skillMarkdown"]).toContain("Use the verified output.");
+    expect(body["verifierReport"]).toEqual(validVerifier(true));
+  });
+
+  test("POST /api/runs validates request and returns generated run summary", async () => {
+    const generatedRoot = join(tempRoot, "generated-skills");
+    const calls: Array<Record<string, unknown>> = [];
+    const app = createServer(generatedRoot, {
+      projectDirectory: tempRoot,
+      generateRun: async (input) => {
+        calls.push(input);
+        await mkdir(input.outputDirectory, { recursive: true });
+        await writeFile(join(input.outputDirectory, "claim-manifest.json"), JSON.stringify(validManifest()));
+        await writeFile(join(input.outputDirectory, "summary.md"), "# Summary\n");
+        await writeFile(join(input.outputDirectory, "SKILL.md"), "# Generated Skill\n");
+      },
+    });
+
+    const res = await app.request("/api/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "My Skill!",
+        recent: 3,
+        workspace: "workspace-1",
+        tone: "concise",
+        force: true,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual(
+      expect.objectContaining({
+        name: "my-skill",
+        artifactStatus: "complete",
+        skillAvailable: true,
+        summaryAvailable: true,
+        claimCount: 2,
+      }),
+    );
+    expect(calls).toEqual([
+      {
+        projectDirectory: tempRoot,
+        outputDirectory: join(generatedRoot, "my-skill"),
+        recent: 3,
+        workspace: "workspace-1",
+        tone: "concise",
+        force: true,
+      },
+    ]);
+  });
+
+  test("POST /api/runs rejects invalid request values", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recent: 0, tone: "loud" }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "recent must be a positive integer",
+    });
   });
 });

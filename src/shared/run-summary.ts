@@ -6,4 +6,7 @@ export type RunSummary = {
   claimCount: number;
   skepticScore: number;
   skepticIssueCount: number;
+  artifactStatus: "complete" | "partial" | "legacy";
+  skillAvailable: boolean;
+  summaryAvailable: boolean;
 };

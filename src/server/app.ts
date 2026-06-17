@@ -1,18 +1,31 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { evaluateSkill } from "../generate/evaluate-skill.js";
+import { generateSkillRun, type GenerateSkillRunInput } from "../cli/commands/generate.js";
+import { parseTonePreset, type TonePreset } from "../shared/cli.js";
+import { CliUsageError } from "../shared/errors.js";
 import type { RunSummary } from "../shared/run-summary.js";
 
 // dist/server/app.js → ../../web/dist
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDist = join(__dirname, "../../web/dist");
 
-export function createServer(runsDirectory: string): Hono {
+export type ServerGenerateRunner = (input: GenerateSkillRunInput) => Promise<unknown>;
+
+export type CreateServerOptions = {
+  projectDirectory: string;
+  generateRun?: ServerGenerateRunner;
+};
+
+export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
   const app = new Hono();
+  const generateRun = options.generateRun ?? generateSkillRun;
 
   app.use("/api/*", cors());
 
@@ -134,18 +147,83 @@ export function createServer(runsDirectory: string): Hono {
     }
   });
 
+  app.post("/api/runs/:name/evaluate", async (c) => {
+    const name = c.req.param("name");
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    try {
+      const evaluation = await evaluateSkill({ skillDirectory: runDir });
+      return c.json(evaluation);
+    } catch {
+      return c.json({ error: `Failed to evaluate run: ${name}` }, 500);
+    }
+  });
+
+  app.post("/api/runs", async (c) => {
+    try {
+      const body = await c.req.json<Partial<{
+        name: string;
+        recent: number;
+        workspace: string;
+        tone: TonePreset;
+        force: boolean;
+      }>>();
+
+      const recent = validateRecent(body.recent);
+      const tone = validateTone(body.tone);
+      const force = body.force === true;
+      const workspace = typeof body.workspace === "string" && body.workspace.length > 0
+        ? body.workspace
+        : undefined;
+      const name = normalizeRunName(body.name);
+      const outputDirectory = join(runsDirectory, name);
+
+      await generateRun({
+        projectDirectory: options.projectDirectory,
+        outputDirectory,
+        workspace,
+        recent,
+        tone,
+        force,
+      });
+
+      const summaries = await scanRuns(runsDirectory);
+      const generated = summaries.find((summary) => summary.name === name);
+      if (!generated) {
+        return c.json({ error: `Generated run not found: ${name}` }, 500);
+      }
+
+      return c.json(generated, 201);
+    } catch (error) {
+      if (error instanceof CliUsageError) {
+        return c.json({ error: error.message }, 400);
+      }
+      return c.json({ error: "Failed to generate run" }, 500);
+    }
+  });
+
   app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-  app.use("/assets/*", serveStatic({ root: webDist }));
-
-  app.get("*", serveStatic({ root: webDist, path: "index.html" }));
+  if (existsSync(webDist)) {
+    app.use("/assets/*", serveStatic({ root: webDist }));
+    app.get("*", serveStatic({ root: webDist, path: "index.html" }));
+  }
 
   return app;
 }
 
 /**
- * Summarize every harness run inside `runsDirectory`.
- * A subdirectory is only counted when it has a claim-manifest.json.
+ * Summarize every generated skill directory inside `runsDirectory`.
+ * A subdirectory is counted when it has at least one recognized artifact.
  */
 export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
   let entries: string[];
@@ -168,8 +246,12 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       continue;
     }
 
-    const manifest = await readJsonSafe(join(runDir, "claim-manifest.json"));
-    if (!manifest) {
+    const [manifest, skillAvailable, summaryAvailable] = await Promise.all([
+      readJsonSafe(join(runDir, "claim-manifest.json")),
+      fileExists(join(runDir, "SKILL.md")),
+      fileExists(join(runDir, "summary.md")),
+    ]);
+    if (!manifest && !skillAvailable && !summaryAvailable) {
       continue;
     }
 
@@ -182,17 +264,87 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
     summaries.push({
       name: entry,
       model,
-      generatedAt: readGeneratedAt(manifest),
+      generatedAt: manifest ? readGeneratedAt(manifest) : "",
       verifierPassed: readVerifierPassed(verifierReport),
-      claimCount: readClaimCount(manifest),
+      claimCount: manifest ? readClaimCount(manifest) : 0,
       skepticScore: readSkepticScore(skepticReport),
       skepticIssueCount: readSkepticIssueCount(skepticReport),
+      artifactStatus: getArtifactStatus({
+        hasManifest: manifest !== null,
+        skillAvailable,
+        summaryAvailable,
+      }),
+      skillAvailable,
+      summaryAvailable,
     });
   }
 
   summaries.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
 
   return summaries;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeRunName(name?: string): string {
+  const fallback = timestampedRunName();
+  if (!name || name.trim().length === 0) {
+    return fallback;
+  }
+
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function timestampedRunName(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function validateRecent(value: unknown): number {
+  if (value === undefined) {
+    return 10;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new CliUsageError("recent must be a positive integer");
+  }
+
+  return value;
+}
+
+function validateTone(value: unknown): TonePreset {
+  if (value === undefined) {
+    return "balanced";
+  }
+  if (typeof value !== "string") {
+    throw new CliUsageError("tone must be a valid preset");
+  }
+  return parseTonePreset(value);
+}
+
+function getArtifactStatus(input: {
+  hasManifest: boolean;
+  skillAvailable: boolean;
+  summaryAvailable: boolean;
+}): RunSummary["artifactStatus"] {
+  if (!input.hasManifest && input.skillAvailable && !input.summaryAvailable) {
+    return "legacy";
+  }
+  return input.hasManifest && input.skillAvailable && input.summaryAvailable
+    ? "complete"
+    : "partial";
 }
 
 async function readJsonSafe(filePath: string): Promise<Record<string, unknown> | null> {

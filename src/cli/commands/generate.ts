@@ -25,6 +25,35 @@ type GenerateOptions = {
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
+export type GenerateSkillRunInput = {
+  projectDirectory: string;
+  outputDirectory: string;
+  workspace?: string;
+  recent: number;
+  force: boolean;
+  tone: TonePreset;
+};
+
+export type GenerateSkillRunResult = {
+  directory: string;
+  workspace?: string;
+  recent: number;
+  outputDirectory: string;
+  mode: "harness";
+  artifacts: {
+    summaryPath: string;
+    skillPath: string;
+    claimManifestPath: string;
+    skepticReportPath: string;
+    verifierReportPath: string;
+  };
+  verifierPassed: boolean;
+  manifestClaims: number;
+  skepticIssues: number;
+  tone: TonePreset;
+  force: boolean;
+};
+
 export function registerGenerateCommand(program: Command): void {
   program
     .command("generate")
@@ -39,97 +68,105 @@ export function registerGenerateCommand(program: Command): void {
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
       const outputDirectory = resolveGeneratedSkillsDirectory(directory, options.output);
 
-      const { normalizedSessions, warnings, skippedSessions } = await loadSessions({
-        directory,
+      const result = await generateSkillRun({
+        projectDirectory: directory,
+        outputDirectory,
         workspace: options.workspace,
         recent: options.recent,
+        force: options.force,
+        tone: options.tone,
       });
 
-      if (normalizedSessions.length === 0) {
+      if (result === null) {
         console.log(`No OpenCode sessions found for ${directory}.`);
         return;
       }
 
-      const evidenceIndex = buildEvidenceIndex(normalizedSessions);
-
-      const evidenceStore = new EvidenceStore(getDefaultEvidenceStorePath(directory));
-      try {
-        persistRawEvidence(normalizedSessions, evidenceStore);
-      } finally {
-        evidenceStore.close();
-      }
-
-      const resolved = resolveHybridLlmProvider();
-      const registry = buildPromptRegistry();
-
-      const harnessResult = await analyzeWithHarness({
-        sessions: normalizedSessions,
-        evidence: evidenceIndex,
-        provider: resolved,
-        registry,
-        tone: options.tone,
-      });
-
-      const selfContainedManifest = enrichManifestWithEvidence(
-        harnessResult.revisedManifest,
-        evidenceIndex,
-      );
-
-      const confidenceNotes = [
-        ...buildSessionLoadNotes(skippedSessions, warnings),
-        `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
-        `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
-        `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
-      ];
-
-      const summary = renderSummary(
-        { ...harnessResult, revisedManifest: selfContainedManifest },
-        { tone: options.tone, confidenceNotes },
-      );
-      const skill = harnessResult.writerOutput.skillMarkdown;
-
-      console.log("--- summary preview ---");
-      console.log(summary.split("\n").slice(0, 12).join("\n"));
-      console.log("--- skill preview ---");
-      console.log(skill.split("\n").slice(0, 18).join("\n"));
-
-      const artifactPaths = await writeGeneratedArtifacts({
-        outputDirectory,
-        summary,
-        skill,
-        claimManifest: selfContainedManifest,
-        skepticReport: harnessResult.skepticReport,
-        verifierReport: harnessResult.verifierReport,
-        traces: harnessResult.traces,
-        force: options.force,
-      });
-
-      console.log(
-        JSON.stringify(
-          {
-            directory,
-            workspace: options.workspace,
-            recent: normalizedSessions.length,
-            outputDirectory,
-            mode: "harness",
-            artifacts: {
-              summaryPath: artifactPaths.summaryPath,
-              skillPath: artifactPaths.skillPath,
-              claimManifestPath: artifactPaths.claimManifestPath,
-              skepticReportPath: artifactPaths.skepticReportPath,
-              verifierReportPath: artifactPaths.verifierReportPath,
-            },
-            verifierPassed: harnessResult.verifierReport.pass,
-            manifestClaims: harnessResult.revisedManifest.claims.length,
-            skepticIssues: harnessResult.skepticReport.issues.length,
-            tone: options.tone,
-            force: options.force,
-          },
-          null,
-          2,
-        ),
-      );
+      console.log(JSON.stringify(result, null, 2));
     });
+}
+
+export async function generateSkillRun(
+  input: GenerateSkillRunInput,
+): Promise<GenerateSkillRunResult | null> {
+  const { normalizedSessions, warnings, skippedSessions } = await loadSessions({
+    directory: input.projectDirectory,
+    workspace: input.workspace,
+    recent: input.recent,
+  });
+
+  if (normalizedSessions.length === 0) {
+    return null;
+  }
+
+  const evidenceIndex = buildEvidenceIndex(normalizedSessions);
+
+  const evidenceStore = new EvidenceStore(getDefaultEvidenceStorePath(input.projectDirectory));
+  try {
+    persistRawEvidence(normalizedSessions, evidenceStore);
+  } finally {
+    evidenceStore.close();
+  }
+
+  const resolved = resolveHybridLlmProvider();
+  const registry = buildPromptRegistry();
+
+  const harnessResult = await analyzeWithHarness({
+    sessions: normalizedSessions,
+    evidence: evidenceIndex,
+    provider: resolved,
+    registry,
+    tone: input.tone,
+  });
+
+  const selfContainedManifest = enrichManifestWithEvidence(
+    harnessResult.revisedManifest,
+    evidenceIndex,
+  );
+
+  const confidenceNotes = [
+    ...buildSessionLoadNotes(skippedSessions, warnings),
+    `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
+    `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
+    `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
+  ];
+
+  const summary = renderSummary(
+    { ...harnessResult, revisedManifest: selfContainedManifest },
+    { tone: input.tone, confidenceNotes },
+  );
+  const skill = harnessResult.writerOutput.skillMarkdown;
+
+  const artifactPaths = await writeGeneratedArtifacts({
+    outputDirectory: input.outputDirectory,
+    summary,
+    skill,
+    claimManifest: selfContainedManifest,
+    skepticReport: harnessResult.skepticReport,
+    verifierReport: harnessResult.verifierReport,
+    traces: harnessResult.traces,
+    force: input.force,
+  });
+
+  return {
+    directory: input.projectDirectory,
+    workspace: input.workspace,
+    recent: normalizedSessions.length,
+    outputDirectory: input.outputDirectory,
+    mode: "harness",
+    artifacts: {
+      summaryPath: artifactPaths.summaryPath,
+      skillPath: artifactPaths.skillPath,
+      claimManifestPath: artifactPaths.claimManifestPath,
+      skepticReportPath: artifactPaths.skepticReportPath,
+      verifierReportPath: artifactPaths.verifierReportPath,
+    },
+    verifierPassed: harnessResult.verifierReport.pass,
+    manifestClaims: harnessResult.revisedManifest.claims.length,
+    skepticIssues: harnessResult.skepticReport.issues.length,
+    tone: input.tone,
+    force: input.force,
+  };
 }
 
 function resolveHybridLlmProvider() {

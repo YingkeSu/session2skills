@@ -8,24 +8,21 @@ import { buildVerifierPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
 import { LlmProviderError } from "../shared/errors.js";
 
+type RawCheckedItem = {
+  directive?: unknown;
+  directive_text?: unknown;
+  text?: unknown;
+  claimId?: unknown;
+  claim_id?: unknown;
+  claimIds?: unknown;
+  claim_ids?: unknown;
+  status?: unknown;
+};
+
 type RawVerifierOutput = {
   pass?: unknown;
-  checkedItems?: Array<{
-    directive?: unknown;
-    directive_text?: unknown;
-    text?: unknown;
-    claimId?: unknown;
-    claim_id?: unknown;
-    status?: unknown;
-  }>;
-  checked_items?: Array<{
-    directive?: unknown;
-    directive_text?: unknown;
-    text?: unknown;
-    claimId?: unknown;
-    claim_id?: unknown;
-    status?: unknown;
-  }>;
+  checkedItems?: Array<RawCheckedItem>;
+  checked_items?: Array<RawCheckedItem>;
   issues?: Array<{
     description?: unknown;
     location?: unknown;
@@ -139,6 +136,18 @@ export async function runVerifierStage(
 const VALID_STATUSES = new Set(["verified", "unreferenced", "fabricated"]);
 const VALID_SEVERITIES = new Set(["high", "medium", "low"]);
 
+function extractClaimId(item: RawCheckedItem): string | null {
+  const singular = item.claimId ?? item.claim_id;
+  if (singular != null) {
+    return String(singular);
+  }
+  const plural = item.claimIds ?? item.claim_ids;
+  if (Array.isArray(plural) && plural.length > 0) {
+    return String(plural[0]);
+  }
+  return null;
+}
+
 function parseVerifierOutput(raw: RawVerifierOutput, manifest: ClaimManifest, skillMarkdown: string): VerifierReport {
   const validClaimIds = new Set(manifest.claims.map((c) => c.id));
   const claimsById = new Map(manifest.claims.map((claim) => [claim.id, claim]));
@@ -152,8 +161,7 @@ function parseVerifierOutput(raw: RawVerifierOutput, manifest: ClaimManifest, sk
     })
     .map((item) => {
       const status = VALID_STATUSES.has(String(item.status)) ? String(item.status) : "unreferenced";
-      const rawClaimId = item.claimId ?? item.claim_id;
-      const claimId = rawClaimId != null ? String(rawClaimId) : null;
+      const claimId = extractClaimId(item);
       const directive = String(item.directive ?? item.directive_text ?? item.text).trim();
       const normalizedStatus = normalizeCheckedStatus({
         directive,

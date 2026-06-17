@@ -248,6 +248,80 @@ describe("harness verifier stage", () => {
     expect(provider.structuredRequests).toHaveLength(1);
   });
 
+  it("accepts claimIds (plural array) as alias for claimId from LLM", async () => {
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "claim_001",
+          dimension: "work-style",
+          label: "analysis-first",
+          rationale: "The user begins with code inspection before making changes.",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              {
+                directive: "Begin with code inspection before making changes",
+                claimIds: ["claim_001"],
+                status: "verified",
+              },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage(SAMPLE_SKILL, manifest, provider.toResolved());
+
+    expect(result.report.checkedItems).toHaveLength(1);
+    expect(result.report.checkedItems[0]!.claimId).toBe("claim_001");
+    expect(result.report.checkedItems[0]!.status).toBe("verified");
+    expect(result.report.metadata.verifiedCount).toBe(1);
+  });
+
+  it("accepts claim_ids (snake_case array) as alias for claimId from LLM", async () => {
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "c1",
+          dimension: "constraint",
+          label: "minimal-diff",
+          rationale: "The user asks for minimal, focused changes.",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              {
+                directive: "Make minimal, focused changes",
+                claim_ids: ["c1"],
+                status: "verified",
+              },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage(SAMPLE_SKILL, manifest, provider.toResolved());
+
+    expect(result.report.checkedItems[0]!.claimId).toBe("c1");
+    expect(result.report.checkedItems[0]!.status).toBe("verified");
+  });
+
   it("throws LlmProviderError after all retries fail on provider errors", async () => {
     const writer = makeWriterOutput();
     const manifest = makeClaimManifest();

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { LanguageToggle } from "../i18n/LanguageToggle.js";
 import { useLocale } from "../i18n/LocaleContext.js";
-import { fetchRunDetail, type RunDetail } from "../runs.js";
+import { evaluateRun, fetchRunDetail, type RunDetail, type SkillEvaluation } from "../runs.js";
 import { AuditViewTab } from "./AuditViewTab.js";
 import { PreviewTracesTab } from "./PreviewTracesTab.js";
 import { ReportsTab } from "./ReportsTab.js";
@@ -29,7 +29,15 @@ type RunDetailPageViewProps = RunDetailPageProps & {
   detail: RunDetail | null;
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
+  evaluationState: EvaluationState;
+  onEvaluate: () => void;
 };
+
+type EvaluationState =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "ready"; evaluation: SkillEvaluation }
+  | { status: "error"; message: string };
 
 export function RunDetailPage({
   runName,
@@ -42,6 +50,9 @@ export function RunDetailPage({
   );
   const [error, setError] = useState<string>("");
   const [tab, setTab] = useState<Tab>("audit");
+  const [evaluationState, setEvaluationState] = useState<EvaluationState>({
+    status: "idle",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +87,19 @@ export function RunDetailPage({
       detail={detail}
       activeTab={tab}
       onTabChange={setTab}
+      evaluationState={evaluationState}
+      onEvaluate={async () => {
+        setEvaluationState({ status: "pending" });
+        try {
+          const evaluation = await evaluateRun(runName);
+          setEvaluationState({ status: "ready", evaluation });
+        } catch (err: unknown) {
+          setEvaluationState({
+            status: "error",
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }}
     />
   );
 }
@@ -88,6 +112,8 @@ export function RunDetailPageView({
   detail,
   activeTab,
   onTabChange,
+  evaluationState,
+  onEvaluate,
 }: RunDetailPageViewProps): JSX.Element {
   const { t } = useLocale();
   const readyDetail = status === "ready" ? detail : null;
@@ -147,6 +173,28 @@ export function RunDetailPageView({
               />
             </section>
           )}
+          <section style={evaluateCardStyle}>
+            <div style={evaluateHeaderStyle}>
+              <h3 style={evaluateTitleStyle}>{t("detail.evaluateTitle")}</h3>
+              <button type="button" onClick={onEvaluate} style={evaluateButtonStyle}>
+                {t("detail.evaluate")}
+              </button>
+            </div>
+            {evaluationState.status === "pending" && (
+              <ShellState>{t("detail.evaluating")}</ShellState>
+            )}
+            {evaluationState.status === "error" && (
+              <ShellState tone="error">
+                {t("detail.evaluateErrorPrefix", { message: evaluationState.message })}
+              </ShellState>
+            )}
+            {evaluationState.status === "ready" && (
+              <div style={evaluateResultStyle}>
+                <div>{t("detail.verdict")}: {evaluationState.evaluation.verdict}</div>
+                <div>{t("detail.gates")}: {evaluationState.evaluation.gates.lint}/{evaluationState.evaluation.gates.redaction}/{evaluationState.evaluation.gates.grounding}</div>
+              </div>
+            )}
+          </section>
         </>
       )}
     </DetailShell>
@@ -374,4 +422,44 @@ const contentStyle: React.CSSProperties = {
 const shellStateStyle: React.CSSProperties = {
   padding: "32px",
   textAlign: "center",
+};
+
+const evaluateCardStyle: React.CSSProperties = {
+  border: "1px solid #dee2e6",
+  borderRadius: "6px",
+  padding: "14px",
+  background: "#fff",
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+};
+
+const evaluateHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+};
+
+const evaluateTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "15px",
+  fontWeight: 700,
+};
+
+const evaluateButtonStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: "4px",
+  border: "1px solid #0d6efd",
+  background: "#0d6efd",
+  color: "#fff",
+  cursor: "pointer",
+};
+
+const evaluateResultStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  fontSize: "13px",
+  color: "#212529",
 };

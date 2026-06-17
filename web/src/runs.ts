@@ -6,6 +6,44 @@ export type RunSummary = {
   claimCount: number;
   skepticScore: number;
   skepticIssueCount: number;
+  artifactStatus?: "complete" | "partial" | "legacy";
+  skillAvailable?: boolean;
+  summaryAvailable?: boolean;
+};
+
+export type GenerateRunRequest = {
+  name?: string;
+  recent?: number;
+  workspace?: string;
+  tone?: "concise" | "balanced" | "detailed";
+  force?: boolean;
+};
+
+export type SkillGateStatus = "pass" | "fail";
+
+export type SkillEvaluation = {
+  schemaVersion: string;
+  skillID: string;
+  evaluatedAt: string;
+  gates: {
+    lint: SkillGateStatus;
+    redaction: SkillGateStatus;
+    grounding: SkillGateStatus;
+  };
+  scores: {
+    grounding: number;
+    actionability: number;
+    specificity: number;
+    safety: number;
+    concision: number;
+    discoverability: number;
+  };
+  verdict: "pass" | "needs-patch" | "reject";
+  issues: Array<{
+    severity: "high" | "medium" | "low";
+    message: string;
+    location: string;
+  }>;
 };
 
 export type ManifestEvidenceExcerpt = {
@@ -115,6 +153,18 @@ export async function fetchRuns(): Promise<RunSummary[]> {
   return res.json();
 }
 
+export async function createRun(request: GenerateRunRequest): Promise<RunSummary> {
+  const res = await fetch("/api/runs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to generate run: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
 export type EvidenceDetail = {
   evidenceID: string;
   sourceType: string;
@@ -126,6 +176,18 @@ export async function fetchRunDetail(name: string): Promise<RunDetail> {
   if (!res.ok) {
     throw new Error(
       `Failed to fetch run detail: ${res.status} ${res.statusText}`
+    );
+  }
+  return res.json();
+}
+
+export async function evaluateRun(name: string): Promise<SkillEvaluation> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(name)}/evaluate`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Failed to evaluate run: ${res.status} ${res.statusText}`
     );
   }
   return res.json();

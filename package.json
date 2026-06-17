@@ -30,7 +30,7 @@
     "build": "tsc -p tsconfig.json",
     "build:web": "vite build --config web/vite.config.ts",
     "build:all": "npm run build && npm run build:web",
-    "verify:web": "npm run build:all && vitest run tests/e2e/serve.test.ts",
+    "verify:web": "npm run build:all && node scripts/ensure-playwright-browser.mjs && npm run test:e2e:web",
     "postbuild": "node scripts/fix-bin-mode.mjs",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -40,7 +40,8 @@
     "pretest": "npm run build",
     "test": "vitest run",
     "pretest:e2e": "npm run build",
-    "test:e2e": "vitest run tests/e2e/"
+    "test:e2e": "vitest run tests/e2e/",
+    "test:e2e:web": "vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
@@ -56,6 +57,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.61.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tsx": "^4.20.5",

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { fetchRuns, type RunSummary } from "./runs.js";
+import {
+  createRun,
+  fetchRuns,
+  type GenerateRunRequest,
+  type RunSummary,
+} from "./runs.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
@@ -11,9 +16,18 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "ready"; runs: RunSummary[] };
 
+type GenerateState =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "success"; runName: string }
+  | { status: "error"; message: string };
+
 export function App(): JSX.Element {
   const { t } = useLocale();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [generateState, setGenerateState] = useState<GenerateState>({
+    status: "idle",
+  });
   const [selectedRun, setSelectedRun] = useState<string | null>(() =>
     getInitialSelectedRun(),
   );
@@ -78,6 +92,27 @@ export function App(): JSX.Element {
     setSelectedRun(null);
   };
 
+  const handleGenerate = async (request: GenerateRunRequest): Promise<void> => {
+    setGenerateState({ status: "pending" });
+    try {
+      const generated = await createRun(request);
+      setGenerateState({ status: "success", runName: generated.name });
+      setState((current) => {
+        if (current.status !== "ready") {
+          return current;
+        }
+        const remaining = current.runs.filter((run) => run.name !== generated.name);
+        return { status: "ready", runs: [generated, ...remaining] };
+      });
+      setSelectedRun(generated.name);
+    } catch (err: unknown) {
+      setGenerateState({
+        status: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   if (selectedRun) {
     return (
       <RunDetailPage
@@ -107,6 +142,8 @@ export function App(): JSX.Element {
     <Shell>
       <RunsDashboard
         runs={state.runs}
+        generateState={generateState}
+        onGenerate={handleGenerate}
         onSelect={(name) => setSelectedRun(name)}
       />
     </Shell>
@@ -157,9 +194,13 @@ export function buildSelectedRunUrl(
 
 export function RunsDashboard({
   runs,
+  generateState = { status: "idle" },
+  onGenerate = () => undefined,
   onSelect,
 }: {
   runs: RunSummary[];
+  generateState?: GenerateState;
+  onGenerate?: (request: GenerateRunRequest) => void | Promise<void>;
   onSelect: (name: string) => void;
 }): JSX.Element {
   const { t } = useLocale();
@@ -186,6 +227,11 @@ export function RunsDashboard({
         />
       </section>
 
+      <GenerateRunPanel
+        generateState={generateState}
+        onGenerate={onGenerate}
+      />
+
       <section className="runs-panel" aria-label={t("dashboard.runsList")}>
         <div className="runs-panel-header">
           <div>
@@ -204,6 +250,7 @@ export function RunsDashboard({
                 <th>{t("runTable.name")}</th>
                 <th>{t("runTable.model")}</th>
                 <th>{t("runTable.generatedAt")}</th>
+                <th>{t("runTable.artifacts")}</th>
                 <th>{t("runTable.verifier")}</th>
                 <th>{t("runTable.claims")}</th>
                 <th>{t("runTable.skepticScore")}</th>
@@ -234,6 +281,9 @@ export function RunsDashboard({
                     </time>
                   </td>
                   <td>
+                    <ArtifactStatus run={run} />
+                  </td>
+                  <td>
                     <Badge pass={run.verifierPassed} />
                   </td>
                   <td>{run.claimCount}</td>
@@ -250,6 +300,114 @@ export function RunsDashboard({
         </div>
       </section>
     </main>
+  );
+}
+
+function GenerateRunPanel({
+  generateState,
+  onGenerate,
+}: {
+  generateState: GenerateState;
+  onGenerate: (request: GenerateRunRequest) => void | Promise<void>;
+}): JSX.Element {
+  const { t } = useLocale();
+  const [name, setName] = useState("");
+  const [recent, setRecent] = useState("10");
+  const [tone, setTone] = useState<NonNullable<GenerateRunRequest["tone"]>>("balanced");
+  const [force, setForce] = useState(false);
+  const pending = generateState.status === "pending";
+
+  return (
+    <section className="generate-panel" aria-label={t("generate.title")}>
+      <div className="generate-panel-header">
+        <div>
+          <h2>{t("generate.title")}</h2>
+          <p>{t("generate.help")}</p>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            onGenerate({
+              name: name.trim() || undefined,
+              recent: Number.parseInt(recent, 10) || 10,
+              tone,
+              force,
+            })
+          }
+        >
+          {pending ? t("generate.pending") : t("generate.submit")}
+        </button>
+      </div>
+      <div className="generate-grid">
+        <label>
+          <span>{t("generate.name")}</span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.currentTarget.value)}
+            placeholder={t("generate.namePlaceholder")}
+          />
+        </label>
+        <label>
+          <span>{t("generate.recent")}</span>
+          <input
+            type="number"
+            min="1"
+            value={recent}
+            onChange={(event) => setRecent(event.currentTarget.value)}
+          />
+        </label>
+        <label>
+          <span>{t("generate.tone")}</span>
+          <select
+            value={tone}
+            onChange={(event) =>
+              setTone(event.currentTarget.value as NonNullable<GenerateRunRequest["tone"]>)
+            }
+          >
+            <option value="concise">{t("generate.tone.concise")}</option>
+            <option value="balanced">{t("generate.tone.balanced")}</option>
+            <option value="detailed">{t("generate.tone.detailed")}</option>
+          </select>
+        </label>
+        <label className="generate-checkbox">
+          <input
+            type="checkbox"
+            checked={force}
+            onChange={(event) => setForce(event.currentTarget.checked)}
+          />
+          <span>{t("generate.force")}</span>
+        </label>
+      </div>
+      {generateState.status === "error" && (
+        <p className="generate-message error">
+          {t("generate.error", { message: generateState.message })}
+        </p>
+      )}
+      {generateState.status === "success" && (
+        <p className="generate-message">
+          {t("generate.success", { name: generateState.runName })}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ArtifactStatus({ run }: { run: RunSummary }): JSX.Element {
+  const { t } = useLocale();
+  const status = run.artifactStatus ?? "complete";
+  return (
+    <div className="artifact-status">
+      <span className={`artifact-pill artifact-${status}`}>
+        {t(`artifact.${status}`)}
+      </span>
+      <span>
+        {run.skillAvailable === false ? t("artifact.noSkill") : "SKILL.md"}
+      </span>
+      <span>
+        {run.summaryAvailable === false ? t("artifact.noSummary") : t("artifact.summary")}
+      </span>
+    </div>
   );
 }
 

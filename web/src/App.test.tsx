@@ -18,6 +18,9 @@ const runs: RunSummary[] = [
     claimCount: 12,
     skepticScore: 0.92,
     skepticIssueCount: 1,
+    artifactStatus: "complete",
+    skillAvailable: true,
+    summaryAvailable: true,
   },
   {
     name: "skeptic-needs-review",
@@ -27,6 +30,9 @@ const runs: RunSummary[] = [
     claimCount: 8,
     skepticScore: 0.58,
     skepticIssueCount: 3,
+    artifactStatus: "legacy",
+    skillAvailable: true,
+    summaryAvailable: false,
   },
 ];
 
@@ -43,6 +49,26 @@ describe("RunsDashboard", () => {
     expect(html).toContain("4");
     expect(html).toContain("0.75");
     expect(html).toContain("skeptic-needs-review");
+  });
+
+  it("renders generation controls and artifact management status", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <RunsDashboard
+          runs={runs}
+          generateState={{ status: "idle" }}
+          onGenerate={() => undefined}
+          onSelect={() => undefined}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain("生成技能");
+    expect(html).toContain("最近会话");
+    expect(html).toContain("完整");
+    expect(html).toContain("旧版");
+    expect(html).toContain("SKILL.md");
+    expect(html).toContain("无 summary");
   });
 });
 

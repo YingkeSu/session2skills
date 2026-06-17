@@ -30,6 +30,20 @@ No dedicated tracked web UI PRD exists in this repository. The current tracked p
   - `web/src/components/ReportsTab.test.tsx`
   - `web/src/components/PreviewTracesTab.test.tsx`
 
+### 4. Pipeline and design cleanup
+
+The open web UI design decisions are closed with the following outcomes:
+
+- `writerSections` remains in the browser detail payload and is rendered in Preview as structured Writer Output. The UI extracts section title, summary, directives, source claim IDs, and grounding claim IDs from the writer payload so users can inspect the Writer's structured plan beside the rendered `SKILL.md`.
+- Selected run state is represented in URL query state as `?run=<name>`. The dashboard also accepts `#run=<name>` and `#?run=<name>` as incoming-link fallbacks, but new navigation writes the canonical query parameter. Returning to the runs list removes only `run` and preserves unrelated query parameters.
+- Markdown preview intentionally supports a safe limited subset instead of a complete Markdown/HTML renderer. It renders headings, bullet lists, paragraphs, and fenced code blocks through React text nodes; unsupported inline Markdown and HTML remain literal text. Long previews are capped at 500 lines, and code blocks are capped at 120 lines, with visible truncation notices.
+- The `jsdom` dev dependency is justified by DOM-level panel coverage that server-side rendering cannot exercise. Current `jsdom` tests cover Preview Writer Output, literal rendering of unsupported HTML, preview truncation, tab/report panels, and lazy evidence expansion/fetch behavior.
+
+Focused tests:
+- `web/src/App.test.tsx`
+- `web/src/components/PreviewTracesTab.test.tsx`
+- `web/src/components/EvidencePanel.test.tsx`
+
 ## Web Pipeline Preconditions
 
 Manual `serve` runs and browser e2e checks both require the same build artifacts and fixture shape:
@@ -42,7 +56,7 @@ For focused verification, run `npm run verify:web`. It builds backend and web as
 
 ## Follow-Up Issues
 
-### 4. Browser UI flow e2e coverage
+### 5. Browser UI flow e2e coverage
 
 The current e2e suite verifies server health, `/api/runs`, SPA shell serving, and asset serving. It still does not drive the browser through the optimized UI.
 
@@ -51,11 +65,3 @@ Acceptance criteria:
 - Include enough fixture artifacts for list, detail, audit, reports, preview, traces, and evidence expansion.
 - Run after both backend and web assets are built.
 - Include desktop and mobile viewport smoke checks.
-
-### 5. Pipeline and design cleanup
-
-Acceptance criteria:
-- Decide whether `writerSections` should be rendered in the UI or removed from the browser payload.
-- Decide whether selected run state should be reflected in URL/query state for refresh and back-button behavior.
-- Document the intentionally limited markdown preview renderer or replace it with a safer complete renderer.
-- Track the cost of the new `jsdom` dev dependency against the value of DOM-level component coverage.

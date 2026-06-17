@@ -39,6 +39,7 @@ Manual `serve` runs and browser e2e checks both require the same build artifacts
 - Serve a project directory that already has `generated-skills/<run-name>/` populated with the generated run artifacts.
 
 For focused verification, run `npm run verify:web`. It builds backend and web assets, seeds a temporary `generated-skills/alpha-run`, starts the real `serve` command, and checks server health, `/api/runs`, SPA shell serving, and bundled asset serving.
+The current script contract is intentionally broader than the existing single-file server check: `verify:web` should execute the web e2e suite, including any future browser-driven files named `tests/e2e/web-*.test.ts`.
 
 ## Follow-Up Issues
 
@@ -51,6 +52,7 @@ Acceptance criteria:
 - Include enough fixture artifacts for list, detail, audit, reports, preview, traces, and evidence expansion.
 - Run after both backend and web assets are built.
 - Include desktop and mobile viewport smoke checks.
+- Implement this as a `tests/e2e/web-*.test.ts` file so `npm run verify:web` picks it up automatically.
 
 ### 5. Pipeline and design cleanup
 

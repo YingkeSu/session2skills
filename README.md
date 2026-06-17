@@ -73,7 +73,7 @@ To verify the local web pipeline without relying on local OpenCode sessions:
 npm run verify:web
 ```
 
-This builds the backend and web assets, seeds a temporary `generated-skills/alpha-run`, starts `serve`, and checks health, `/api/runs`, the SPA shell, and bundled asset serving.
+This builds the backend and web assets, then runs the web e2e suite. Today that suite covers server health, `/api/runs`, the SPA shell, and bundled asset serving. When browser-driven flow coverage lands, add it as `tests/e2e/web-*.test.ts` and `verify:web` will include it automatically.
 
 ## Configuration
 

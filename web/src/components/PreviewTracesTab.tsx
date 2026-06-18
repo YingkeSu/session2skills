@@ -42,9 +42,9 @@ function extractTraceSummary(
       ? (trace.usage as Record<string, unknown>)
       : null;
   const usage = {
-    promptTokens: usageSource?.prompt_tokens ?? 0,
-    completionTokens: usageSource?.completion_tokens ?? 0,
-    totalTokens: usageSource?.total_tokens ?? 0,
+    promptTokens: usageSource?.inputTokens ?? 0,
+    completionTokens: usageSource?.outputTokens ?? 0,
+    totalTokens: usageSource?.totalTokens ?? 0,
   };
 
   const latencyMs =

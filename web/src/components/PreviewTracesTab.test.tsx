@@ -55,9 +55,9 @@ function renderPreview(
             model: "gpt-4.1",
             provider: "openai",
             usage: {
-              prompt_tokens: 12,
-              completion_tokens: 8,
-              total_tokens: 20,
+              inputTokens: 12,
+              outputTokens: 8,
+              totalTokens: 20,
             },
             latencyMs: 123,
             finishReason: "stop",
@@ -111,6 +111,37 @@ describe("PreviewTracesTab", () => {
     expect(markdownBox?.querySelector("img")).toBeNull();
     expect(markdownBox?.querySelector("script")).toBeNull();
     expect(markdownBox?.querySelector("strong")).toBeNull();
+  });
+
+  it("renders token counts from backend camelCase field names (inputTokens/outputTokens/totalTokens)", async () => {
+    localStorage.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    createRoot(container).render(
+      <LocaleProvider>
+        <PreviewTracesTab
+          skillMarkdown={null}
+          writerSections={null}
+          traces={[
+            {
+              stage: "analyst",
+              model: "deepseek-v3",
+              provider: "deepseek",
+              usage: {
+                inputTokens: 150,
+                outputTokens: 80,
+                totalTokens: 230,
+              },
+              latencyMs: 456,
+            },
+          ]}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(await waitForText("230 tokens")).toBeTruthy();
+    expect(await waitForText("150")).toBeTruthy();
+    expect(await waitForText("80")).toBeTruthy();
   });
 
   it("renders fenced code literally and caps long previews", async () => {

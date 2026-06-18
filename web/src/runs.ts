@@ -18,6 +18,7 @@ export type GenerateRunRequest = {
   tone?: "concise" | "balanced" | "detailed";
   force?: boolean;
   template?: "claude-skill" | "opencode-skill" | "cursor-mdc" | "copilot-instructions";
+  skillType?: "workflow" | "testing" | "code-style" | "debugging" | "review";
 };
 
 export type SkillGateStatus = "pass" | "fail";

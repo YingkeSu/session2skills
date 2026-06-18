@@ -244,4 +244,57 @@ describe("buildWriterPacket", () => {
     expect(systemMessage!.content).toContain("anchor each directive to the observed pattern");
     expect(systemMessage!.content).toContain("Prefer behavioral translations over abstract labels");
   });
+
+  it("includes skillTypeFocus in instructions when provided", () => {
+    const manifest = makeClaimManifest();
+    const packet = buildWriterPacket(manifest, "balanced", undefined, undefined, undefined, "testing practices, validation habits");
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+    expect(userMessage!.content).toContain("focused on testing practices, validation habits");
+  });
+
+  it("uses default instructions when skillTypeFocus is undefined", () => {
+    const manifest = makeClaimManifest();
+    const packet = buildWriterPacket(manifest, "balanced", undefined);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+    expect(userMessage!.content).toContain("Write installable-style SKILL.md guidance");
+  });
+});
+
+describe("buildAnalystPacket with selectedDimensions", () => {
+  it("analyst packet only includes selected dimensions in taxonomy", () => {
+    const evidence = makeEvidenceItems(3);
+    const selectedDimensions = ["validation-habit", "constraint"];
+    const packet = buildAnalystPacket(mockSessions, evidence, undefined, 6000, selectedDimensions);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+
+    expect(userMessage!.content).toContain("### validation-habit");
+    expect(userMessage!.content).toContain("### constraint");
+    expect(userMessage!.content).not.toContain("### work-style");
+    expect(userMessage!.content).not.toContain("### communication-style");
+    expect(userMessage!.content).not.toContain("### token-efficiency");
+    expect(userMessage!.content).not.toContain("### model-selection");
+    expect(userMessage!.content).not.toContain("### delegation-pattern");
+  });
+
+  it("analyst packet includes all dimensions when selectedDimensions is undefined", () => {
+    const evidence = makeEvidenceItems(3);
+    const packet = buildAnalystPacket(mockSessions, evidence);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+
+    expect(userMessage!.content).toContain("### work-style");
+    expect(userMessage!.content).toContain("### communication-style");
+    expect(userMessage!.content).toContain("### validation-habit");
+    expect(userMessage!.content).toContain("### constraint");
+    expect(userMessage!.content).toContain("### token-efficiency");
+    expect(userMessage!.content).toContain("### model-selection");
+    expect(userMessage!.content).toContain("### delegation-pattern");
+  });
 });

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { evaluateSkill } from "../generate/evaluate-skill.js";
 import { generateSkillRun, type GenerateSkillRunInput } from "../generate/service.js";
 import { parseTemplate, type TemplateName } from "../generate/templates.js";
+import { parseSkillType, type SkillType } from "../generate/skill-types.js";
 import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../shared/cli.js";
 import { CliUsageError } from "../shared/errors.js";
 import { isValidRunName, normalizeRunName } from "../shared/paths.js";
@@ -253,6 +254,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         tone: TonePreset;
         force: boolean;
         template: string;
+        skillType: string;
       }>>();
 
       const recent = coercePositiveInteger(body.recent, 10);
@@ -263,6 +265,9 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         : undefined;
       const template = typeof body.template === "string" && body.template.length > 0
         ? parseTemplate(body.template)
+        : undefined;
+      const skillType = typeof body.skillType === "string" && body.skillType.length > 0
+        ? parseSkillType(body.skillType)
         : undefined;
       const name = normalizeRunName(body.name);
       const outputDirectory = join(runsDirectory, name);
@@ -275,6 +280,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         tone,
         force,
         template,
+        skillType,
       });
 
       const summaries = await scanRuns(runsDirectory);

@@ -396,4 +396,41 @@ describe("harness analyst stage", () => {
     expect(result.manifest.claims).toHaveLength(1);
     expect(result.manifest.claims[0]!.id).toBe("claim_valid");
   });
+
+  it("filters claims by selected dimensions", async () => {
+    const evidence = makeEvidenceItems(7);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001"] },
+              { id: "c2", dimension: "communication-style", label: "concise", confidence: 0.7, rationale: "r", evidenceRefs: ["ev_002"] },
+              { id: "c3", dimension: "validation-habit", label: "run-tests", confidence: 0.75, rationale: "r", evidenceRefs: ["ev_003"] },
+              { id: "c4", dimension: "constraint", label: "minimal-diff", confidence: 0.9, rationale: "r", evidenceRefs: ["ev_004"] },
+              { id: "c5", dimension: "token-efficiency", label: "explorer", confidence: 0.77, rationale: "r", evidenceRefs: ["ev_005"] },
+              { id: "c6", dimension: "model-selection", label: "cost-conscious", confidence: 0.65, rationale: "r", evidenceRefs: ["ev_006"] },
+              { id: "c7", dimension: "delegation-pattern", label: "parallelizer", confidence: 0.72, rationale: "r", evidenceRefs: ["ev_007"] },
+            ],
+            evidenceSummary: "7 items covering all dimensions",
+            dimensionsCovered: [
+              "work-style", "communication-style", "validation-habit", "constraint",
+              "token-efficiency", "model-selection", "delegation-pattern",
+            ],
+          },
+        },
+      ],
+    });
+
+    const selectedDimensions = ["validation-habit", "constraint"];
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved(), undefined, undefined, selectedDimensions);
+
+    expect(result.manifest.claims).toHaveLength(2);
+    expect(result.manifest.claims[0]!.dimension).toBe("validation-habit");
+    expect(result.manifest.claims[1]!.dimension).toBe("constraint");
+    expect(result.manifest.dimensionsCovered).toEqual(
+      expect.arrayContaining(["validation-habit", "constraint"]),
+    );
+  });
 });

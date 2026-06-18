@@ -14,6 +14,7 @@ import { EvidenceStore } from "../evidence-store/index.js";
 import { getDefaultEvidenceStorePath } from "../evidence-store/paths.js";
 import { persistRawEvidence } from "../evidence-store/persist.js";
 import { loadTemplateMarkdown, type TemplateName } from "./templates.js";
+import { SKILL_TYPE_DIMENSIONS, SKILL_TYPE_FOCUS, type SkillType } from "./skill-types.js";
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
@@ -25,6 +26,7 @@ export type GenerateSkillRunInput = {
   force: boolean;
   tone: TonePreset;
   template?: TemplateName;
+  skillType?: SkillType;
   llmProvider?: ResolvedLlmProvider;
   promptRegistry?: PromptRegistry;
 };
@@ -78,6 +80,13 @@ export async function generateSkillRun(
     ? await loadTemplateMarkdown(input.template)
     : undefined;
 
+  const selectedDimensions = input.skillType
+    ? [...SKILL_TYPE_DIMENSIONS[input.skillType]]
+    : undefined;
+  const skillTypeFocus = input.skillType
+    ? SKILL_TYPE_FOCUS[input.skillType]
+    : undefined;
+
   const harnessResult = await analyzeWithHarness({
     sessions: normalizedSessions,
     evidence: evidenceIndex,
@@ -85,6 +94,8 @@ export async function generateSkillRun(
     registry,
     tone: input.tone,
     templateMarkdown,
+    selectedDimensions,
+    skillTypeFocus,
   });
 
   const selfContainedManifest = enrichManifestWithEvidence(

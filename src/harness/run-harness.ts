@@ -18,6 +18,8 @@ export type RunHarnessInput = {
   tone?: string;
   budget?: Partial<HarnessBudget>;
   templateMarkdown?: string;
+  selectedDimensions?: ReadonlyArray<string>;
+  skillTypeFocus?: string;
 };
 
 export async function analyzeWithHarness(input: RunHarnessInput): Promise<HarnessResult> {
@@ -29,6 +31,8 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     tone = "balanced",
     budget,
     templateMarkdown,
+    selectedDimensions,
+    skillTypeFocus,
   } = input;
 
   const traces: Array<LLMTrace> = [];
@@ -46,7 +50,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
 
   let manifest: ClaimManifest;
   try {
-    const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget);
+    const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget, selectedDimensions);
     traces.push(analystResult.trace);
     manifest = analystResult.manifest;
   } catch (error: unknown) {
@@ -74,7 +78,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
 
   let writerOutput: HarnessResult["writerOutput"];
   try {
-    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence, templateMarkdown);
+    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence, templateMarkdown, skillTypeFocus);
     traces.push(writerResult.trace);
     writerOutput = writerResult.output;
   } catch (error: unknown) {

@@ -64,6 +64,7 @@ export function EvidencePanel({
 
   return (
     <div
+      data-testid="evidence-panel"
       style={{
         marginTop: "6px",
         border: "1px solid #dee2e6",

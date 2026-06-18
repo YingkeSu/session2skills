@@ -206,6 +206,7 @@ export function DetailShell({
               aria-controls={`run-detail-panel-${tab.id}`}
               onClick={() => onTabChange(tab.id)}
               style={tabButtonStyle(selected)}
+              data-testid={`${tab.id}-tab`}
             >
               {tab.label}
             </button>

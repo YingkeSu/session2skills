@@ -315,6 +315,7 @@ export function buildWriterPacket(
   tone: string,
   registry?: PromptRegistry,
   evidence?: ReadonlyArray<EvidenceItem>,
+  templateMarkdown?: string,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -368,6 +369,16 @@ export function buildWriterPacket(
     `## Dimensions Covered: ${manifest.dimensionsCovered.join(", ")}`,
     `## Tone: ${tone}`,
     "",
+    templateMarkdown
+      ? [
+          "## Structural Template Reference",
+          "Use this skill file as a structural template for the output format. Match its section style, heading levels, and frontmatter:",
+          "```",
+          templateMarkdown,
+          "```",
+          "",
+        ].join("\n")
+      : "",
     "## Instructions",
     "Write installable-style SKILL.md guidance using ONLY the claims above.",
     "The markdown must start with YAML frontmatter containing name and description.",

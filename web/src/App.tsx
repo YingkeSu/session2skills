@@ -321,6 +321,7 @@ function GenerateRunPanel({
   const [name, setName] = useState("");
   const [recent, setRecent] = useState("10");
   const [tone, setTone] = useState<NonNullable<GenerateRunRequest["tone"]>>("balanced");
+  const [template, setTemplate] = useState<NonNullable<GenerateRunRequest["template"]>>("claude-skill");
   const [force, setForce] = useState(false);
   const pending = generateState.status === "pending";
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
@@ -329,6 +330,7 @@ function GenerateRunPanel({
       name: name.trim() || undefined,
       recent: Number.parseInt(recent, 10) || 10,
       tone,
+      template,
       force,
     });
   };
@@ -378,6 +380,22 @@ function GenerateRunPanel({
             <option value="concise">{t("generate.tone.concise")}</option>
             <option value="balanced">{t("generate.tone.balanced")}</option>
             <option value="detailed">{t("generate.tone.detailed")}</option>
+          </select>
+          </label>
+          <label htmlFor="generate-template">
+            <span>{t("generate.template")}</span>
+            <select
+              id="generate-template"
+              aria-label={t("generate.template")}
+              value={template}
+              onChange={(event) =>
+                setTemplate(event.currentTarget.value as NonNullable<GenerateRunRequest["template"]>)
+              }
+            >
+            <option value="claude-skill">{t("generate.template.claude-skill")}</option>
+            <option value="opencode-skill">{t("generate.template.opencode-skill")}</option>
+            <option value="cursor-mdc">{t("generate.template.cursor-mdc")}</option>
+            <option value="copilot-instructions">{t("generate.template.copilot-instructions")}</option>
           </select>
           </label>
           <label className="generate-checkbox" htmlFor="generate-force">

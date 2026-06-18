@@ -107,6 +107,11 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.tone.concise": "简洁",
     "generate.tone.balanced": "平衡",
     "generate.tone.detailed": "详细",
+    "generate.template": "模板",
+    "generate.template.claude-skill": "Claude Skill",
+    "generate.template.opencode-skill": "OpenCode Skill",
+    "generate.template.cursor-mdc": "Cursor MDC",
+    "generate.template.copilot-instructions": "Copilot Instructions",
 
     "artifact.complete": "完整",
     "artifact.partial": "部分",
@@ -303,6 +308,11 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.tone.concise": "Concise",
     "generate.tone.balanced": "Balanced",
     "generate.tone.detailed": "Detailed",
+    "generate.template": "Template",
+    "generate.template.claude-skill": "Claude Skill",
+    "generate.template.opencode-skill": "OpenCode Skill",
+    "generate.template.cursor-mdc": "Cursor MDC",
+    "generate.template.copilot-instructions": "Copilot Instructions",
 
     "artifact.complete": "complete",
     "artifact.partial": "partial",

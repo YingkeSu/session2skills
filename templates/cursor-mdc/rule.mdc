@@ -1,0 +1,31 @@
+---
+description: Short description of this rule and when it applies.
+globs: ["*.ts", "*.tsx"]
+alwaysApply: false
+---
+
+# Rule Name
+
+## Purpose
+
+Describe what this rule enforces or guides.
+
+## Guidelines
+
+- Guideline 1: explanation
+- Guideline 2: explanation
+- Guideline 3: explanation
+
+## Examples
+
+### Correct
+
+```typescript
+// Good example here
+```
+
+### Incorrect
+
+```typescript
+// Bad example here — avoid this pattern
+```

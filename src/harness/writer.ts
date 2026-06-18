@@ -39,9 +39,10 @@ export async function runWriterStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
   evidence?: ReadonlyArray<EvidenceItem>,
+  templateMarkdown?: string,
 ): Promise<WriterStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildWriterPacket(manifest, tone, registry, evidence);
+  const packet = buildWriterPacket(manifest, tone, registry, evidence, templateMarkdown);
 
   let lastResult: LlmStructuredGenerationResult<RawWriterOutput> | undefined;
   let output: WriterOutput | undefined;

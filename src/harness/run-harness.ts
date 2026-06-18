@@ -28,6 +28,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     registry,
     tone = "balanced",
     budget,
+    templateMarkdown,
   } = input;
 
   const traces: Array<LLMTrace> = [];
@@ -73,7 +74,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
 
   let writerOutput: HarnessResult["writerOutput"];
   try {
-    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence);
+    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence, templateMarkdown);
     traces.push(writerResult.trace);
     writerOutput = writerResult.output;
   } catch (error: unknown) {

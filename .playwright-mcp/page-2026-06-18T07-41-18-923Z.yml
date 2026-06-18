@@ -1,5 +1,0 @@
-- generic [ref=e3]:
-  - generic [ref=e4]:
-    - heading "Harness Runs" [level=1] [ref=e5]
-    - button "中文" [ref=e6] [cursor=pointer]
-  - text: Loading runs…

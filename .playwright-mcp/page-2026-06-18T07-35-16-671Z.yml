@@ -1,5 +1,0 @@
-- generic [ref=e3]:
-  - generic [ref=e4]:
-    - heading "测试运行记录" [level=1] [ref=e5]
-    - button "EN" [ref=e6] [cursor=pointer]
-  - text: 正在加载运行记录…

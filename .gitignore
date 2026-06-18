@@ -69,3 +69,6 @@ coverage/
 
 # Build artifacts
 *.tsbuildinfo
+
+# Playwright MCP runtime artifacts (page snapshots)
+.playwright-mcp/

@@ -17,7 +17,7 @@ export type SkillLintIssue = {
 
 const DEBUG_PHRASE_PATTERN = /\bdirective\(s\)/i;
 const REPORT_PROSE_PATTERN =
-  /\b(?:confidence\s*:\s*(?:\d+(?:\.\d+)?|\.\d+)|confidence notes|strongest signal|summary-only (?:observation|insight)s?)\b/i;
+  /\b(?:confidence\s*:\s*(?:\d+(?:\.\d+)?|\.\d+)|confidence notes|strongest signal|summary-only (?:observation|insight)s?|Ground this in the observed pattern|ev_[a-z0-9_]+|ses_[a-z0-9]+:msg_[a-z0-9]+|claim_[0-9]+)\b/i;
 const ENV_PAYLOAD_PATTERN =
   /(?:^|[\r\n])(?:[^\r\n]*(?:generated-skills|\.session2skills)[^\r\n]*)?(?:\.env\b[^\r\n]*[\r\n])?(?:[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|ACCESS_KEY|AUTH_TOKEN|CLIENT_SECRET|SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY)[A-Za-z0-9_]*\s*=)/i;
 

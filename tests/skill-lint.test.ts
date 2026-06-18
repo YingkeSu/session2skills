@@ -86,6 +86,38 @@ describe("lintSkillMarkdown", () => {
     expect(issues.map((issue) => issue.code)).toContain("secret-material");
     expect(issues.map((issue) => issue.code)).toContain("env-payload");
   });
+
+  it("rejects evidence ID patterns like ev_abc123", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- Inspect code first (see ev_abc123)
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
+  it("rejects session-scoped evidence IDs like ses_001:msg_002", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- Inspect code first (ref ses_001:msg_002)
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
+  it("rejects 'Ground this in the observed pattern' phrasing", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- Prefer analysis first behavior for work style decisions. Ground this in the observed pattern: Developer starts with extensive exploration.
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
+  it("rejects claim ID citations like claim_001", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- Inspect code first (claim_001)
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
 });
 
 describe("assertValidSkillMarkdown", () => {

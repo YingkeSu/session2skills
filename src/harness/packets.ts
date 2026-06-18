@@ -2,7 +2,8 @@ import type { LlmMessage, LlmStructuredOutputSchema } from "../llm/index.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest } from "./types.js";
-import { estimateTokens, selectEvidenceForBudget } from "./evidence-index.js";
+import { estimateTokens } from "../shared/evidence.js";
+import { selectEvidenceForBudget } from "./evidence-index.js";
 
 // ---------------------------------------------------------------------------
 // Taxonomy (all 7 dimensions for harness pipeline)
@@ -120,16 +121,17 @@ const FALLBACK_SKEPTIC_SYSTEM = [
   "Output valid JSON.",
 ].join("\n");
 
-const FALLBACK_WRITER_SYSTEM = [
-  "You are writing a SKILL.md document from a claim manifest.",
-  "The markdown must be an installable-style skill: YAML frontmatter with name and description, then concise agent-facing instructions.",
-  "Every directive must reference a manifest claim ID.",
-  "Do not add information not in the manifest.",
-  "Return structured sections whose directives exactly correspond to checkable instructions in the markdown.",
-  "When evidence excerpts are provided for a claim, anchor each directive to the observed pattern.",
-  "Prefer behavioral translations over abstract labels (e.g., 'Limit explanations to 2-3 sentences' not 'Be concise').",
-  "Output valid JSON.",
-].join("\n");
+  const FALLBACK_WRITER_SYSTEM = [
+    "You are writing a SKILL.md document from a claim manifest.",
+    "The markdown must be an installable-style skill: YAML frontmatter with name and description, then concise agent-facing instructions.",
+    "Every directive must reference a manifest claim ID.",
+    "Do not add information not in the manifest.",
+    "Do NOT include confidence scores, evidence IDs, claim IDs, or rationale text in the skillMarkdown. The output must contain ONLY agent-facing directives.",
+    "Return structured sections whose directives exactly correspond to checkable instructions in the markdown.",
+    "When evidence excerpts are provided for a claim, anchor each directive to the observed pattern.",
+    "Prefer behavioral translations over abstract labels (e.g., 'Limit explanations to 2-3 sentences' not 'Be concise').",
+    "Output valid JSON.",
+  ].join("\n");
 
 const FALLBACK_VERIFIER_SYSTEM = [
   "You are a Verifier cross-checking SKILL.md against a claim manifest.",
@@ -370,6 +372,7 @@ export function buildWriterPacket(
     "Write installable-style SKILL.md guidance using ONLY the claims above.",
     "The markdown must start with YAML frontmatter containing name and description.",
     "The markdown body must be agent-facing operating instructions, not a claim/confidence report.",
+    "Do NOT include confidence scores, evidence IDs, claim IDs, or rationale text in the skillMarkdown. The output must contain ONLY agent-facing directives.",
     "Each directive must have a sourceClaimId matching a claim id in the manifest.",
     "Each structured directive must appear as a checkable instruction in the markdown body.",
     "Group by dimension into sections.",

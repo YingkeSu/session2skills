@@ -150,6 +150,7 @@ export const harnessWriterPrompt: PromptTemplate<unknown> = {
     "- For dimensions with no claims, omit the section entirely",
     "When evidence excerpts are provided for a claim, anchor each directive to the observed pattern.",
     "Prefer behavioral translations over abstract labels (e.g., 'Limit explanations to 2-3 sentences' not 'Be concise').",
+    "Do NOT include confidence scores, evidence IDs, claim IDs, or rationale text in the skillMarkdown. The output must contain ONLY agent-facing directives.",
     "Output valid JSON matching the provided schema.",
   ].join("\n"),
   outputSchema: {

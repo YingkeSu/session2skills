@@ -270,9 +270,7 @@ function buildSkillDescription(manifest: ClaimManifest): string {
 
 function directiveForClaim(claim: ManifestClaim): string {
   const behavior = humanizeLabel(claim.label);
-  const rationale = firstSentence(claim.rationale);
-  const suffix = rationale ? ` Ground this in the observed pattern: ${rationale}` : "";
-  return `Prefer ${behavior} behavior for ${humanizeDimension(claim.dimension)} decisions.${suffix}`;
+  return `Prefer ${behavior} behavior for ${humanizeDimension(claim.dimension)} decisions.`;
 }
 
 function summaryForClaims(claims: Array<ManifestClaim>): string {

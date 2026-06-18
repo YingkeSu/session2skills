@@ -10,8 +10,8 @@ export async function writeGeneratedArtifacts(input: {
   summary: string;
   skill: string;
   claimManifest: ClaimManifest;
-  skepticReport: SkepticReport;
-  verifierReport: VerifierReport;
+  skepticReport?: SkepticReport;
+  verifierReport?: VerifierReport;
   traces?: ReadonlyArray<LLMTrace>;
   force: boolean;
 }): Promise<{
@@ -28,9 +28,14 @@ export async function writeGeneratedArtifacts(input: {
     "summary.md": redactSecretsFromString(input.summary),
     "SKILL.md": input.skill,
     "claim-manifest.json": stringifyRedactedJson(input.claimManifest),
-    "skeptic-report.json": stringifyRedactedJson(input.skepticReport),
-    "verifier-report.json": stringifyRedactedJson(input.verifierReport),
   };
+
+  if (input.skepticReport) {
+    files["skeptic-report.json"] = stringifyRedactedJson(input.skepticReport);
+  }
+  if (input.verifierReport) {
+    files["verifier-report.json"] = stringifyRedactedJson(input.verifierReport);
+  }
 
   if (input.traces && input.traces.length > 0) {
     files["llm-traces.json"] = stringifyRedactedJson(sanitizePersistedTraces(input.traces));
@@ -46,8 +51,8 @@ export async function writeGeneratedArtifacts(input: {
     summaryPath: paths["summary.md"]!,
     skillPath: paths["SKILL.md"]!,
     claimManifestPath: paths["claim-manifest.json"]!,
-    skepticReportPath: paths["skeptic-report.json"]!,
-    verifierReportPath: paths["verifier-report.json"]!,
+    skepticReportPath: paths["skeptic-report.json"] ?? "",
+    verifierReportPath: paths["verifier-report.json"] ?? "",
     tracesPath: paths["llm-traces.json"] ?? null,
   };
 }

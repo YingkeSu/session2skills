@@ -1,4 +1,4 @@
-import type { HarnessResult, ManifestClaim } from "../harness/types.js";
+import type { HarnessResult, ManifestClaim, SkepticReport, VerifierReport } from "../harness/types.js";
 import type { WorkflowSignalKind } from "../normalize/models.js";
 import type { TonePreset } from "../shared/cli.js";
 
@@ -32,13 +32,17 @@ export function renderSummary(
   options: SummaryOptions = {},
 ): string {
   const tone = options.tone ?? "balanced";
-  const manifest = harnessResult.revisedManifest;
+  const manifest = harnessResult.revisedManifest ?? harnessResult.manifest;
   const lines: Array<string> = [];
 
   renderHeader(lines, tone, manifest.claims.length, manifest.metadata.generatedAt);
   renderClaimManifest(lines, manifest.claims, tone);
-  renderSkepticReport(lines, harnessResult.skepticReport);
-  renderVerifierReport(lines, harnessResult.verifierReport);
+  if (harnessResult.skepticReport) {
+    renderSkepticReport(lines, harnessResult.skepticReport);
+  }
+  if (harnessResult.verifierReport) {
+    renderVerifierReport(lines, harnessResult.verifierReport);
+  }
   renderConfidenceNotes(lines, options.confidenceNotes);
 
   return lines.join("\n");
@@ -95,7 +99,7 @@ function renderClaimManifest(
 
 function renderSkepticReport(
   lines: Array<string>,
-  report: HarnessResult["skepticReport"],
+  report: SkepticReport,
 ): void {
   lines.push(
     "## Skeptic Report",
@@ -119,7 +123,7 @@ function renderSkepticReport(
 
 function renderVerifierReport(
   lines: Array<string>,
-  report: HarnessResult["verifierReport"],
+  report: VerifierReport,
 ): void {
   lines.push(
     "## Verifier Report",

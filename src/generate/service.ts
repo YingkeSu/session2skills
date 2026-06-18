@@ -81,22 +81,26 @@ export async function generateSkillRun(
   });
 
   const selfContainedManifest = enrichManifestWithEvidence(
-    harnessResult.revisedManifest,
+    harnessResult.revisedManifest ?? harnessResult.manifest,
     evidenceIndex,
   );
 
   const confidenceNotes = [
     ...buildSessionLoadNotes(skippedSessions, warnings),
-    `harness pipeline: ${harnessResult.revisedManifest.claims.length} claims extracted across ${harnessResult.revisedManifest.dimensionsCovered.length} dimensions`,
-    `skeptic: ${harnessResult.skepticReport.issues.length} issues found (score: ${harnessResult.skepticReport.overallScore.toFixed(2)})`,
-    `verifier: ${harnessResult.verifierReport.pass ? "PASSED" : "FAILED"}`,
+    `harness pipeline: ${(harnessResult.revisedManifest ?? harnessResult.manifest).claims.length} claims extracted across ${(harnessResult.revisedManifest ?? harnessResult.manifest).dimensionsCovered.length} dimensions`,
+    `skeptic: ${harnessResult.skepticReport?.issues.length ?? 0} issues found (score: ${harnessResult.skepticReport?.overallScore.toFixed(2) ?? "N/A"})`,
+    `verifier: ${harnessResult.verifierReport?.pass ? "PASSED" : harnessResult.verifierReport ? "FAILED" : "SKIPPED"}`,
   ];
+
+  if (harnessResult.error) {
+    confidenceNotes.push(`WARNING: ${harnessResult.error}`);
+  }
 
   const summary = renderSummary(
     { ...harnessResult, revisedManifest: selfContainedManifest },
     { tone: input.tone, confidenceNotes },
   );
-  const skill = harnessResult.writerOutput.skillMarkdown;
+  const skill = harnessResult.writerOutput?.skillMarkdown ?? "";
 
   const artifactPaths = await writeGeneratedArtifacts({
     outputDirectory: input.outputDirectory,
@@ -122,9 +126,9 @@ export async function generateSkillRun(
       skepticReportPath: artifactPaths.skepticReportPath,
       verifierReportPath: artifactPaths.verifierReportPath,
     },
-    verifierPassed: harnessResult.verifierReport.pass,
-    manifestClaims: harnessResult.revisedManifest.claims.length,
-    skepticIssues: harnessResult.skepticReport.issues.length,
+    verifierPassed: harnessResult.verifierReport?.pass ?? false,
+    manifestClaims: (harnessResult.revisedManifest ?? harnessResult.manifest).claims.length,
+    skepticIssues: harnessResult.skepticReport?.issues.length ?? 0,
     tone: input.tone,
     force: input.force,
   };

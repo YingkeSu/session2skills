@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { LanguageToggle } from "../i18n/LanguageToggle.js";
 import { useLocale } from "../i18n/LocaleContext.js";
@@ -176,7 +176,13 @@ export function RunDetailPageView({
           <section style={evaluateCardStyle}>
             <div style={evaluateHeaderStyle}>
               <h3 style={evaluateTitleStyle}>{t("detail.evaluateTitle")}</h3>
-              <button type="button" onClick={onEvaluate} style={evaluateButtonStyle}>
+              <button
+                type="button"
+                data-testid="evaluate-button"
+                onClick={onEvaluate}
+                disabled={evaluationState.status === "pending"}
+                style={evaluateButtonStyle}
+              >
                 {t("detail.evaluate")}
               </button>
             </div>
@@ -217,6 +223,37 @@ export function DetailShell({
   ];
   const reportStatus = detail ? describeReportStatus(detail, t) : null;
 
+  const handleTabKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      const currentIndex = tabs.findIndex((tab) => tab.id === activeTab);
+      let nextIndex: number | null = null;
+
+      switch (event.key) {
+        case "ArrowRight":
+          nextIndex = (currentIndex + 1) % tabs.length;
+          break;
+        case "ArrowLeft":
+          nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+          break;
+        case "Home":
+          nextIndex = 0;
+          break;
+        case "End":
+          nextIndex = tabs.length - 1;
+          break;
+        default:
+          return;
+      }
+
+      event.preventDefault();
+      const nextTab = tabs[nextIndex];
+      onTabChange(nextTab.id);
+      const nextButton = document.getElementById(`run-detail-tab-${nextTab.id}`);
+      nextButton?.focus();
+    },
+    [activeTab, tabs, onTabChange],
+  );
+
   return (
     <div style={shellStyle}>
       <div style={headerRowStyle}>
@@ -250,9 +287,12 @@ export function DetailShell({
               id={`run-detail-tab-${tab.id}`}
               type="button"
               role="tab"
+              data-testid={`${tab.id}-tab`}
               aria-selected={selected}
               aria-controls={`run-detail-panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
+              onKeyDown={handleTabKeyDown}
               style={tabButtonStyle(selected)}
             >
               {tab.label}

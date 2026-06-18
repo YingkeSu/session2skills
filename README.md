@@ -1,188 +1,192 @@
 # session2skills
 
-> 🤖 将你的 OpenCode 会话转化为 AI 助手可复用的技能文件
+> 🤖 Transform your OpenCode sessions into reusable AI assistant skill files
 
 [![GitHub Stars](https://img.shields.io/github/stars/YingkeSu/session2skills?style=social)](https://github.com/YingkeSu/session2skills)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## ✨ 这是什么？
-
-**session2skills** 是一个 CLI 工具，它能：
-
-1. 📖 读取你的本地 OpenCode 会话记录
-2. 🔍 分析你的工作模式和习惯
-3. 📝 生成 `SKILL.md` 技能文件供 AI 助手复用
-
-核心功能是 **harness 管道** — 一个四阶段 LLM 处理流程：
-
-```
-分析师 (Analyst) → 质疑者 (Skeptic) → 撰写者 (Writer) → 验证者 (Verifier)
-```
-
-每个输出的声明都基于会话证据，并经过质疑者和验证者的交叉检查。
+**[中文文档](README_ZH.md)**
 
 ---
 
-## 🚀 快速开始
+## ✨ What is it?
 
-### 1. 安装
+**session2skills** is a CLI tool that:
+
+1. 📖 Reads your local OpenCode session records
+2. 🔍 Analyzes your work patterns and habits
+3. 📝 Generates `SKILL.md` skill files for AI assistant reuse
+
+The core feature is the **harness pipeline** — a four-stage LLM processing flow:
+
+```
+Analyst → Skeptic → Writer → Verifier
+```
+
+Every claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/YingkeSu/session2skills.git
 cd session2skills
 
-# 安装依赖并构建
+# Install dependencies and build
 npm install
 npm run build
 ```
 
-### 2. 前置条件
+### 2. Prerequisites
 
-- ✅ `opencode` CLI 已安装并在 `PATH` 中
-- ✅ 项目目录中存在 OpenCode 会话记录
+- ✅ `opencode` CLI installed and on `PATH`
+- ✅ OpenCode session records exist in the project directory
 
-### 3. 配置 LLM 环境变量
+### 3. Configure LLM Environment Variables
 
 ```bash
-# 必需
+# Required
 export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
 export SESSION2SKILLS_LLM_MODEL="gpt-4o"
 
-# 可选
+# Optional
 export SESSION2SKILLS_LLM_API_KEY="sk-..."
 export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
 ```
 
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `SESSION2SKILLS_LLM_BASE_URL` | ✅ | OpenAI 兼容的 API 基础 URL |
-| `SESSION2SKILLS_LLM_MODEL` | ✅ | 模型标识符（如 `gpt-4o`、`claude-3-opus`） |
-| `SESSION2SKILLS_LLM_API_KEY` | ❌ | API 密钥，某些本地/自托管端点不需要 |
-| `SESSION2SKILLS_LLM_PROVIDER` | ❌ | 提供商标签，默认 `openai-compatible` |
-| `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | 可选的版本标签 |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SESSION2SKILLS_LLM_BASE_URL` | ✅ | OpenAI-compatible API base URL |
+| `SESSION2SKILLS_LLM_MODEL` | ✅ | Model identifier (e.g., `gpt-4o`, `claude-3-opus`) |
+| `SESSION2SKILLS_LLM_API_KEY` | ❌ | API key (not needed for some local/self-hosted endpoints) |
+| `SESSION2SKILLS_LLM_PROVIDER` | ❌ | Provider label, defaults to `openai-compatible` |
+| `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | Optional version label |
 
-### 4. 配置会话源适配器
+### 4. Configure Session Source Adapter
 
-session2skills 支持多种会话源，通过 `SESSION2SKILLS_ADAPTER` 环境变量选择：
+session2skills supports multiple session sources, selected via the `SESSION2SKILLS_ADAPTER` environment variable:
 
 ```bash
-export SESSION2SKILLS_ADAPTER="claude"  # 或 "codex"、"sdk"、"sqlite"
+export SESSION2SKILLS_ADAPTER="claude"  # or "codex", "sdk", "sqlite"
 ```
 
-| 适配器 | 说明 | 数据来源 |
-|--------|------|----------|
-| `sdk` | OpenCode SDK（默认） | 通过 OpenCode API 获取会话 |
-| `sqlite` | OpenCode SQLite 直读 | 直接读取本地 SQLite 数据库 |
-| `codex` | Codex CLI | 读取 Codex 的 SQLite 数据库和 rollout 文件 |
-| `claude` | Claude CLI | 读取 Claude 的 JSONL 转录文件 |
+| Adapter | Description | Data Source |
+|---------|-------------|-------------|
+| `sdk` | OpenCode SDK (default) | Fetches sessions via OpenCode API |
+| `sqlite` | OpenCode SQLite direct read | Reads local SQLite database directly |
+| `codex` | Codex CLI | Reads Codex's SQLite database and rollout files |
+| `claude` | Claude CLI | Reads Claude's JSONL transcript files |
 
-**自动检测：** 如果不设置 `SESSION2SKILLS_ADAPTER`，工具会按以下优先级自动选择：
-1. 检测到 OpenCode SQLite 数据库 → 使用 `sqlite`
-2. 否则 → 使用 `sdk`（OpenCode API）
+**Auto-detection:** If `SESSION2SKILLS_ADAPTER` is not set, the tool automatically selects in this priority order:
+1. OpenCode SQLite database detected → use `sqlite`
+2. Otherwise → use `sdk` (OpenCode API)
 
-#### Codex 适配器
+#### Codex Adapter
 
-适用于使用 [Codex CLI](https://github.com/openai/codex) 的用户：
+For users of [Codex CLI](https://github.com/openai/codex):
 
 ```bash
 export SESSION2SKILLS_ADAPTER="codex"
-node dist/cli/main.js inspect --directory /项目路径 --recent 5
+node dist/cli/main.js inspect --directory /project/path --recent 5
 ```
 
-**数据位置：** `~/.codex/sessions.db`（SQLite 数据库）
+**Data location:** `~/.codex/sessions.db` (SQLite database)
 
-#### Claude 适配器
+#### Claude Adapter
 
-适用于使用 [Claude CLI](https://docs.anthropic.com/claude/docs/cli) 的用户：
+For users of [Claude CLI](https://docs.anthropic.com/claude/docs/cli):
 
 ```bash
 export SESSION2SKILLS_ADAPTER="claude"
-node dist/cli/main.js inspect --directory /项目路径 --recent 5
+node dist/cli/main.js inspect --directory /project/path --recent 5
 ```
 
-**数据位置：** `~/.claude/projects/<project-hash>/`（JSONL 转录文件）
+**Data location:** `~/.claude/projects/<project-hash>/` (JSONL transcript files)
 
 ---
 
-## 📖 命令指南
+## 📖 Command Guide
 
-### 🔍 检查会话
+### 🔍 Inspect Sessions
 
-查看最近的 OpenCode 会话：
+View recent OpenCode sessions:
 
 ```bash
-node dist/cli/main.js inspect --directory /项目路径 --recent 5
+node dist/cli/main.js inspect --directory /project/path --recent 5
 ```
 
-### 🛠️ 生成技能
+### 🛠️ Generate Skills
 
-运行 harness 管道生成技能文件：
+Run the harness pipeline to generate skill files:
 
 ```bash
 node dist/cli/main.js generate \
-  --directory /项目路径 \
+  --directory /project/path \
   --recent 10 \
   --output generated-skills/my-skill \
   --tone balanced
 ```
 
-**参数说明：**
+**Parameters:**
 
-| 参数 | 说明 |
-|------|------|
-| `--directory` | 要分析的项目目录（绝对路径） |
-| `--recent` | 分析最近 N 个会话 |
-| `--output` | 输出目录 |
-| `--tone` | 输出风格：`concise`（简洁）/ `balanced`（平衡）/ `detailed`（详细） |
-| `--force` | 覆盖已存在的输出文件 |
+| Parameter | Description |
+|-----------|-------------|
+| `--directory` | Project directory to analyze (absolute path) |
+| `--recent` | Analyze the most recent N sessions |
+| `--output` | Output directory |
+| `--tone` | Output style: `concise` / `balanced` / `detailed` |
+| `--force` | Overwrite existing output files |
 
-**生成的文件：**
+**Generated files:**
 
-| 文件 | 说明 |
-|------|------|
-| `SKILL.md` | 🎯 最终技能文件，包含基于证据的声明 |
-| `summary.md` | 📊 人类可读的审计摘要 |
-| `claim-manifest.json` | 📋 声明清单及证据引用 |
-| `skeptic-report.json` | 🤔 质疑报告：发现的问题、总体评分 |
-| `verifier-report.json` | ✅ 验证报告：通过/失败、伪造指令检测 |
-| `llm-traces.json` | 🔍 所有 LLM 调用追踪（已脱敏） |
+| File | Description |
+|------|-------------|
+| `SKILL.md` | 🎯 Final skill file with evidence-based claims |
+| `summary.md` | 📊 Human-readable audit summary |
+| `claim-manifest.json` | 📋 Claim manifest with evidence references |
+| `skeptic-report.json` | 🤔 Skeptic report: issues found, overall score |
+| `verifier-report.json` | ✅ Verifier report: pass/fail, fabricated directive detection |
+| `llm-traces.json` | 🔍 All LLM call traces (sanitized) |
 
-### 📊 评估技能
+### 📊 Evaluate Skills
 
-对生成的技能文件运行质量检查：
+Run quality checks on generated skill files:
 
 ```bash
 node dist/cli/main.js evaluate --skill generated-skills/my-skill/SKILL.md
 ```
 
-检查项包括：
-- ✅ Lint 规则检查
-- ✅ 敏感信息脱敏
-- ✅ 证据基础验证
-- ✅ 综合评分
+Checks include:
+- ✅ Lint rule validation
+- ✅ Sensitive information sanitization
+- ✅ Evidence grounding verification
+- ✅ Overall score
 
-### 🌐 启动 Web UI
+### 🌐 Launch Web UI
 
-启动本地 Web 服务器浏览生成的运行记录：
+Start a local web server to browse generated run records:
 
 ```bash
-# 一键构建并启动
+# Build everything and launch
 npm run build:all
-node dist/cli/main.js serve --directory /项目路径
+node dist/cli/main.js serve --directory /project/path
 ```
 
-**访问地址：**
-- 🏠 本地：http://localhost:3000
-- 🌐 内网：http://100.98.177.122:3000
+**Access URLs:**
+- 🏠 Local: http://localhost:3000
+- 🌐 Network: http://100.98.177.122:3000
 
-**Web UI 功能：**
-- 📊 运行仪表盘 — 查看所有生成的技能运行
-- 📝 详情页 — 查看审计、报告、预览
-- 🔍 证据链追溯 — 点击展开查看证据详情
-- 🌏 多语言支持 — 中文/英文切换
+**Web UI features:**
+- 📊 Run dashboard — view all generated skill runs
+- 📝 Detail pages — view audit, reports, previews
+- 🔍 Evidence chain tracing — click to expand evidence details
+- 🌏 Multi-language support — Chinese/English switching
 
-**验证 Web 管道：**
+**Verify Web Pipeline:**
 
 ```bash
 npm run verify:web
@@ -190,92 +194,92 @@ npm run verify:web
 
 ---
 
-## 🔒 隐私说明
+## 🔒 Privacy Notice
 
-⚠️ **重要：** harness 管道会将你的**原始会话证据**（消息文本、工具调用、diff）发送到你配置的 LLM 端点。
+⚠️ **Important:** The harness pipeline sends your **raw session evidence** (message text, tool calls, diffs) to your configured LLM endpoint.
 
-- 默认情况下，数据发送到 `SESSION2SKILLS_LLM_BASE_URL` 指定的端点
-- **不会**发送到 session2skills 作者维护的任何服务器
-- `llm-traces.json` 中的请求内容和原始响应文本已脱敏处理
+- By default, data is sent to the endpoint specified by `SESSION2SKILLS_LLM_BASE_URL`
+- It is **NOT** sent to any server maintained by the session2skills authors
+- Request content and raw response text in `llm-traces.json` are sanitized
 
-**建议：** 如果会话包含敏感代码或凭据，请指向自托管或私有端点。
+**Recommendation:** If your sessions contain sensitive code or credentials, point to a self-hosted or private endpoint.
 
 ---
 
-## 🛠️ 开发指南
+## 🛠️ Development Guide
 
-### 开发命令
+### Development Commands
 
 ```bash
-npm run typecheck    # TypeScript 类型检查
-npm run build        # 构建后端
-npm run build:web    # 构建 Web UI
-npm run build:all    # 构建全部
-npm run dev          # 开发模式（无需构建）
-npm test             # 运行测试
-npm run verify:web   # 验证 Web 管道
+npm run typecheck    # TypeScript type checking
+npm run build        # Build backend
+npm run build:web    # Build Web UI
+npm run build:all    # Build everything
+npm run dev          # Development mode (no build needed)
+npm test             # Run tests
+npm run verify:web   # Verify web pipeline
 ```
 
-### 项目结构
+### Project Structure
 
 ```
 src/
-├── cli/            # Commander CLI 入口 + 子命令
-├── adapters/       # 外部系统适配器
-├── analyze/        # 核心分析管道
-├── generate/       # 技能渲染管道
-├── llm/            # LLM 抽象层
-├── normalize/      # 会话规范化
-├── persist/        # 安全的目录写入
-├── profile/        # 启发式分析
-└── shared/         # 共享工具
-web/                # Web UI 前端
-tests/              # 测试文件
+├── cli/            # Commander CLI entry + sub-commands
+├── adapters/       # External system adapters
+├── analyze/        # Core analysis pipeline
+├── generate/       # Skill rendering pipeline
+├── llm/            # LLM abstraction layer
+├── normalize/      # Session normalization
+├── persist/        # Secure directory writing
+├── profile/        # Heuristic profiling
+└── shared/         # Shared utilities
+web/                # Web UI frontend
+tests/              # Test files
 ```
 
 ---
 
-## 📈 输出风格
+## 📈 Output Styles
 
-使用 `--tone` 参数控制输出详细程度：
+Use the `--tone` parameter to control output verbosity:
 
-| 风格 | 说明 | 适用场景 |
-|------|------|----------|
-| `concise` | 简短摘要，最少证据摘录 | 快速浏览 |
-| `balanced` | 适中详细（默认） | 日常使用 |
-| `detailed` | 完整证据摘录，按来源分解 | 深入分析 |
-
----
-
-## ⚠️ 当前限制
-
-- 📦 仅支持 OpenCode（暂无其他会话源）
-- 📚 仅分析历史会话
-- 💻 仅 CLI 模式（无服务/守护进程）
-- 🤖 LLM 管道非零幻觉 — 声明基于证据交叉检查，但最终输出仍反映模型推断
+| Style | Description | Use Case |
+|-------|-------------|----------|
+| `concise` | Brief summary, minimal evidence excerpts | Quick overview |
+| `balanced` | Moderate detail (default) | Daily use |
+| `detailed` | Full evidence excerpts, breakdown by source | Deep analysis |
 
 ---
 
-## 🤝 贡献
+## ⚠️ Current Limitations
 
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支：`git checkout -b feature/amazing-feature`
-3. 提交更改：`git commit -m 'feat: add amazing feature'`
-4. 推送分支：`git push origin feature/amazing-feature`
-5. 提交 Pull Request
+- 📦 Only supports OpenCode (no other session sources yet)
+- 📚 Only analyzes historical sessions
+- 💻 CLI mode only (no service/daemon)
+- 🤖 LLM pipeline has non-zero hallucination — claims are cross-checked against evidence, but final output still reflects model inference
 
 ---
 
-## 📄 许可证
+## 🤝 Contributing
 
-MIT License - 详见 [LICENSE](LICENSE)
+Issues and Pull Requests are welcome!
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'feat: add amazing feature'`
+4. Push the branch: `git push origin feature/amazing-feature`
+5. Submit a Pull Request
 
 ---
 
-## 🔗 相关链接
+## 📄 License
 
-- [GitHub 仓库](https://github.com/YingkeSu/session2skills)
+MIT License - see [LICENSE](LICENSE)
+
+---
+
+## 🔗 Links
+
+- [GitHub Repository](https://github.com/YingkeSu/session2skills)
 - [Issues](https://github.com/YingkeSu/session2skills/issues)
 - [OpenCode](https://opencode.ai)

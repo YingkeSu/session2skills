@@ -62,6 +62,47 @@ export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
 | `SESSION2SKILLS_LLM_PROVIDER` | ❌ | 提供商标签，默认 `openai-compatible` |
 | `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | 可选的版本标签 |
 
+### 4. 配置会话源适配器
+
+session2skills 支持多种会话源，通过 `SESSION2SKILLS_ADAPTER` 环境变量选择：
+
+```bash
+export SESSION2SKILLS_ADAPTER="claude"  # 或 "codex"、"sdk"、"sqlite"
+```
+
+| 适配器 | 说明 | 数据来源 |
+|--------|------|----------|
+| `sdk` | OpenCode SDK（默认） | 通过 OpenCode API 获取会话 |
+| `sqlite` | OpenCode SQLite 直读 | 直接读取本地 SQLite 数据库 |
+| `codex` | Codex CLI | 读取 Codex 的 SQLite 数据库和 rollout 文件 |
+| `claude` | Claude CLI | 读取 Claude 的 JSONL 转录文件 |
+
+**自动检测：** 如果不设置 `SESSION2SKILLS_ADAPTER`，工具会按以下优先级自动选择：
+1. 检测到 OpenCode SQLite 数据库 → 使用 `sqlite`
+2. 否则 → 使用 `sdk`（OpenCode API）
+
+#### Codex 适配器
+
+适用于使用 [Codex CLI](https://github.com/openai/codex) 的用户：
+
+```bash
+export SESSION2SKILLS_ADAPTER="codex"
+node dist/cli/main.js inspect --directory /项目路径 --recent 5
+```
+
+**数据位置：** `~/.codex/sessions.db`（SQLite 数据库）
+
+#### Claude 适配器
+
+适用于使用 [Claude CLI](https://docs.anthropic.com/claude/docs/cli) 的用户：
+
+```bash
+export SESSION2SKILLS_ADAPTER="claude"
+node dist/cli/main.js inspect --directory /项目路径 --recent 5
+```
+
+**数据位置：** `~/.claude/projects/<project-hash>/`（JSONL 转录文件）
+
 ---
 
 ## 📖 命令指南

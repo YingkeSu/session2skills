@@ -1,134 +1,240 @@
 # session2skills
 
-CLI that reads your local OpenCode sessions, figures out how you work, and writes a `SKILL.md` file your AI assistant can pick up.
+> 🤖 将你的 OpenCode 会话转化为 AI 助手可复用的技能文件
 
-The `generate` command runs a multi-stage LLM pipeline — the **harness** (Analyst → Skeptic → Writer → Verifier) — and requires LLM environment variables to be set.
+[![GitHub Stars](https://img.shields.io/github/stars/YingkeSu/session2skills?style=social)](https://github.com/YingkeSu/session2skills)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Install
+## ✨ 这是什么？
+
+**session2skills** 是一个 CLI 工具，它能：
+
+1. 📖 读取你的本地 OpenCode 会话记录
+2. 🔍 分析你的工作模式和习惯
+3. 📝 生成 `SKILL.md` 技能文件供 AI 助手复用
+
+核心功能是 **harness 管道** — 一个四阶段 LLM 处理流程：
+
+```
+分析师 (Analyst) → 质疑者 (Skeptic) → 撰写者 (Writer) → 验证者 (Verifier)
+```
+
+每个输出的声明都基于会话证据，并经过质疑者和验证者的交叉检查。
+
+---
+
+## 🚀 快速开始
+
+### 1. 安装
 
 ```bash
+# 克隆仓库
+git clone https://github.com/YingkeSu/session2skills.git
+cd session2skills
+
+# 安装依赖并构建
 npm install
 npm run build
 ```
 
-## Prerequisites
+### 2. 前置条件
 
-- `opencode` CLI available on `PATH`
-- Existing OpenCode sessions in the project directory you want to analyze
+- ✅ `opencode` CLI 已安装并在 `PATH` 中
+- ✅ 项目目录中存在 OpenCode 会话记录
 
-## Commands
-
-### Inspect recent sessions
+### 3. 配置 LLM 环境变量
 
 ```bash
-node dist/cli/main.js inspect --directory /absolute/project/path --recent 5
-```
-
-### Generate final artifacts
-
-`generate` runs the **harness** pipeline and requires LLM environment variables (`SESSION2SKILLS_LLM_BASE_URL` + `SESSION2SKILLS_LLM_MODEL`). If they are not set, the command exits with a clear error.
-
-```bash
+# 必需
 export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
 export SESSION2SKILLS_LLM_MODEL="gpt-4o"
-export SESSION2SKILLS_LLM_API_KEY="sk-..."
 
+# 可选
+export SESSION2SKILLS_LLM_API_KEY="sk-..."
+export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
+```
+
+| 变量 | 必需 | 说明 |
+|------|------|------|
+| `SESSION2SKILLS_LLM_BASE_URL` | ✅ | OpenAI 兼容的 API 基础 URL |
+| `SESSION2SKILLS_LLM_MODEL` | ✅ | 模型标识符（如 `gpt-4o`、`claude-3-opus`） |
+| `SESSION2SKILLS_LLM_API_KEY` | ❌ | API 密钥，某些本地/自托管端点不需要 |
+| `SESSION2SKILLS_LLM_PROVIDER` | ❌ | 提供商标签，默认 `openai-compatible` |
+| `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | 可选的版本标签 |
+
+---
+
+## 📖 命令指南
+
+### 🔍 检查会话
+
+查看最近的 OpenCode 会话：
+
+```bash
+node dist/cli/main.js inspect --directory /项目路径 --recent 5
+```
+
+### 🛠️ 生成技能
+
+运行 harness 管道生成技能文件：
+
+```bash
 node dist/cli/main.js generate \
-  --directory /absolute/project/path \
+  --directory /项目路径 \
   --recent 10 \
   --output generated-skills/my-skill \
   --tone balanced
 ```
 
-Writes `summary.md`, `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`. The harness pipeline runs 4 stages: Analyst → Skeptic → Writer → Verifier. Each claim in the output is grounded in session evidence and cross-checked by the Skeptic and Verifier stages.
+**参数说明：**
 
-Use `--force` to overwrite existing output files.
+| 参数 | 说明 |
+|------|------|
+| `--directory` | 要分析的项目目录（绝对路径） |
+| `--recent` | 分析最近 N 个会话 |
+| `--output` | 输出目录 |
+| `--tone` | 输出风格：`concise`（简洁）/ `balanced`（平衡）/ `detailed`（详细） |
+| `--force` | 覆盖已存在的输出文件 |
 
-### Evaluate a generated skill
+**生成的文件：**
+
+| 文件 | 说明 |
+|------|------|
+| `SKILL.md` | 🎯 最终技能文件，包含基于证据的声明 |
+| `summary.md` | 📊 人类可读的审计摘要 |
+| `claim-manifest.json` | 📋 声明清单及证据引用 |
+| `skeptic-report.json` | 🤔 质疑报告：发现的问题、总体评分 |
+| `verifier-report.json` | ✅ 验证报告：通过/失败、伪造指令检测 |
+| `llm-traces.json` | 🔍 所有 LLM 调用追踪（已脱敏） |
+
+### 📊 评估技能
+
+对生成的技能文件运行质量检查：
 
 ```bash
 node dist/cli/main.js evaluate --skill generated-skills/my-skill/SKILL.md
 ```
 
-Runs deterministic quality gates (lint, redaction, grounding) against a skill file and reports a pass/fail verdict with scores.
+检查项包括：
+- ✅ Lint 规则检查
+- ✅ 敏感信息脱敏
+- ✅ 证据基础验证
+- ✅ 综合评分
 
-### Serve the web UI
+### 🌐 启动 Web UI
+
+启动本地 Web 服务器浏览生成的运行记录：
 
 ```bash
+# 一键构建并启动
 npm run build:all
-node dist/cli/main.js serve --directory /absolute/project/path
+node dist/cli/main.js serve --directory /项目路径
 ```
 
-Starts a local web server for browsing generated harness runs. Preconditions:
+**访问地址：**
+- 🏠 本地：http://localhost:3000
+- 🌐 内网：http://100.98.177.122:3000
 
-- Backend CLI is built: `dist/cli/main.js` exists. `npm run build:all` creates it.
-- Web assets are built: `web/dist/index.html` exists. `npm run build:all` creates it.
-- The served project directory contains a seeded `generated-skills/<run-name>/` directory with the generated run artifacts, such as `SKILL.md`, `claim-manifest.json`, `skeptic-report.json`, `verifier-report.json`, and `llm-traces.json`.
+**Web UI 功能：**
+- 📊 运行仪表盘 — 查看所有生成的技能运行
+- 📝 详情页 — 查看审计、报告、预览
+- 🔍 证据链追溯 — 点击展开查看证据详情
+- 🌏 多语言支持 — 中文/英文切换
 
-Use `generate --output generated-skills/<run-name>` to seed a real run before serving a project directory.
-
-To verify the local web pipeline without relying on local OpenCode sessions:
+**验证 Web 管道：**
 
 ```bash
 npm run verify:web
 ```
 
-This builds the backend and web assets, seeds a temporary `generated-skills/alpha-run`, starts `serve`, and checks health, `/api/runs`, the SPA shell, and bundled asset serving.
+---
 
-## Configuration
+## 🔒 隐私说明
 
-The harness pipeline reads these environment variables:
+⚠️ **重要：** harness 管道会将你的**原始会话证据**（消息文本、工具调用、diff）发送到你配置的 LLM 端点。
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SESSION2SKILLS_LLM_BASE_URL` | Yes | OpenAI-compatible API base URL |
-| `SESSION2SKILLS_LLM_MODEL` | Yes | Model identifier (e.g. `gpt-4o`, `claude-3-opus-20240229`) |
-| `SESSION2SKILLS_LLM_API_KEY` | No | API key. Some local/self-hosted endpoints don't need one. |
-| `SESSION2SKILLS_LLM_PROVIDER` | No | Provider label for traces. Defaults to `openai-compatible`. |
-| `SESSION2SKILLS_LLM_MODEL_VERSION` | No | Optional version tag written into traces and manifests. |
+- 默认情况下，数据发送到 `SESSION2SKILLS_LLM_BASE_URL` 指定的端点
+- **不会**发送到 session2skills 作者维护的任何服务器
+- `llm-traces.json` 中的请求内容和原始响应文本已脱敏处理
 
-### Privacy note
+**建议：** 如果会话包含敏感代码或凭据，请指向自托管或私有端点。
 
-The harness pipeline sends your **raw session evidence** (message text, tool invocations, diffs) to the LLM endpoint you configure. By default, that endpoint is whatever you set in `SESSION2SKILLS_LLM_BASE_URL`. Nothing is sent to any server maintained by the session2skills authors.
+---
 
-Generated artifacts such as `normalized.json`, `evidence-index.json`, and claim files can still contain session evidence. `llm-traces.json` is safer by default: request message content and raw model text are redacted before writing, while model/provider metadata, token usage, and parsed structured output are retained for auditing.
+## 🛠️ 开发指南
 
-If your sessions contain sensitive code or credentials, you should point `SESSION2SKILLS_LLM_BASE_URL` at a self-hosted or private endpoint.
-
-## Output artifacts
-
-### Harness artifacts
-
-| File | Description |
-|------|-------------|
-| `summary.md` | Human-readable audit summary |
-| `SKILL.md` | Final skill file with evidence-grounded claims |
-| `claim-manifest.json` | Canonical claim manifest with evidence refs (`claim-manifest/v1` schema) |
-| `skeptic-report.json` | Skeptic critique: issues found, overall score (`skeptic-report/v1` schema) |
-| `verifier-report.json` | Verifier cross-check: pass/fail, fabricated directive detection (`verifier-report/v1` schema) |
-| `llm-traces.json` | Every LLM call across all 4 pipeline stages with redacted prompt/raw response text |
-
-## Tone presets
-
-The `--tone` flag controls output verbosity:
-
-- `concise` - short summaries, minimal evidence excerpts
-- `balanced` - moderate detail (default)
-- `detailed` - full evidence excerpts, per-source breakdowns, grounding notes
-
-## Development
+### 开发命令
 
 ```bash
-npm run typecheck
-npm run build
-npm run build:web
-npm run verify:web
-npm test
+npm run typecheck    # TypeScript 类型检查
+npm run build        # 构建后端
+npm run build:web    # 构建 Web UI
+npm run build:all    # 构建全部
+npm run dev          # 开发模式（无需构建）
+npm test             # 运行测试
+npm run verify:web   # 验证 Web 管道
 ```
 
-## Current limitations
+### 项目结构
 
-- OpenCode only (no other session sources yet)
-- Historical session analysis only
-- CLI only, no service/daemon mode
-- The harness pipeline is not hallucination-free. LLM claims are cross-checked against session evidence and scored for confidence, but the final output still reflects what the model inferred from your sessions
+```
+src/
+├── cli/            # Commander CLI 入口 + 子命令
+├── adapters/       # 外部系统适配器
+├── analyze/        # 核心分析管道
+├── generate/       # 技能渲染管道
+├── llm/            # LLM 抽象层
+├── normalize/      # 会话规范化
+├── persist/        # 安全的目录写入
+├── profile/        # 启发式分析
+└── shared/         # 共享工具
+web/                # Web UI 前端
+tests/              # 测试文件
+```
+
+---
+
+## 📈 输出风格
+
+使用 `--tone` 参数控制输出详细程度：
+
+| 风格 | 说明 | 适用场景 |
+|------|------|----------|
+| `concise` | 简短摘要，最少证据摘录 | 快速浏览 |
+| `balanced` | 适中详细（默认） | 日常使用 |
+| `detailed` | 完整证据摘录，按来源分解 | 深入分析 |
+
+---
+
+## ⚠️ 当前限制
+
+- 📦 仅支持 OpenCode（暂无其他会话源）
+- 📚 仅分析历史会话
+- 💻 仅 CLI 模式（无服务/守护进程）
+- 🤖 LLM 管道非零幻觉 — 声明基于证据交叉检查，但最终输出仍反映模型推断
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feature/amazing-feature`
+3. 提交更改：`git commit -m 'feat: add amazing feature'`
+4. 推送分支：`git push origin feature/amazing-feature`
+5. 提交 Pull Request
+
+---
+
+## 📄 许可证
+
+MIT License - 详见 [LICENSE](LICENSE)
+
+---
+
+## 🔗 相关链接
+
+- [GitHub 仓库](https://github.com/YingkeSu/session2skills)
+- [Issues](https://github.com/YingkeSu/session2skills/issues)
+- [OpenCode](https://opencode.ai)

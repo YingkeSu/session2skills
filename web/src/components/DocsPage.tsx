@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 
 type DocsPageProps = {

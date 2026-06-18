@@ -6,6 +6,8 @@ type ReportsTabProps = {
   verifierReport: VerifierReport | null;
 };
 
+import type { JSX } from "react";
+
 function scoreBadge(score: number): JSX.Element {
   const color =
     score >= 0.8 ? "#27ae60" : score >= 0.5 ? "#f39c12" : "#c0392b";

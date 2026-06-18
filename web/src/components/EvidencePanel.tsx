@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import type { EvidenceDetail } from "../runs.js";
 import { useLocale } from "../i18n/LocaleContext.js";
 

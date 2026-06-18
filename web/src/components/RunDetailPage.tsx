@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 import { LanguageToggle } from "../i18n/LanguageToggle.js";
 import { useLocale } from "../i18n/LocaleContext.js";
@@ -294,7 +294,6 @@ export function DetailShell({
               onClick={() => onTabChange(tab.id)}
               onKeyDown={handleTabKeyDown}
               style={tabButtonStyle(selected)}
-              data-testid={`${tab.id}-tab`}
             >
               {tab.label}
             </button>

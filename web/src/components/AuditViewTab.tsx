@@ -5,6 +5,7 @@ import type {
   VerifierReport,
 } from "../runs.js";
 import { EvidencePanel } from "./EvidencePanel.js";
+import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 
 type AuditViewTabProps = {

@@ -1,4 +1,5 @@
 import type { LLMTraceSummary } from "../runs.js";
+import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 
 type PreviewTracesTabProps = {
@@ -42,9 +43,9 @@ function extractTraceSummary(
       ? (trace.usage as Record<string, unknown>)
       : null;
   const usage = {
-    promptTokens: usageSource?.inputTokens ?? 0,
-    completionTokens: usageSource?.outputTokens ?? 0,
-    totalTokens: usageSource?.totalTokens ?? 0,
+    promptTokens: typeof usageSource?.inputTokens === "number" ? usageSource.inputTokens : 0,
+    completionTokens: typeof usageSource?.outputTokens === "number" ? usageSource.outputTokens : 0,
+    totalTokens: typeof usageSource?.totalTokens === "number" ? usageSource.totalTokens : 0,
   };
 
   const latencyMs =

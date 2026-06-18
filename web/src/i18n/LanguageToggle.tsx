@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { useLocale } from "./LocaleContext.js";
 
 export function LanguageToggle(): JSX.Element {

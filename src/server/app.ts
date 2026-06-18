@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -16,6 +17,17 @@ import type { RunSummary } from "../shared/run-summary.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDist = join(__dirname, "../../web/dist");
 
+function getApiToken(): string {
+  return process.env["SESSION2SKILLS_API_TOKEN"] ?? randomBytes(32).toString("hex");
+}
+
+function extractBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  return authHeader.slice(7);
+}
+
 export type ServerGenerateRunner = (input: GenerateSkillRunInput) => Promise<unknown>;
 
 export type CreateServerOptions = {
@@ -23,11 +35,58 @@ export type CreateServerOptions = {
   generateRun?: ServerGenerateRunner;
 };
 
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function isValidRunName(name: string): boolean {
+  if (!name || name.length === 0) return false;
+  if (name.includes("..")) return false;
+  if (name.startsWith("/") || name.startsWith("\\")) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(name);
+}
+
 export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
   const app = new Hono();
   const generateRun = options.generateRun ?? generateSkillRun;
+  const apiToken = getApiToken();
+
+  app.use("/api/*", async (c, next) => {
+    const origin = c.req.header("Origin");
+    if (origin && !isAllowedOrigin(origin)) {
+      return c.json({ error: "Origin not allowed" }, 403);
+    }
+    await next();
+  });
 
   app.use("/api/*", cors());
+
+  app.use("/api/runs", async (c, next) => {
+    if (c.req.method === "POST") {
+      const token = extractBearerToken(c.req.header("Authorization"));
+      if (token !== apiToken) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+    }
+    await next();
+  });
+
+  app.use("/api/runs/:name/evaluate", async (c, next) => {
+    if (c.req.method === "POST") {
+      const token = extractBearerToken(c.req.header("Authorization"));
+      if (token !== apiToken) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+    }
+    await next();
+  });
 
   app.get("/api/runs", async (c) => {
     try {
@@ -40,6 +99,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
 
   app.get("/api/runs/:name", async (c) => {
     const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
     const runDir = join(runsDirectory, name);
 
     try {
@@ -108,6 +172,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   app.get("/api/runs/:name/evidence/:evidenceId", async (c) => {
     const name = c.req.param("name");
     const evidenceId = c.req.param("evidenceId");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
     const runDir = join(runsDirectory, name);
 
     try {
@@ -149,6 +218,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
 
   app.post("/api/runs/:name/evaluate", async (c) => {
     const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
     const runDir = join(runsDirectory, name);
 
     try {

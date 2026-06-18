@@ -265,14 +265,6 @@ function extractMarkdownDirectives(markdown: string): Array<MarkdownDirective> {
       }
       continue;
     }
-
-    const prose = cleanDirectiveText(line);
-    if (prose) {
-      directives.push({
-        text: prose,
-        location: `${currentHeading} directive ${directives.length + 1}`,
-      });
-    }
   }
 
   return directives;
@@ -341,6 +333,8 @@ function reconcileCheckedItemsWithMarkdown(
   return { checkedItems, reconciliationIssues };
 }
 
+const STOPWORDS = new Set(["the", "a", "an", "is", "to", "of", "in", "for", "on", "with", "and", "or", "but", "not", "be", "this", "that", "it", "as", "at", "by", "from", "was", "are", "will", "can", "has", "have", "do", "if", "so", "no", "we", "you", "they", "i"]);
+
 function isDirectiveGroundedInClaim(directive: string, claim: { label: string; rationale: string; dimension: string }): boolean {
   const normalizedDirective = directive.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const normalizedLabel = claim.label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -350,18 +344,20 @@ function isDirectiveGroundedInClaim(directive: string, claim: { label: string; r
     return false;
   }
 
-  const directiveTokens = new Set(normalizedDirective.split(" "));
-  const labelTokens = normalizedLabel.split(" ");
+  const directiveTokens = new Set(
+    normalizedDirective.split(" ").filter((t) => !STOPWORDS.has(t)),
+  );
+  const labelTokens = normalizedLabel.split(" ").filter((t) => !STOPWORDS.has(t));
   const matchedLabelTokens = labelTokens.filter((token) => directiveTokens.has(token));
 
-  if (matchedLabelTokens.length >= Math.max(1, Math.ceil(labelTokens.length * 0.5))) {
+  if (matchedLabelTokens.length >= Math.max(1, Math.ceil(labelTokens.length * 0.6))) {
     return true;
   }
 
   if (normalizedRationale) {
-    const rationaleTokens = new Set(normalizedRationale.split(" "));
-    const matchedRationaleTokens = [...directiveTokens].filter((token) => rationaleTokens.has(token));
-    if (matchedRationaleTokens.length >= 2) {
+    const rationaleTokens = normalizedRationale.split(" ").filter((t) => !STOPWORDS.has(t));
+    const matchedRationaleTokens = rationaleTokens.filter((token) => directiveTokens.has(token));
+    if (matchedRationaleTokens.length >= 3) {
       return true;
     }
   }

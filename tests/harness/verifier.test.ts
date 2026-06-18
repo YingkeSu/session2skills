@@ -21,7 +21,7 @@ describe("harness verifier stage", () => {
           id: "c1",
           dimension: "work-style",
           label: "analysis-first",
-          rationale: "The user begins with code inspection before making changes.",
+          rationale: "The user begin with code inspection before making changes.",
         }),
         makeManifestClaim({
           id: "c2",
@@ -93,7 +93,10 @@ describe("harness verifier stage", () => {
 
   it("flags fabricated claims not in manifest", async () => {
     const manifest = makeClaimManifest({
-      claims: [makeManifestClaim({ id: "c1" })],
+      claims: [makeManifestClaim({
+        id: "c1",
+        rationale: "The user begin with analysis before editing code to ensure correctness.",
+      })],
     });
     const provider = new MockLlmProvider({
       structuredScenarios: [
@@ -102,7 +105,7 @@ describe("harness verifier stage", () => {
           object: {
             pass: false,
             checkedItems: [
-              { directive: "Begin with analysis", claimId: "c1", status: "verified" },
+              { directive: "Begin with analysis before editing", claimId: "c1", status: "verified" },
               { directive: "Use test-driven development", claimId: null, status: "fabricated" },
             ],
             issues: [
@@ -134,6 +137,14 @@ describe("harness verifier stage", () => {
   });
 
   it("fails when verifier skips directives rendered in markdown", async () => {
+    const bulletSkill = `# Workflow Skill
+
+## Workflow
+- Begin with code inspection before making changes.
+
+## Constraints
+- Make minimal, focused changes.
+`;
     const manifest = makeClaimManifest({
       claims: [
         makeManifestClaim({
@@ -148,7 +159,7 @@ describe("harness verifier stage", () => {
       ],
     });
 
-    const result = await runVerifierStage(SAMPLE_SKILL, manifest, provider.toResolved());
+    const result = await runVerifierStage(bulletSkill, manifest, provider.toResolved());
 
     expect(result.report.pass).toBe(false);
     expect(result.report.metadata.directiveCount).toBeGreaterThan(0);
@@ -176,7 +187,7 @@ describe("harness verifier stage", () => {
       claims: [
         makeManifestClaim({
           id: "claim_001",
-          rationale: "The developer prefers analysis-first approach",
+          rationale: "The developer begin with code inspection before making changes to ensure quality.",
         }),
       ],
     });
@@ -208,7 +219,7 @@ describe("harness verifier stage", () => {
       claims: [
         makeManifestClaim({
           id: "claim_001",
-          rationale: "The developer prefers analysis-first approach",
+          rationale: "The developer begin with code inspection before making changes to ensure quality.",
         }),
       ],
     });
@@ -336,5 +347,77 @@ describe("harness verifier stage", () => {
     await expect(
       runVerifierStage(writer.skillMarkdown, manifest, provider.toResolved()),
     ).rejects.toThrow(LlmProviderError);
+  });
+
+  it("does not match directive with only stopword overlap", async () => {
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "c1",
+          dimension: "work-style",
+          label: "analysis-first",
+          rationale: "The user explores code before making changes.",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "the and is", claimId: "c1", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage("# Test\n- the and is\n", manifest, provider.toResolved());
+
+    expect(result.report.checkedItems[0]!.status).toBe("fabricated");
+  });
+
+  it("only extracts bullet directives, not prose", async () => {
+    const proseMarkdown = `# Workflow
+
+This is a prose paragraph that should not be treated as a directive.
+
+Another prose paragraph here.
+
+## Details
+- This is a real bullet directive
+
+More prose text that is not a directive.
+`;
+
+    const manifest = makeClaimManifest({
+      claims: [
+        makeManifestClaim({
+          id: "c1",
+          rationale: "This is a real bullet directive rationale.",
+        }),
+      ],
+    });
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "This is a real bullet directive", claimId: "c1", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await runVerifierStage(proseMarkdown, manifest, provider.toResolved());
+
+    expect(result.report.metadata.directiveCount).toBe(1);
   });
 });

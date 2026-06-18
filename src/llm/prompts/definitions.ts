@@ -4,7 +4,7 @@ import type { PromptTemplate } from "./registry.js";
 // Harness pipeline prompts
 // ---------------------------------------------------------------------------
 
-const HARNESS_DIMENSIONS_ENUM = [
+export const HARNESS_DIMENSIONS_ENUM = [
   "work-style",
   "communication-style",
   "validation-habit",
@@ -14,7 +14,7 @@ const HARNESS_DIMENSIONS_ENUM = [
   "delegation-pattern",
 ];
 
-const HARNESS_LABELS = {
+export const HARNESS_LABELS: Record<string, ReadonlyArray<string>> = {
   "work-style": ["analysis-first", "implementation-first", "iterative", "one-shot"],
   "communication-style": ["concise", "explanatory", "consultative", "directive"],
   "validation-habit": ["run-tests", "run-diagnostics", "check-git-state"],
@@ -69,6 +69,7 @@ export const harnessAnalystPrompt: PromptTemplate<unknown> = {
       },
     },
     required: ["claims", "evidenceSummary", "dimensionsCovered"],
+    additionalProperties: false,
   },
   outputTypeHint: "ClaimManifest",
 };

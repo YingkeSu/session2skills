@@ -52,3 +52,29 @@ export function getDefaultSkillStoreRoot(rootDirectory: string): string {
 export function getActiveSkillPath(storeRoot: string, skillId: string): string {
   return path.join(storeRoot, "active", skillId);
 }
+
+export function isValidRunName(name: string): boolean {
+  if (!name || name.length === 0) return false;
+  if (name.includes("..")) return false;
+  if (name.startsWith("/") || name.startsWith("\\")) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(name);
+}
+
+export function normalizeRunName(name?: string): string {
+  const fallback = timestampedRunName();
+  if (!name || name.trim().length === 0) {
+    return fallback;
+  }
+
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+export function timestampedRunName(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}

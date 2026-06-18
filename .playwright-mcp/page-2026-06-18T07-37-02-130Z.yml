@@ -1,0 +1,256 @@
+- generic [ref=e532]:
+  - generic [ref=e533]:
+    - heading "Harness Runs" [level=1] [ref=e534]
+    - button "中文" [ref=e535] [cursor=pointer]
+  - main "Runs dashboard" [ref=e536]:
+    - region "Run summary" [ref=e537]:
+      - generic [ref=e538]:
+        - generic [ref=e539]: "11"
+        - generic [ref=e540]: Total runs
+      - generic [ref=e541]:
+        - generic [ref=e542]: "8"
+        - generic [ref=e543]: Verifier failures
+      - generic [ref=e544]:
+        - generic [ref=e545]: "0"
+        - generic [ref=e546]: Total issues
+      - generic [ref=e547]:
+        - generic [ref=e548]: "0.27"
+        - generic [ref=e549]: Avg skeptic score
+    - region "Generate Skill" [ref=e550]:
+      - generic [ref=e552]:
+        - heading "Generate Skill" [level=2] [ref=e553]
+        - paragraph [ref=e554]: Generate a new skill from local sessions.
+      - generic [ref=e556]:
+        - generic [ref=e557]:
+          - generic [ref=e558]: Run name
+          - textbox "Run name" [ref=e559]:
+            - /placeholder: optional
+        - generic [ref=e560]:
+          - generic [ref=e561]: Recent sessions
+          - spinbutton "Recent sessions" [ref=e562]: "10"
+        - generic [ref=e563]:
+          - generic [ref=e564]: Tone
+          - combobox "Tone" [ref=e565]:
+            - option "Concise"
+            - option "Balanced" [selected]
+            - option "Detailed"
+        - generic [ref=e566]:
+          - checkbox "Overwrite existing output" [ref=e567]
+          - generic [ref=e568]: Overwrite existing output
+        - button "Generate" [ref=e569] [cursor=pointer]
+    - region "Runs list" [ref=e570]:
+      - generic [ref=e571]:
+        - generic [ref=e572]:
+          - heading "Runs list" [level=2] [ref=e573]
+          - paragraph [ref=e574]: Select a run to inspect audit data, reports, and preview output.
+        - generic [ref=e575]: 11 runs
+      - table [ref=e577]:
+        - rowgroup [ref=e578]:
+          - row "Name Model Generated At Artifacts Verifier Claims Skeptic Score Issues" [ref=e579]:
+            - columnheader "Name" [ref=e580]
+            - columnheader "Model" [ref=e581]
+            - columnheader "Generated At" [ref=e582]
+            - columnheader "Artifacts" [ref=e583]
+            - columnheader "Verifier" [ref=e584]
+            - columnheader "Claims" [ref=e585]
+            - columnheader "Skeptic Score" [ref=e586]
+            - columnheader "Issues" [ref=e587]
+        - rowgroup [ref=e588]:
+          - row "harness-deepseek-v3 deepseek-v4-flash 2026年5月26日 23:04 complete SKILL.md summary PASS 9 1.00 0" [ref=e589] [cursor=pointer]:
+            - cell "harness-deepseek-v3" [ref=e590]:
+              - generic [ref=e591]: harness-deepseek-v3
+            - cell "deepseek-v4-flash" [ref=e592]
+            - cell "2026年5月26日 23:04" [ref=e593]:
+              - time [ref=e594]: 2026年5月26日 23:04
+            - cell "complete SKILL.md summary" [ref=e595]:
+              - generic [ref=e596]:
+                - generic [ref=e597]: complete
+                - generic [ref=e598]: SKILL.md
+                - generic [ref=e599]: summary
+            - cell "PASS" [ref=e600]:
+              - generic [ref=e601]: PASS
+            - cell "9" [ref=e602]
+            - cell "1.00" [ref=e603]:
+              - generic [ref=e604]: "1.00"
+            - cell "0" [ref=e605]:
+              - generic [ref=e606]: "0"
+          - row "harness-deepseek-v2 unknown 2026年5月26日 22:49 complete SKILL.md summary PASS 0 1.00 0" [ref=e607] [cursor=pointer]:
+            - cell "harness-deepseek-v2" [ref=e608]:
+              - generic [ref=e609]: harness-deepseek-v2
+            - cell "unknown" [ref=e610]
+            - cell "2026年5月26日 22:49" [ref=e611]:
+              - time [ref=e612]: 2026年5月26日 22:49
+            - cell "complete SKILL.md summary" [ref=e613]:
+              - generic [ref=e614]:
+                - generic [ref=e615]: complete
+                - generic [ref=e616]: SKILL.md
+                - generic [ref=e617]: summary
+            - cell "PASS" [ref=e618]:
+              - generic [ref=e619]: PASS
+            - cell "0" [ref=e620]
+            - cell "1.00" [ref=e621]:
+              - generic [ref=e622]: "1.00"
+            - cell "0" [ref=e623]:
+              - generic [ref=e624]: "0"
+          - row "harness-deepseek-test unknown 2026年5月26日 22:42 complete SKILL.md summary PASS 9 1.00 0" [ref=e625] [cursor=pointer]:
+            - cell "harness-deepseek-test" [ref=e626]:
+              - generic [ref=e627]: harness-deepseek-test
+            - cell "unknown" [ref=e628]
+            - cell "2026年5月26日 22:42" [ref=e629]:
+              - time [ref=e630]: 2026年5月26日 22:42
+            - cell "complete SKILL.md summary" [ref=e631]:
+              - generic [ref=e632]:
+                - generic [ref=e633]: complete
+                - generic [ref=e634]: SKILL.md
+                - generic [ref=e635]: summary
+            - cell "PASS" [ref=e636]:
+              - generic [ref=e637]: PASS
+            - cell "9" [ref=e638]
+            - cell "1.00" [ref=e639]:
+              - generic [ref=e640]: "1.00"
+            - cell "0" [ref=e641]:
+              - generic [ref=e642]: "0"
+          - row "context-mining-check unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e643] [cursor=pointer]:
+            - cell "context-mining-check" [ref=e644]:
+              - generic [ref=e645]: context-mining-check
+            - cell "unknown" [ref=e646]
+            - cell [ref=e647]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e648]:
+              - generic [ref=e649]:
+                - generic [ref=e650]: partial
+                - generic [ref=e651]: SKILL.md
+                - generic [ref=e652]: summary
+            - cell "FAIL" [ref=e653]:
+              - generic [ref=e654]: FAIL
+            - cell "0" [ref=e655]
+            - cell "0.00" [ref=e656]:
+              - generic [ref=e657]: "0.00"
+            - cell "0" [ref=e658]:
+              - generic [ref=e659]: "0"
+          - row "demo unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e660] [cursor=pointer]:
+            - cell "demo" [ref=e661]:
+              - generic [ref=e662]: demo
+            - cell "unknown" [ref=e663]
+            - cell [ref=e664]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e665]:
+              - generic [ref=e666]:
+                - generic [ref=e667]: partial
+                - generic [ref=e668]: SKILL.md
+                - generic [ref=e669]: summary
+            - cell "FAIL" [ref=e670]:
+              - generic [ref=e671]: FAIL
+            - cell "0" [ref=e672]
+            - cell "0.00" [ref=e673]:
+              - generic [ref=e674]: "0.00"
+            - cell "0" [ref=e675]:
+              - generic [ref=e676]: "0"
+          - row "from-profile unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e677] [cursor=pointer]:
+            - cell "from-profile" [ref=e678]:
+              - generic [ref=e679]: from-profile
+            - cell "unknown" [ref=e680]
+            - cell [ref=e681]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e682]:
+              - generic [ref=e683]:
+                - generic [ref=e684]: partial
+                - generic [ref=e685]: SKILL.md
+                - generic [ref=e686]: summary
+            - cell "FAIL" [ref=e687]:
+              - generic [ref=e688]: FAIL
+            - cell "0" [ref=e689]
+            - cell "0.00" [ref=e690]:
+              - generic [ref=e691]: "0.00"
+            - cell "0" [ref=e692]:
+              - generic [ref=e693]: "0"
+          - row "hybrid-baseline unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e694] [cursor=pointer]:
+            - cell "hybrid-baseline" [ref=e695]:
+              - generic [ref=e696]: hybrid-baseline
+            - cell "unknown" [ref=e697]
+            - cell [ref=e698]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e699]:
+              - generic [ref=e700]:
+                - generic [ref=e701]: partial
+                - generic [ref=e702]: SKILL.md
+                - generic [ref=e703]: summary
+            - cell "FAIL" [ref=e704]:
+              - generic [ref=e705]: FAIL
+            - cell "0" [ref=e706]
+            - cell "0.00" [ref=e707]:
+              - generic [ref=e708]: "0.00"
+            - cell "0" [ref=e709]:
+              - generic [ref=e710]: "0"
+          - row "review-fix-skill unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e711] [cursor=pointer]:
+            - cell "review-fix-skill" [ref=e712]:
+              - generic [ref=e713]: review-fix-skill
+            - cell "unknown" [ref=e714]
+            - cell [ref=e715]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e716]:
+              - generic [ref=e717]:
+                - generic [ref=e718]: partial
+                - generic [ref=e719]: SKILL.md
+                - generic [ref=e720]: summary
+            - cell "FAIL" [ref=e721]:
+              - generic [ref=e722]: FAIL
+            - cell "0" [ref=e723]
+            - cell "0.00" [ref=e724]:
+              - generic [ref=e725]: "0.00"
+            - cell "0" [ref=e726]:
+              - generic [ref=e727]: "0"
+          - row "review-fix-skill-2 unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e728] [cursor=pointer]:
+            - cell "review-fix-skill-2" [ref=e729]:
+              - generic [ref=e730]: review-fix-skill-2
+            - cell "unknown" [ref=e731]
+            - cell [ref=e732]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e733]:
+              - generic [ref=e734]:
+                - generic [ref=e735]: partial
+                - generic [ref=e736]: SKILL.md
+                - generic [ref=e737]: summary
+            - cell "FAIL" [ref=e738]:
+              - generic [ref=e739]: FAIL
+            - cell "0" [ref=e740]
+            - cell "0.00" [ref=e741]:
+              - generic [ref=e742]: "0.00"
+            - cell "0" [ref=e743]:
+              - generic [ref=e744]: "0"
+          - row "review-skill unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e745] [cursor=pointer]:
+            - cell "review-skill" [ref=e746]:
+              - generic [ref=e747]: review-skill
+            - cell "unknown" [ref=e748]
+            - cell [ref=e749]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e750]:
+              - generic [ref=e751]:
+                - generic [ref=e752]: partial
+                - generic [ref=e753]: SKILL.md
+                - generic [ref=e754]: summary
+            - cell "FAIL" [ref=e755]:
+              - generic [ref=e756]: FAIL
+            - cell "0" [ref=e757]
+            - cell "0.00" [ref=e758]:
+              - generic [ref=e759]: "0.00"
+            - cell "0" [ref=e760]:
+              - generic [ref=e761]: "0"
+          - row "test-skill unknown partial SKILL.md summary FAIL 0 0.00 0" [ref=e762] [cursor=pointer]:
+            - cell "test-skill" [ref=e763]:
+              - generic [ref=e764]: test-skill
+            - cell "unknown" [ref=e765]
+            - cell [ref=e766]:
+              - time
+            - cell "partial SKILL.md summary" [ref=e767]:
+              - generic [ref=e768]:
+                - generic [ref=e769]: partial
+                - generic [ref=e770]: SKILL.md
+                - generic [ref=e771]: summary
+            - cell "FAIL" [ref=e772]:
+              - generic [ref=e773]: FAIL
+            - cell "0" [ref=e774]
+            - cell "0.00" [ref=e775]:
+              - generic [ref=e776]: "0.00"
+            - cell "0" [ref=e777]:
+              - generic [ref=e778]: "0"

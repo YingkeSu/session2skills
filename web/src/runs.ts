@@ -190,7 +190,8 @@ export async function evaluateRun(name: string): Promise<SkillEvaluation> {
       `Failed to evaluate run: ${res.status} ${res.statusText}`
     );
   }
-  return res.json();
+  const data = await res.json();
+  return data.evaluation;
 }
 
 export async function fetchEvidenceDetail(

@@ -1,0 +1,152 @@
+- generic [ref=e250]:
+  - generic [ref=e251]:
+    - button "← 返回运行列表" [ref=e252] [cursor=pointer]
+    - button "EN" [ref=e253] [cursor=pointer]
+  - banner [ref=e254]:
+    - generic [ref=e255]:
+      - paragraph [ref=e256]: 测试运行记录
+      - heading "harness-deepseek-v3" [level=1] [ref=e257]
+    - generic [ref=e258]:
+      - generic [ref=e259]: 通过
+      - generic [ref=e260]: 9 条声明中有 0 个问题 · 通过
+  - tablist "测试运行记录" [ref=e261]:
+    - tab "审计视图" [selected] [ref=e262] [cursor=pointer]
+    - tab "报告" [ref=e263] [cursor=pointer]
+    - tab "预览与追踪" [ref=e264] [cursor=pointer]
+  - main [ref=e265]:
+    - tabpanel "审计视图" [ref=e266]:
+      - generic [ref=e267]:
+        - generic [ref=e268]:
+          - generic [ref=e269]:
+            - heading "证据摘要" [level=3] [ref=e270]
+            - generic [ref=e271]: 9 条声明
+          - paragraph
+        - generic [ref=e272]:
+          - generic [ref=e273]:
+            - heading "声明" [level=3] [ref=e274]
+            - generic [ref=e275]: 6 个维度
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - generic [ref=e278]:
+                - heading "work-style" [level=4] [ref=e279]
+                - generic [ref=e280]: 1 条
+              - generic [ref=e282]:
+                - generic [ref=e283]:
+                  - strong [ref=e284]: analysis-first
+                  - generic [ref=e285]: 90%
+                - generic [ref=e287]: 置信度
+                - paragraph [ref=e290]: Developer starts with extensive exploration (running tests, reading files) before implementing fixes. They use explore agents in parallel to gather information, then synthesize findings to create a work plan. This indicates an analysis-first approach.
+                - generic [ref=e291]:
+                  - generic [ref=e292]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e6090e0a6001oqHf3ZsnbQdWYo"
+                  - generic [ref=e293]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60913015001mhSVTB4u6q17KX"
+                  - generic [ref=e294]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609c962a001uzEoYE1YDpA4fb"
+                  - generic [ref=e295]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a02449001Z7nw2CkdKSJPzx"
+            - generic [ref=e296]:
+              - generic [ref=e297]:
+                - heading "communication-style" [level=4] [ref=e298]
+                - generic [ref=e299]: 1 条
+              - generic [ref=e301]:
+                - generic [ref=e302]:
+                  - strong [ref=e303]: explanatory
+                  - generic [ref=e304]: 85%
+                - generic [ref=e306]: 置信度
+                - paragraph [ref=e309]: The developer provides detailed explanations of their reasoning and plans, e.g., 'I detect 调查+修复 intent... my approach is...', and synthesizes findings with clear summaries. This suggests an explanatory style.
+                - generic [ref=e310]:
+                  - generic [ref=e311]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e6090e0a6001oqHf3ZsnbQdWYo"
+                  - generic [ref=e312]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609c962a001uzEoYE1YDpA4fb"
+                  - generic [ref=e313]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a02449001Z7nw2CkdKSJPzx"
+            - generic [ref=e314]:
+              - generic [ref=e315]:
+                - heading "validation-habit" [level=4] [ref=e316]
+                - generic [ref=e317]: 2 条
+              - generic [ref=e318]:
+                - generic [ref=e319]:
+                  - generic [ref=e320]:
+                    - strong [ref=e321]: run-tests
+                    - generic [ref=e322]: 100%
+                  - generic [ref=e324]: 置信度
+                  - paragraph [ref=e327]: Developer consistently runs unit tests, type checks, and builds after making changes. They explicitly check pass/fail status and fix regressions. They also run e2e tests. This shows a strong habit of running tests for validation.
+                  - generic [ref=e328]:
+                    - generic [ref=e329]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609194fe001ZeZ7SvzjbO63Zf"
+                    - generic [ref=e330]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609c962a001uzEoYE1YDpA4fb"
+                    - generic [ref=e331]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a518d3001Qe7H3Vhc4QylA4"
+                    - generic [ref=e332]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a536c000186XUmIKc1i07g1"
+                    - generic [ref=e333]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a5cc38001o5RwkvwdrkCgzU"
+                - generic [ref=e334]:
+                  - generic [ref=e335]:
+                    - strong [ref=e336]: run-diagnostics
+                    - generic [ref=e337]: 90%
+                  - generic [ref=e339]: 置信度
+                  - paragraph [ref=e342]: "Developer runs diagnostic checks like `npx tsc` for type checking and `npx vitest` for tests. They also check git status and diff to verify changes. This indicates a habit of running diagnostics to validate output."
+                  - generic [ref=e343]:
+                    - generic [ref=e344]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609172760015MI1PmhcdsvaTJ"
+                    - generic [ref=e345]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609194fe001ZeZ7SvzjbO63Zf"
+                    - generic [ref=e346]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a2b320001k5FYmEk4w8Tqm2"
+            - generic [ref=e347]:
+              - generic [ref=e348]:
+                - heading "constraint" [level=4] [ref=e349]
+                - generic [ref=e350]: 2 条
+              - generic [ref=e351]:
+                - generic [ref=e352]:
+                  - generic [ref=e353]:
+                    - strong [ref=e354]: type-safety
+                    - generic [ref=e355]: 90%
+                  - generic [ref=e357]: 置信度
+                  - paragraph [ref=e360]: "Developer identifies and fixes unsafe type casts (e.g., 'unsafe `as` cast' in generate.ts) and ensures type correctness. They prioritize type safety in their fixes."
+                  - generic [ref=e361]:
+                    - generic [ref=e362]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609cc8fb001BKv4NaGY7CHWrG"
+                    - generic [ref=e363]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e609cf1e2001AJKnBWmKr526kt"
+                    - generic [ref=e364]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a02449001Z7nw2CkdKSJPzx"
+                    - generic [ref=e365]: "缺失证据: ses_19d80f3ebffehrZaaODmQdg0FK:msg_... (T12: Fix generate.ts unsafe `as` cast)"
+                - generic [ref=e366]:
+                  - generic [ref=e367]:
+                    - strong [ref=e368]: preserve-patterns
+                    - generic [ref=e369]: 80%
+                  - generic [ref=e371]: 置信度
+                  - paragraph [ref=e374]: "Developer ensures evidence ID format matches existing pattern ('ev:${ref.sourceType}:...' format). They check that fixes adhere to project conventions and patterns."
+                  - generic [ref=e375]:
+                    - generic [ref=e376]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a02449001Z7nw2CkdKSJPzx"
+                    - generic [ref=e377]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a31b4a001boT4Fa4FLAELkx"
+            - generic [ref=e378]:
+              - generic [ref=e379]:
+                - heading "token-efficiency" [level=4] [ref=e380]
+                - generic [ref=e381]: 1 条
+              - generic [ref=e383]:
+                - generic [ref=e384]:
+                  - strong [ref=e385]: explorer
+                  - generic [ref=e386]: 80%
+                - generic [ref=e388]: 置信度
+                - paragraph [ref=e391]: Developer conducts extensive exploration before implementing, using multiple parallel explore agents. This indicates a high exploration-to-implementation ratio, characteristic of an explorer pattern.
+                - generic [ref=e392]:
+                  - generic [ref=e393]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60913015001mhSVTB4u6q17KX"
+                  - generic [ref=e394]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60914f2e001aD7mSvfSI1D0HT"
+                  - generic [ref=e395]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a02449001Z7nw2CkdKSJPzx"
+            - generic [ref=e396]:
+              - generic [ref=e397]:
+                - heading "delegation-pattern" [level=4] [ref=e398]
+                - generic [ref=e399]: 2 条
+              - generic [ref=e400]:
+                - generic [ref=e401]:
+                  - generic [ref=e402]:
+                    - strong [ref=e403]: parallelizer
+                    - generic [ref=e404]: 100%
+                  - generic [ref=e406]: 置信度
+                  - paragraph [ref=e409]: Developer consistently fires multiple background agents in parallel (e.g., 5 explore agents, 6 fix agents). They wait for completion notifications and collect results. This shows a strong preference for parallel delegation.
+                  - generic [ref=e410]:
+                    - generic [ref=e411]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60913015001mhSVTB4u6q17KX"
+                    - generic [ref=e412]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60914f2e001aD7mSvfSI1D0HT"
+                    - generic [ref=e413]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a0c96c001owj96gqyOorw4F"
+                    - generic [ref=e414]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a11168001A6FdOH3lH55XAQ"
+                - generic [ref=e415]:
+                  - generic [ref=e416]:
+                    - strong [ref=e417]: trusting
+                    - generic [ref=e418]: 90%
+                  - generic [ref=e420]: 置信度
+                  - paragraph [ref=e423]: Developer delegates tasks to agents with specific instructions and trusts them to execute. They only verify after completion, not micromanaging. This indicates a trusting delegation style.
+                  - generic [ref=e424]:
+                    - generic [ref=e425]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a0c96c001owj96gqyOorw4F"
+                    - generic [ref=e426]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a11168001A6FdOH3lH55XAQ"
+                    - generic [ref=e427]: "缺失证据: ses_19f6f1f91ffeOkJFprAIxQYqjw:msg_e60a2551c001nlr9iM5fkjoFNG"
+    - generic [ref=e429]:
+      - heading "技能评估" [level=3] [ref=e430]
+      - button "评估" [ref=e431] [cursor=pointer]

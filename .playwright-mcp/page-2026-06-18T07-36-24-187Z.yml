@@ -1,0 +1,88 @@
+- generic [ref=e250]:
+  - generic [ref=e251]:
+    - button "← 返回运行列表" [ref=e252] [cursor=pointer]
+    - button "EN" [ref=e253] [cursor=pointer]
+  - banner [ref=e254]:
+    - generic [ref=e255]:
+      - paragraph [ref=e256]: 测试运行记录
+      - heading "harness-deepseek-v3" [level=1] [ref=e257]
+    - generic [ref=e258]:
+      - generic [ref=e259]: 通过
+      - generic [ref=e260]: 9 条声明中有 0 个问题 · 通过
+  - tablist "测试运行记录" [ref=e261]:
+    - tab "审计视图" [ref=e262] [cursor=pointer]
+    - tab "报告" [ref=e263] [cursor=pointer]
+    - tab "预览与追踪" [active] [selected] [ref=e264] [cursor=pointer]
+  - main [ref=e265]:
+    - tabpanel "预览与追踪" [ref=e452]:
+      - generic [ref=e453]:
+        - generic [ref=e454]:
+          - heading "SKILL.md 预览" [level=3] [ref=e455]
+          - generic [ref=e456]:
+            - heading "Personalized Workflow Skill" [level=1] [ref=e457]
+            - heading "work-style" [level=2] [ref=e458]
+            - list [ref=e459]:
+              - listitem [ref=e460]: "analysis-first (confidence: 0.90)"
+            - paragraph [ref=e461]: Developer starts with extensive exploration (running tests, reading files) before implementing fixes. They use explore agents in parallel to gather information, then synthesize findings to create a work plan. This indicates an analysis-first approach.
+            - heading "communication-style" [level=2] [ref=e462]
+            - list [ref=e463]:
+              - listitem [ref=e464]: "explanatory (confidence: 0.85)"
+            - paragraph [ref=e465]: The developer provides detailed explanations of their reasoning and plans, e.g., 'I detect 调查+修复 intent... my approach is...', and synthesizes findings with clear summaries. This suggests an explanatory style.
+            - heading "validation-habit" [level=2] [ref=e466]
+            - list [ref=e467]:
+              - listitem [ref=e468]: "run-tests (confidence: 1.00)"
+            - paragraph [ref=e469]: Developer consistently runs unit tests, type checks, and builds after making changes. They explicitly check pass/fail status and fix regressions. They also run e2e tests. This shows a strong habit of running tests for validation.
+            - heading "validation-habit" [level=2] [ref=e470]
+            - list [ref=e471]:
+              - listitem [ref=e472]: "run-diagnostics (confidence: 0.90)"
+            - paragraph [ref=e473]: "Developer runs diagnostic checks like `npx tsc` for type checking and `npx vitest` for tests. They also check git status and diff to verify changes. This indicates a habit of running diagnostics to validate output."
+            - heading "constraint" [level=2] [ref=e474]
+            - list [ref=e475]:
+              - listitem [ref=e476]: "type-safety (confidence: 0.90)"
+            - paragraph [ref=e477]: "Developer identifies and fixes unsafe type casts (e.g., 'unsafe `as` cast' in generate.ts) and ensures type correctness. They prioritize type safety in their fixes."
+            - heading "constraint" [level=2] [ref=e478]
+            - list [ref=e479]:
+              - listitem [ref=e480]: "preserve-patterns (confidence: 0.80)"
+            - paragraph [ref=e481]: "Developer ensures evidence ID format matches existing pattern ('ev:${ref.sourceType}:...' format). They check that fixes adhere to project conventions and patterns."
+            - heading "token-efficiency" [level=2] [ref=e482]
+            - list [ref=e483]:
+              - listitem [ref=e484]: "explorer (confidence: 0.80)"
+            - paragraph [ref=e485]: Developer conducts extensive exploration before implementing, using multiple parallel explore agents. This indicates a high exploration-to-implementation ratio, characteristic of an explorer pattern.
+            - heading "delegation-pattern" [level=2] [ref=e486]
+            - list [ref=e487]:
+              - listitem [ref=e488]: "parallelizer (confidence: 1.00)"
+            - paragraph [ref=e489]: Developer consistently fires multiple background agents in parallel (e.g., 5 explore agents, 6 fix agents). They wait for completion notifications and collect results. This shows a strong preference for parallel delegation.
+            - heading "delegation-pattern" [level=2] [ref=e490]
+            - list [ref=e491]:
+              - listitem [ref=e492]: "trusting (confidence: 0.90)"
+            - paragraph [ref=e493]: Developer delegates tasks to agents with specific instructions and trusts them to execute. They only verify after completion, not micromanaging. This indicates a trusting delegation style.
+        - generic [ref=e494]:
+          - heading "LLM 追踪" [level=3] [ref=e495]
+          - generic [ref=e496]:
+            - group [ref=e497]:
+              - generic "session-claims deepseek-v4-flash 0 tokens" [ref=e498] [cursor=pointer]:
+                - generic [ref=e499]:
+                  - generic [ref=e500]: session-claims
+                  - generic [ref=e501]: deepseek-v4-flash
+                - generic [ref=e502]: 0 tokens
+            - group [ref=e503]:
+              - generic "category-claims deepseek-v4-flash 0 tokens" [ref=e504] [cursor=pointer]:
+                - generic [ref=e505]:
+                  - generic [ref=e506]: category-claims
+                  - generic [ref=e507]: deepseek-v4-flash
+                - generic [ref=e508]: 0 tokens
+            - group [ref=e509]:
+              - generic "skill-plan deepseek-v4-flash 0 tokens" [ref=e510] [cursor=pointer]:
+                - generic [ref=e511]:
+                  - generic [ref=e512]: skill-plan
+                  - generic [ref=e513]: deepseek-v4-flash
+                - generic [ref=e514]: 0 tokens
+            - group [ref=e515]:
+              - generic "skill-plan deepseek-v4-flash 0 tokens" [ref=e516] [cursor=pointer]:
+                - generic [ref=e517]:
+                  - generic [ref=e518]: skill-plan
+                  - generic [ref=e519]: deepseek-v4-flash
+                - generic [ref=e520]: 0 tokens
+    - generic [ref=e429]:
+      - heading "技能评估" [level=3] [ref=e430]
+      - button "评估" [ref=e431] [cursor=pointer]

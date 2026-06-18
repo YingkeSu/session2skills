@@ -17,8 +17,8 @@ import type { RunSummary } from "../shared/run-summary.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDist = join(__dirname, "../../web/dist");
 
-function getApiToken(): string {
-  return process.env["SESSION2SKILLS_API_TOKEN"] ?? randomBytes(32).toString("hex");
+function getApiToken(): string | null {
+  return process.env["SESSION2SKILLS_API_TOKEN"] ?? null;
 }
 
 function extractBearerToken(authHeader: string | undefined): string | null {
@@ -40,7 +40,14 @@ function isAllowedOrigin(origin: string | undefined): boolean {
   try {
     const url = new URL(origin);
     const hostname = url.hostname;
-    return hostname === "localhost" || hostname === "127.0.0.1";
+    // Allow localhost, 127.0.0.1, and private network IPs (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("10.") ||
+      /^172\.(1[6-9]|2[0-9]|3[01])\./.test(hostname) ||
+      hostname.startsWith("192.168.")
+    );
   } catch {
     return false;
   }
@@ -69,7 +76,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   app.use("/api/*", cors());
 
   app.use("/api/runs", async (c, next) => {
-    if (c.req.method === "POST") {
+    if (c.req.method === "POST" && apiToken) {
       const token = extractBearerToken(c.req.header("Authorization"));
       if (token !== apiToken) {
         return c.json({ error: "Unauthorized" }, 401);
@@ -79,7 +86,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   });
 
   app.use("/api/runs/:name/evaluate", async (c, next) => {
-    if (c.req.method === "POST") {
+    if (c.req.method === "POST" && apiToken) {
       const token = extractBearerToken(c.req.header("Authorization"));
       if (token !== apiToken) {
         return c.json({ error: "Unauthorized" }, 401);

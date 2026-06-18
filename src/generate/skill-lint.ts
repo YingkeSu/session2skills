@@ -17,9 +17,18 @@ export type SkillLintIssue = {
 
 const DEBUG_PHRASE_PATTERN = /\bdirective\(s\)/i;
 const REPORT_PROSE_PATTERN =
-  /\b(?:confidence\s*:\s*\d(?:\.\d+)?|confidence notes|strongest signal|summary-only (?:observation|insight)s?)\b/i;
+  /\b(?:confidence\s*:\s*(?:\d+(?:\.\d+)?|\.\d+)|confidence notes|strongest signal|summary-only (?:observation|insight)s?)\b/i;
 const ENV_PAYLOAD_PATTERN =
   /(?:^|[\r\n])(?:[^\r\n]*(?:generated-skills|\.session2skills)[^\r\n]*)?(?:\.env\b[^\r\n]*[\r\n])?(?:[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|ACCESS_KEY|AUTH_TOKEN|CLIENT_SECRET|SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY)[A-Za-z0-9_]*\s*=)/i;
+
+/**
+ * Strips fenced code blocks (``` ... ```) from markdown content.
+ * Returns the content with all fenced code blocks removed so that
+ * lint patterns do not fire inside code examples.
+ */
+export function stripFencedCodeBlocks(content: string): string {
+  return content.replace(/```[\s\S]*?```/g, "");
+}
 
 export function lintSkillMarkdown(markdown: string): Array<SkillLintIssue> {
   const issues: Array<SkillLintIssue> = [];
@@ -53,7 +62,7 @@ export function lintSkillMarkdown(markdown: string): Array<SkillLintIssue> {
     });
   }
 
-  if (REPORT_PROSE_PATTERN.test(markdown)) {
+  if (REPORT_PROSE_PATTERN.test(stripFencedCodeBlocks(markdown))) {
     issues.push({
       code: "report-prose",
       message: "SKILL.md must contain concise agent-facing instructions, not confidence/rationale report prose.",

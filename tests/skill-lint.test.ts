@@ -41,6 +41,46 @@ describe("lintSkillMarkdown", () => {
     expect(issues.map((issue) => issue.code)).toContain("report-prose");
   });
 
+  it("rejects multi-digit confidence values like confidence: 10", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- analysis-first (confidence: 10)
+  The user repeatedly inspects code before editing.
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
+  it("rejects large integer confidence values like confidence: 100", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- analysis-first (confidence: 100)
+  The user repeatedly inspects code before editing.
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
+  it("ignores report-prose patterns inside fenced code blocks", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Bad Example
+
+\`\`\`markdown
+## Work Style
+- analysis-first (confidence: 0.90)
+  The user repeatedly inspects code before editing.
+\`\`\`
+`);
+    expect(issues.map((issue) => issue.code)).not.toContain("report-prose");
+  });
+
+  it("rejects leading-decimal confidence values like confidence: .5", () => {
+    const issues = lintSkillMarkdown(`${VALID_SKILL}
+## Work Style
+- analysis-first (confidence: .5)
+  The user repeatedly inspects code before editing.
+`);
+    expect(issues.map((issue) => issue.code)).toContain("report-prose");
+  });
+
   it("rejects obvious secrets and environment payloads", () => {
     const issues = lintSkillMarkdown(`${VALID_SKILL}\n.env\nOPENAI_API_KEY=sk-secretvalue`);
     expect(issues.map((issue) => issue.code)).toContain("secret-material");

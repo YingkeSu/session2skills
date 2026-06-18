@@ -245,7 +245,7 @@ describe("isDirectUserEvidence", () => {
     expect(isDirectUserEvidence(item)).toBe(false);
   });
 
-  it("returns false for tool evidence", () => {
+  it("returns true for tool evidence", () => {
     const item: EvidenceItem = {
       schemaVersion: "evidence-item/v1",
       evidenceID: "ses_1:tool_1",
@@ -258,7 +258,7 @@ describe("isDirectUserEvidence", () => {
       summaryText: "test",
     };
 
-    expect(isDirectUserEvidence(item)).toBe(false);
+    expect(isDirectUserEvidence(item)).toBe(true);
   });
 });
 
@@ -276,7 +276,7 @@ describe("selectEvidenceForBudget", () => {
     expect(totalTokens).toBeLessThanOrEqual(200);
   });
 
-  it("prioritizes direct-user evidence when preferDirectUser is true", () => {
+  it("prioritizes direct-user and tool evidence when preferDirectUser is true", () => {
     const toolItem: EvidenceItem = {
       schemaVersion: "evidence-item/v1",
       evidenceID: "tool_first",
@@ -289,14 +289,22 @@ describe("selectEvidenceForBudget", () => {
       citation: { evidenceID: "user_first", sessionID: "s1", messageID: "m1", sourceType: "message", excerpt: "user" },
       summaryText: "user instruction",
     };
+    const partItem: EvidenceItem = {
+      schemaVersion: "evidence-item/v1",
+      evidenceID: "part_last",
+      citation: { evidenceID: "part_last", sessionID: "s1", messageID: "m2", partID: "p1", sourceType: "part", excerpt: "part" },
+      summaryText: "part content",
+    };
 
     const result = selectEvidenceForBudget(
-      [toolItem, userItem],
+      [partItem, toolItem, userItem],
       10000,
       { preferDirectUser: true },
     );
 
-    expect(result[0].evidenceID).toBe("user_first");
+    const ids = result.map((item) => item.evidenceID);
+    expect(ids.indexOf("tool_first")).toBeLessThan(ids.indexOf("part_last"));
+    expect(ids.indexOf("user_first")).toBeLessThan(ids.indexOf("part_last"));
   });
 
   it("deduplicates by evidenceID", () => {
@@ -309,5 +317,36 @@ describe("selectEvidenceForBudget", () => {
 
     const result = selectEvidenceForBudget([item, item, item], 10000);
     expect(result).toHaveLength(1);
+  });
+
+  it("tool evidence gets priority alongside user messages", () => {
+    const userItem: EvidenceItem = {
+      schemaVersion: "evidence-item/v1",
+      evidenceID: "user_1",
+      citation: { evidenceID: "user_1", sessionID: "s1", messageID: "m1", sourceType: "message", excerpt: "user" },
+      summaryText: "user message",
+    };
+    const toolItem: EvidenceItem = {
+      schemaVersion: "evidence-item/v1",
+      evidenceID: "tool_1",
+      citation: { evidenceID: "tool_1", sessionID: "s1", sourceType: "tool", excerpt: "tool" },
+      summaryText: "tool output",
+    };
+    const partItem: EvidenceItem = {
+      schemaVersion: "evidence-item/v1",
+      evidenceID: "part_1",
+      citation: { evidenceID: "part_1", sessionID: "s1", messageID: "m2", partID: "p1", sourceType: "part", excerpt: "part" },
+      summaryText: "part content",
+    };
+
+    const result = selectEvidenceForBudget(
+      [partItem, toolItem, userItem],
+      10000,
+      { preferDirectUser: true },
+    );
+
+    expect(result[0]!.evidenceID).toBe("tool_1");
+    expect(result[1]!.evidenceID).toBe("user_1");
+    expect(result[2]!.evidenceID).toBe("part_1");
   });
 });

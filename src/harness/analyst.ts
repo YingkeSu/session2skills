@@ -8,6 +8,7 @@ import { generateTraceID } from "../llm/trace.js";
 import { buildAnalystPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
 import { LlmProviderError } from "../shared/errors.js";
+import { HARNESS_DIMENSIONS_ENUM, HARNESS_LABELS } from "../llm/prompts/definitions.js";
 
 type RawAnalystOutput = {
   claims?: Array<{
@@ -62,8 +63,12 @@ export async function runAnalystStage(
           description: packet.schema.description,
           schema: packet.schema.schema,
           parse: (value: unknown): RawAnalystOutput => {
-            if (!value || typeof value !== "object") return {};
-            return value as RawAnalystOutput;
+            if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+            const obj = value as Record<string, unknown>;
+            if (obj.claims != null && !Array.isArray(obj.claims)) {
+              obj.claims = [];
+            }
+            return obj as RawAnalystOutput;
           },
         },
       });
@@ -135,8 +140,16 @@ function parseAnalystOutput(
 ): ClaimManifest {
   const rawClaims = Array.isArray(raw.claims) ? raw.claims : [];
 
+  const validDimensions = new Set(HARNESS_DIMENSIONS_ENUM);
+
   const claims = rawClaims
     .filter((c) => c.dimension && c.label && typeof c.confidence === "number")
+    .filter((c) => validDimensions.has(String(c.dimension)))
+    .filter((c) => {
+      const dim = String(c.dimension);
+      const allowedLabels = HARNESS_LABELS[dim];
+      return allowedLabels ? allowedLabels.includes(String(c.label)) : false;
+    })
     .map((c) => {
       const evidenceRefsRaw = c.evidenceRefs ?? c.evidence_ids ?? c.evidence;
       const rawRefs = Array.isArray(evidenceRefsRaw)

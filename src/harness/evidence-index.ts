@@ -179,7 +179,7 @@ export function selectEvidenceForBudget(
 
 export function isDirectUserEvidence(item: EvidenceItem): boolean {
   return (
-    item.citation.sourceType === "message" &&
+    (item.citation.sourceType === "message" || item.citation.sourceType === "tool") &&
     !item.citation.partID
   );
 }

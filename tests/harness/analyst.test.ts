@@ -320,4 +320,80 @@ describe("harness analyst stage", () => {
     expect(result.manifest.claims).toHaveLength(1);
     expect(result.manifest.claims[0]!.evidenceRefs).toEqual(["ev_001", "ev_002"]);
   });
+
+  it("filters out claims with invalid dimension", async () => {
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_valid",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "Valid claim",
+                evidenceRefs: ["ev_001"],
+              },
+              {
+                id: "claim_invalid",
+                dimension: "not-real",
+                label: "some-label",
+                confidence: 0.7,
+                rationale: "Invalid dimension",
+                evidenceRefs: ["ev_002"],
+              },
+            ],
+            evidenceSummary: "5 items",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.id).toBe("claim_valid");
+  });
+
+  it("filters out claims with invalid label for dimension", async () => {
+    const evidence = makeEvidenceItems(5);
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              {
+                id: "claim_valid",
+                dimension: "work-style",
+                label: "analysis-first",
+                confidence: 0.8,
+                rationale: "Valid label",
+                evidenceRefs: ["ev_001"],
+              },
+              {
+                id: "claim_invalid_label",
+                dimension: "work-style",
+                label: "run-tests",
+                confidence: 0.7,
+                rationale: "run-tests belongs to validation-habit, not work-style",
+                evidenceRefs: ["ev_002"],
+              },
+            ],
+            evidenceSummary: "5 items",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+      ],
+    });
+
+    const result = await runAnalystStage(mockSessions, evidence, provider.toResolved());
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.manifest.claims[0]!.id).toBe("claim_valid");
+  });
 });

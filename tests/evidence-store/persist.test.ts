@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { EvidenceStore } from "../../src/evidence-store/store.js";
 import { persistRawEvidence } from "../../src/evidence-store/persist.js";
-import { buildEvidenceIndex, makeEvidenceID, makeExcerpt } from "../../src/harness/evidence-index.js";
+import { buildEvidenceIndex } from "../../src/harness/evidence-index.js";
+import { makeEvidenceID, makeExcerpt } from "../../src/shared/evidence.js";
 import { buildSessions, type SessionSpec } from "../fixtures/evidence-store-fixtures.js";
 
 const LONG_BODY = `Secret token sk-abcdefghijklmnopqrstuvwxyz1234567890 follows. ${"Line of evidence text. ".repeat(60)}`;

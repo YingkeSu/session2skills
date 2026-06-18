@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildEvidenceIndex,
-  makeEvidenceID,
-  makeExcerpt,
-  estimateTokens,
   selectEvidenceForBudget,
   isDirectUserEvidence,
 } from "../src/harness/evidence-index.js";
+import {
+  makeEvidenceID,
+  makeExcerpt,
+  estimateTokens,
+} from "../src/shared/evidence.js";
 import type { NormalizedSession, EvidenceItem } from "../src/normalize/models.js";
 
 const makeSession = (overrides: Partial<NormalizedSession> = {}): NormalizedSession => ({

@@ -4,7 +4,7 @@ import type {
   NormalizedSession,
   ToolInvocation,
 } from "../normalize/models.js";
-import { makeEvidenceID, makeExcerpt } from "../harness/evidence-index.js";
+import { makeEvidenceID, makeExcerpt } from "../shared/evidence.js";
 import { redactSecretsFromString } from "../shared/redaction.js";
 import type { EvidenceRecord } from "./types.js";
 import type { EvidenceStore } from "./store.js";

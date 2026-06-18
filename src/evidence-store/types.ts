@@ -5,7 +5,7 @@ export const EVIDENCE_STORE_SCHEMA_VERSION: EvidenceStoreSchemaVersion = "eviden
 export type EvidenceSourceType = "message" | "part" | "tool";
 
 export type EvidenceRecord = {
-  /** MUST equal makeEvidenceID(sessionID, messageID?, partID?) from harness/evidence-index. */
+  /** MUST equal makeEvidenceID(sessionID, messageID?, partID?) from shared/evidence. */
   evidenceID: string;
   sessionID: string;
   messageID?: string;

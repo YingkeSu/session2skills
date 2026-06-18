@@ -6,34 +6,15 @@ import type {
   NormalizedSession,
   ToolInvocation,
 } from "../normalize/models.js";
-import { redactSecretsFromString } from "../shared/redaction.js";
+import {
+  makeEvidenceID,
+  makeExcerpt,
+  estimateTokens,
+} from "../shared/evidence.js";
+
+export { makeEvidenceID, makeExcerpt, estimateTokens } from "../shared/evidence.js";
 
 export const EVIDENCE_ITEM_SCHEMA_VERSION: EvidenceItemSchemaVersion = "evidence-item/v1";
-
-const MAX_EXCERPT_CHARS = 600;
-const CHARS_PER_TOKEN = 4;
-
-export function makeEvidenceID(
-  sessionID: string,
-  messageID?: string,
-  partID?: string,
-): string {
-  if (!messageID) return sessionID;
-  if (!partID) return `${sessionID}:${messageID}`;
-  return `${sessionID}:${messageID}:${partID}`;
-}
-
-export function makeExcerpt(text: string, maxChars = MAX_EXCERPT_CHARS): string {
-  const trimmed = redactSecretsFromString(text).trim();
-  if (trimmed.length <= maxChars) return trimmed;
-  const cutoff = trimmed.lastIndexOf(" ", maxChars - 3);
-  const sliceEnd = cutoff > maxChars * 0.6 ? cutoff : maxChars - 3;
-  return trimmed.slice(0, sliceEnd) + "...";
-}
-
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
-}
 
 function buildMessageEvidenceItem(
   sessionID: string,

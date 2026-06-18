@@ -136,6 +136,10 @@ body {
   align-items: end;
 }
 
+.generate-form {
+  display: contents;
+}
+
 .generate-grid label {
   display: grid;
   gap: 6px;
@@ -167,6 +171,11 @@ body {
 .generate-checkbox input {
   width: 16px;
   min-height: 16px;
+}
+
+.generate-submit {
+  align-self: end;
+  min-height: 36px;
 }
 
 .generate-message {

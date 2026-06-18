@@ -104,7 +104,6 @@ export function App(): JSX.Element {
         const remaining = current.runs.filter((run) => run.name !== generated.name);
         return { status: "ready", runs: [generated, ...remaining] };
       });
-      setSelectedRun(generated.name);
     } catch (err: unknown) {
       setGenerateState({
         status: "error",
@@ -316,6 +315,15 @@ function GenerateRunPanel({
   const [tone, setTone] = useState<NonNullable<GenerateRunRequest["tone"]>>("balanced");
   const [force, setForce] = useState(false);
   const pending = generateState.status === "pending";
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    void onGenerate({
+      name: name.trim() || undefined,
+      recent: Number.parseInt(recent, 10) || 10,
+      tone,
+      force,
+    });
+  };
 
   return (
     <section className="generate-panel" aria-label={t("generate.title")}>
@@ -324,61 +332,61 @@ function GenerateRunPanel({
           <h2>{t("generate.title")}</h2>
           <p>{t("generate.help")}</p>
         </div>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            onGenerate({
-              name: name.trim() || undefined,
-              recent: Number.parseInt(recent, 10) || 10,
-              tone,
-              force,
-            })
-          }
-        >
-          {pending ? t("generate.pending") : t("generate.submit")}
-        </button>
       </div>
-      <div className="generate-grid">
-        <label>
-          <span>{t("generate.name")}</span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.currentTarget.value)}
-            placeholder={t("generate.namePlaceholder")}
-          />
-        </label>
-        <label>
-          <span>{t("generate.recent")}</span>
-          <input
-            type="number"
-            min="1"
-            value={recent}
-            onChange={(event) => setRecent(event.currentTarget.value)}
-          />
-        </label>
-        <label>
-          <span>{t("generate.tone")}</span>
-          <select
-            value={tone}
-            onChange={(event) =>
-              setTone(event.currentTarget.value as NonNullable<GenerateRunRequest["tone"]>)
-            }
-          >
+      <form className="generate-form" onSubmit={handleSubmit}>
+        <div className="generate-grid">
+          <label htmlFor="generate-run-name">
+            <span>{t("generate.name")}</span>
+            <input
+              id="generate-run-name"
+              aria-label={t("generate.name")}
+              autoComplete="off"
+              value={name}
+              onChange={(event) => setName(event.currentTarget.value)}
+              placeholder={t("generate.namePlaceholder")}
+            />
+          </label>
+          <label htmlFor="generate-recent">
+            <span>{t("generate.recent")}</span>
+            <input
+              id="generate-recent"
+              aria-label={t("generate.recent")}
+              type="number"
+              min="1"
+              value={recent}
+              onChange={(event) => setRecent(event.currentTarget.value)}
+            />
+          </label>
+          <label htmlFor="generate-tone">
+            <span>{t("generate.tone")}</span>
+            <select
+              id="generate-tone"
+              aria-label={t("generate.tone")}
+              value={tone}
+              onChange={(event) =>
+                setTone(event.currentTarget.value as NonNullable<GenerateRunRequest["tone"]>)
+              }
+            >
             <option value="concise">{t("generate.tone.concise")}</option>
             <option value="balanced">{t("generate.tone.balanced")}</option>
             <option value="detailed">{t("generate.tone.detailed")}</option>
           </select>
-        </label>
-        <label className="generate-checkbox">
-          <input
-            type="checkbox"
-            checked={force}
-            onChange={(event) => setForce(event.currentTarget.checked)}
-          />
-          <span>{t("generate.force")}</span>
-        </label>
-      </div>
+          </label>
+          <label className="generate-checkbox" htmlFor="generate-force">
+            <input
+              id="generate-force"
+              aria-label={t("generate.force")}
+              type="checkbox"
+              checked={force}
+              onChange={(event) => setForce(event.currentTarget.checked)}
+            />
+            <span>{t("generate.force")}</span>
+          </label>
+          <button type="submit" disabled={pending} className="generate-submit">
+            {pending ? t("generate.pending") : t("generate.submit")}
+          </button>
+        </div>
+      </form>
       {generateState.status === "error" && (
         <p className="generate-message error">
           {t("generate.error", { message: generateState.message })}

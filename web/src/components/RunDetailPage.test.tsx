@@ -1,9 +1,13 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleContext.js";
 import { DetailShell, RunDetailPageView } from "./RunDetailPage.js";
 import type { RunDetail } from "../runs.js";
+import { useState } from "react";
 
 describe("DetailShell", () => {
   it("renders a stable ready shell with run identity, report status, and tabs", () => {
@@ -30,6 +34,32 @@ describe("DetailShell", () => {
     expect(html).toContain("审计视图");
     expect(html).toContain("报告");
     expect(html).toContain("预览与追踪");
+  });
+
+  it("applies roving tabindex so only the active tab is focusable", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <DetailShell
+          runName="2026-06-analyst-run"
+          detail={readyDetail}
+          activeTab="reports"
+          onBack={() => undefined}
+          onTabChange={() => undefined}
+        >
+          <p>content</p>
+        </DetailShell>
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain('data-testid="reports-tab"');
+    const reportsMatch = html.match(/data-testid="reports-tab"[^>]*tabindex="0"/);
+    expect(reportsMatch).not.toBeNull();
+
+    const auditMatch = html.match(/data-testid="audit-tab"[^>]*tabindex="-1"/);
+    expect(auditMatch).not.toBeNull();
+
+    const previewMatch = html.match(/data-testid="preview-tab"[^>]*tabindex="-1"/);
+    expect(previewMatch).not.toBeNull();
   });
 });
 
@@ -76,6 +106,139 @@ describe("RunDetailPageView", () => {
     expect(html).toContain("技能评估");
     expect(html).toContain("needs-patch");
     expect(html).toContain("pass/pass/fail");
+  });
+
+  it("disables the evaluate button while evaluation is pending", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <RunDetailPageView
+          runName="2026-06-analyst-run"
+          status="ready"
+          error=""
+          detail={readyDetail}
+          activeTab="audit"
+          onBack={() => undefined}
+          onTabChange={() => undefined}
+          evaluationState={{ status: "pending" }}
+          onEvaluate={() => undefined}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain('data-testid="evaluate-button"');
+    const buttonMatch = html.match(
+      /data-testid="evaluate-button"[^>]*disabled/,
+    );
+    expect(buttonMatch).not.toBeNull();
+  });
+});
+
+describe("Tab keyboard navigation", () => {
+  function TabNavigationWrapper({ initial }: { initial?: "audit" | "reports" | "preview" } = {}) {
+    const [tab, setTab] = useState<"audit" | "reports" | "preview">(initial ?? "audit");
+    return (
+      <LocaleProvider>
+        <DetailShell
+          runName="test-run"
+          detail={readyDetail}
+          activeTab={tab}
+          onBack={() => undefined}
+          onTabChange={setTab}
+        >
+          <p>content</p>
+        </DetailShell>
+      </LocaleProvider>
+    );
+  }
+
+  function renderIntoDom(initial?: "audit" | "reports" | "preview") {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(<TabNavigationWrapper initial={initial} />);
+    });
+    return { container, root };
+  }
+
+  it("moves focus to the next tab on ArrowRight", () => {
+    const { container, root } = renderIntoDom();
+
+    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    act(() => {
+      auditTab.focus();
+    });
+    act(() => {
+      auditTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      );
+    });
+
+    const reportsTab = container.querySelector('[data-testid="reports-tab"]') as HTMLElement;
+    expect(reportsTab.getAttribute("aria-selected")).toBe("true");
+
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
+  it("moves focus to the previous tab on ArrowLeft", () => {
+    const { container, root } = renderIntoDom("reports");
+
+    const reportsTab = container.querySelector('[data-testid="reports-tab"]') as HTMLElement;
+    act(() => {
+      reportsTab.focus();
+    });
+    act(() => {
+      reportsTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+
+    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    expect(auditTab.getAttribute("aria-selected")).toBe("true");
+
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
+  it("wraps from last tab to first on ArrowRight", () => {
+    const { container, root } = renderIntoDom("preview");
+
+    const previewTab = container.querySelector('[data-testid="preview-tab"]') as HTMLElement;
+    act(() => {
+      previewTab.focus();
+    });
+    act(() => {
+      previewTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      );
+    });
+
+    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    expect(auditTab.getAttribute("aria-selected")).toBe("true");
+
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
+  it("wraps from first tab to last on ArrowLeft", () => {
+    const { container, root } = renderIntoDom("audit");
+
+    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    act(() => {
+      auditTab.focus();
+    });
+    act(() => {
+      auditTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+
+    const previewTab = container.querySelector('[data-testid="preview-tab"]') as HTMLElement;
+    expect(previewTab.getAttribute("aria-selected")).toBe("true");
+
+    act(() => { root.unmount(); });
+    container.remove();
   });
 });
 

@@ -1,0 +1,10 @@
+appId: com.session2skills.app
+productName: session2skills
+directories:
+  output: release
+files:
+  - dist/**
+  - dist-electron/**
+  - web/dist/**
+  - node_modules/**
+  - package.json

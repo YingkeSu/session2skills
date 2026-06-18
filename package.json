@@ -36,13 +36,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:web": "tsc --noEmit -p web/tsconfig.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
+    "typecheck:electron": "tsc --noEmit -p electron/tsconfig.json",
     "dev": "tsx src/cli/main.ts",
     "start": "node dist/cli/main.js",
     "pretest": "npm run build",
     "test": "vitest run",
     "pretest:e2e": "npm run build",
     "test:e2e": "vitest run tests/e2e/",
-    "test:e2e:web": "vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts"
+    "test:e2e:web": "vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts",
+    "electron:build:main": "tsc -p electron/tsconfig.json && node scripts/create-electron-cjs-marker.mjs",
+    "electron:dev": "npm run build:all && npm run electron:build:main && electron dist-electron/main.js",
+    "electron:build": "npm run build:all && npm run electron:build:main && electron-builder"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
@@ -57,6 +61,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "playwright": "^1.61.0",
     "react": "^19.2.7",

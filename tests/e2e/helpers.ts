@@ -153,15 +153,29 @@ export function loadDotEnv(): Record<string, string> {
     const key = trimmed.slice(0, eqIdx).trim();
     const value = stripQuotes(trimmed.slice(eqIdx + 1).trim());
 
-    if (key === "Zhipu_coding_plan_BaseUrl") {
+    // Map SESSION2SKILLS_LLM_* environment variables
+    if (key === "SESSION2SKILLS_LLM_BASE_URL") {
+      vars["SESSION2SKILLS_LLM_BASE_URL"] = value;
+    } else if (key === "SESSION2SKILLS_LLM_API_KEY") {
+      vars["SESSION2SKILLS_LLM_API_KEY"] = value;
+    } else if (key === "SESSION2SKILLS_LLM_MODEL") {
+      vars["SESSION2SKILLS_LLM_MODEL"] = value;
+    } else if (key === "SESSION2SKILLS_LLM_PROVIDER") {
+      vars["SESSION2SKILLS_LLM_PROVIDER"] = value;
+    } else if (key === "Zhipu_coding_plan_BaseUrl") {
       vars["SESSION2SKILLS_LLM_BASE_URL"] = value;
     } else if (key === "Zhipu_coding_plan_apikey") {
       vars["SESSION2SKILLS_LLM_API_KEY"] = value;
     }
   }
 
-  vars["SESSION2SKILLS_LLM_MODEL"] = process.env.SESSION2SKILLS_LLM_MODEL || "glm-4.7";
-  vars["SESSION2SKILLS_LLM_PROVIDER"] = process.env.SESSION2SKILLS_LLM_PROVIDER || "zhipuai";
+  // Set defaults if not already set
+  if (!vars["SESSION2SKILLS_LLM_MODEL"]) {
+    vars["SESSION2SKILLS_LLM_MODEL"] = process.env.SESSION2SKILLS_LLM_MODEL || "glm-4.7";
+  }
+  if (!vars["SESSION2SKILLS_LLM_PROVIDER"]) {
+    vars["SESSION2SKILLS_LLM_PROVIDER"] = process.env.SESSION2SKILLS_LLM_PROVIDER || "zhipuai";
+  }
 
   return vars;
 }

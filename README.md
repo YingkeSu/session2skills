@@ -27,6 +27,23 @@ Every claim in the output is grounded in session evidence and cross-checked by t
 
 ---
 
+## 📖 Core Concepts
+
+| Term | Meaning |
+|------|---------|
+| **Evidence** | A redacted excerpt from your session (message text, tool call, diff). Each piece has a unique `evidenceID`. |
+| **Claim** | A structured assertion about your work style, tagged with a taxonomy dimension, label, confidence (0–1), and the evidence IDs that support it. |
+| **ClaimManifest** | Stage 1 (Analyst) output — the full collection of claims. The source of truth for everything that follows. |
+| **Skeptic** | Stage 2. Reviews every claim for being unsupported, contradicted, overconfident, vague, or duplicate. High-severity issues drop claims; medium issues reduce confidence. |
+| **Writer** | Stage 3. Renders the (revised) manifest into `SKILL.md` prose. Can only render what the manifest contains — it cannot invent. |
+| **Verifier** | Stage 4. Cross-checks every directive in `SKILL.md` back to a manifest claim. Fabricated or unreferenced directives force `pass=false`. |
+| **Directive** | A single actionable instruction in `SKILL.md`, linked back to the claim it came from (`sourceClaimId`). |
+| **Taxonomy** | The fixed 7-dimension classification: `work-style`, `communication-style`, `validation-habit`, `constraint`, `token-efficiency`, `model-selection`, `delegation-pattern`. Each dimension has canonical labels. |
+
+> For the full architecture map (data flow, layer breakdown, module index), see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Installation

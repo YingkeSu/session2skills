@@ -213,7 +213,7 @@ Avoid editing:
 ## Existing Context
 
 - Read `AGENTS.md`.
-- Read `docs/skill-lifecycle-design.md`.
+- Read `docs/ARCHITECTURE.md` (architecture map with data flow, layer breakdown, domain glossary).
 - Relevant existing files:
   - <path>
 

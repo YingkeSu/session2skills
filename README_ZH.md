@@ -27,6 +27,23 @@
 
 ---
 
+## 📖 核心概念
+
+| 术语 | 含义 |
+|------|------|
+| **证据（Evidence）** | 从你的会话中提取的脱敏摘录（消息文本、工具调用、diff）。每条证据都有唯一的 `evidenceID`。 |
+| **声明（Claim）** | 关于你工作方式的结构化断言，标注了分类维度、标签、置信度（0–1）以及支持它的证据 ID。 |
+| **声明清单（ClaimManifest）** | 第 1 阶段（分析师）的产出 —— 全部声明的集合，是后续所有阶段的唯一事实来源。 |
+| **质疑者（Skeptic）** | 第 2 阶段。审查每条声明是否无据支撑、互相矛盾、过度自信、含糊不清或重复。高严重度问题会丢弃声明；中严重度降低置信度。 |
+| **撰写者（Writer）** | 第 3 阶段。将（修订后的）声明清单渲染成 `SKILL.md`。只能渲染清单中的内容 —— 不能凭空发明。 |
+| **验证者（Verifier）** | 第 4 阶段。交叉检查 `SKILL.md` 中的每条指令是否能追溯到一个声明。捏造或无引用的指令会强制 `pass=false`。 |
+| **指令（Directive）** | `SKILL.md` 中的一条可执行指令，通过 `sourceClaimId` 关联到它来源的声明。 |
+| **分类法（Taxonomy）** | 固定的 7 维度分类体系：`work-style`、`communication-style`、`validation-habit`、`constraint`、`token-efficiency`、`model-selection`、`delegation-pattern`。每个维度有规范标签。 |
+
+> 完整架构地图（数据流、分层拆解、模块索引）请见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 安装

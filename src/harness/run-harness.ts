@@ -17,6 +17,7 @@ export type RunHarnessInput = {
   registry?: PromptRegistry;
   tone?: string;
   budget?: Partial<HarnessBudget>;
+  templateMarkdown?: string;
 };
 
 export async function analyzeWithHarness(input: RunHarnessInput): Promise<HarnessResult> {
@@ -119,6 +120,8 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
   };
 }
 
+const severityRank: Record<SkepticSeverity, number> = { high: 3, medium: 2, low: 1 };
+
 function applySkepticFeedback(
   manifest: ClaimManifest,
   issues: Array<{ claimId: string; severity: SkepticSeverity }>,
@@ -127,7 +130,13 @@ function applySkepticFeedback(
     return manifest;
   }
 
-  const issueMap = new Map(issues.map((issue) => [issue.claimId, issue.severity]));
+  const issueMap = new Map<string, SkepticSeverity>();
+  for (const issue of issues) {
+    const existing = issueMap.get(issue.claimId);
+    if (!existing || severityRank[issue.severity] > severityRank[existing]) {
+      issueMap.set(issue.claimId, issue.severity);
+    }
+  }
 
   const revisedClaims = manifest.claims
     .filter((claim) => {

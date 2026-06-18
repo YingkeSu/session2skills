@@ -287,9 +287,116 @@ describe("harness orchestrator", () => {
     expect(result.writerOutput).toBeDefined();
     expect(result.writerOutput!.skillMarkdown).toContain("personalized-workflow");
     expect(result.writerOutput!.skillMarkdown).toContain("analysis first");
-    expect(result.writerOutput!.sections).toHaveLength(0);
+    expect(result.writerOutput!.sections).toHaveLength(1);
     expect(result.error).toBeUndefined();
     expect(result.failedStage).toBeUndefined();
+  });
+
+  it("aggregates worst severity for duplicate claimId issues", async () => {
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001"] },
+              { id: "c2", dimension: "constraint", label: "type-safety", confidence: 0.9, rationale: "r", evidenceRefs: ["ev_002"] },
+            ],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style", "constraint"],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            issues: [
+              { claimId: "c1", severity: "medium", problemType: "overconfident", detail: "Too high", suggestion: "Lower" },
+              { claimId: "c1", severity: "high", problemType: "unsupported", detail: "No evidence", suggestion: "Remove" },
+            ],
+            overallScore: 0.5,
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Constraint\n- type-safety\n",
+            sections: [{
+              title: "Constraint",
+              summary: "Type safety preferred",
+              directives: [{ text: "type-safety", sourceClaimId: "c2" }],
+              groundingClaimIds: ["c2"],
+            }],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "type-safety", claimId: "c2", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(5),
+      provider: provider.toResolved(),
+    });
+
+    expect(result.revisedManifest!.claims).toHaveLength(1);
+    expect(result.revisedManifest!.claims[0]!.id).toBe("c2");
+    expect(result.revisedManifest!.dimensionsCovered).not.toContain("work-style");
+  });
+
+  it("medium wins over low for duplicate claimId", async () => {
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.9, rationale: "r", evidenceRefs: ["ev_001"] },
+            ],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            issues: [
+              { claimId: "c1", severity: "low", problemType: "vague", detail: "Slightly vague", suggestion: "Clarify" },
+              { claimId: "c1", severity: "medium", problemType: "overconfident", detail: "Too high", suggestion: "Lower" },
+            ],
+            overallScore: 0.7,
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n- Test\n",
+            sections: [],
+          },
+        },
+        {
+          kind: "success",
+          object: { pass: true, checkedItems: [], issues: [] },
+        },
+      ],
+    });
+
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(3),
+      provider: provider.toResolved(),
+    });
+
+    expect(result.revisedManifest!.claims).toHaveLength(1);
+    expect(result.revisedManifest!.claims[0]!.confidence).toBe(0.75);
   });
 
   it("skips verifier when verifier fails", async () => {

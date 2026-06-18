@@ -322,6 +322,7 @@ function GenerateRunPanel({
   const [recent, setRecent] = useState("10");
   const [tone, setTone] = useState<NonNullable<GenerateRunRequest["tone"]>>("balanced");
   const [template, setTemplate] = useState<NonNullable<GenerateRunRequest["template"]>>("claude-skill");
+  const [skillType, setSkillType] = useState<NonNullable<GenerateRunRequest["skillType"]>>("workflow");
   const [force, setForce] = useState(false);
   const pending = generateState.status === "pending";
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
@@ -331,6 +332,7 @@ function GenerateRunPanel({
       recent: Number.parseInt(recent, 10) || 10,
       tone,
       template,
+      skillType,
       force,
     });
   };
@@ -396,6 +398,23 @@ function GenerateRunPanel({
             <option value="opencode-skill">{t("generate.template.opencode-skill")}</option>
             <option value="cursor-mdc">{t("generate.template.cursor-mdc")}</option>
             <option value="copilot-instructions">{t("generate.template.copilot-instructions")}</option>
+          </select>
+          </label>
+          <label htmlFor="generate-skill-type">
+            <span>{t("generate.skillType")}</span>
+            <select
+              id="generate-skill-type"
+              aria-label={t("generate.skillType")}
+              value={skillType}
+              onChange={(event) =>
+                setSkillType(event.currentTarget.value as NonNullable<GenerateRunRequest["skillType"]>)
+              }
+            >
+            <option value="workflow">{t("generate.skillType.workflow")}</option>
+            <option value="testing">{t("generate.skillType.testing")}</option>
+            <option value="code-style">{t("generate.skillType.code-style")}</option>
+            <option value="debugging">{t("generate.skillType.debugging")}</option>
+            <option value="review">{t("generate.skillType.review")}</option>
           </select>
           </label>
           <label className="generate-checkbox" htmlFor="generate-force">

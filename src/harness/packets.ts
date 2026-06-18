@@ -157,8 +157,11 @@ function renderEvidenceLines(items: ReadonlyArray<EvidenceItem>): string {
     .join("\n");
 }
 
-function renderTaxonomy(): string {
-  return HARNESS_TAXONOMY.map(
+function renderTaxonomy(selectedDimensions?: ReadonlyArray<string>): string {
+  const taxonomy = selectedDimensions
+    ? HARNESS_TAXONOMY.filter((t) => selectedDimensions.includes(t.dimension))
+    : HARNESS_TAXONOMY;
+  return taxonomy.map(
     (t) => `### ${t.dimension}\nLabels: ${t.labels.join(", ")}\n${t.description}`,
   ).join("\n\n");
 }
@@ -178,6 +181,7 @@ export function buildAnalystPacket(
   evidence: ReadonlyArray<EvidenceItem>,
   registry?: PromptRegistry,
   tokenBudget: number = 6000,
+  selectedDimensions?: ReadonlyArray<string>,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -187,7 +191,7 @@ export function buildAnalystPacket(
   );
 
   const sessionSection = renderSessionSummaries(sessions);
-  const taxonomySection = renderTaxonomy();
+  const taxonomySection = renderTaxonomy(selectedDimensions);
 
   const fixedOverhead =
     estimateTokens(resolved.systemPrompt) +
@@ -316,6 +320,7 @@ export function buildWriterPacket(
   registry?: PromptRegistry,
   evidence?: ReadonlyArray<EvidenceItem>,
   templateMarkdown?: string,
+  skillTypeFocus?: string,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -380,7 +385,9 @@ export function buildWriterPacket(
         ].join("\n")
       : "",
     "## Instructions",
-    "Write installable-style SKILL.md guidance using ONLY the claims above.",
+    skillTypeFocus
+      ? `Generate a ${tone} skill focused on ${skillTypeFocus}.`
+      : "Write installable-style SKILL.md guidance using ONLY the claims above.",
     "The markdown must start with YAML frontmatter containing name and description.",
     "The markdown body must be agent-facing operating instructions, not a claim/confidence report.",
     "Do NOT include confidence scores, evidence IDs, claim IDs, or rationale text in the skillMarkdown. The output must contain ONLY agent-facing directives.",

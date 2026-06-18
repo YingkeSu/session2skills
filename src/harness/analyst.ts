@@ -39,9 +39,10 @@ export async function runAnalystStage(
   provider: ResolvedLlmProvider,
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
+  selectedDimensions?: ReadonlyArray<string>,
 ): Promise<AnalystStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildAnalystPacket(sessions, evidence, registry);
+  const packet = buildAnalystPacket(sessions, evidence, registry, 6000, selectedDimensions);
   const knownEvidenceIds = new Set(evidence.map((e) => e.evidenceID));
 
   let lastResult: LlmStructuredGenerationResult<RawAnalystOutput> | undefined;
@@ -81,7 +82,7 @@ export async function runAnalystStage(
     }
 
     lastResult = result;
-    manifest = parseAnalystOutput(result.object, sessions.length, evidence.length, knownEvidenceIds);
+    manifest = parseAnalystOutput(result.object, sessions.length, evidence.length, knownEvidenceIds, selectedDimensions);
 
     if (manifest.claims.length > 0) {
       const trace: LLMTrace = {
@@ -137,14 +138,19 @@ function parseAnalystOutput(
   sessionCount: number,
   evidenceCount: number,
   knownEvidenceIds: ReadonlySet<string>,
+  selectedDimensions?: ReadonlyArray<string>,
 ): ClaimManifest {
   const rawClaims = Array.isArray(raw.claims) ? raw.claims : [];
 
   const validDimensions = new Set(HARNESS_DIMENSIONS_ENUM);
+  const allowedDimensions = selectedDimensions
+    ? new Set(selectedDimensions)
+    : null;
 
   const claims = rawClaims
     .filter((c) => c.dimension && c.label && typeof c.confidence === "number")
     .filter((c) => validDimensions.has(String(c.dimension)))
+    .filter((c) => allowedDimensions === null || allowedDimensions.has(String(c.dimension)))
     .filter((c) => {
       const dim = String(c.dimension);
       const allowedLabels = HARNESS_LABELS[dim];

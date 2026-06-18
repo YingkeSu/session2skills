@@ -3,6 +3,7 @@ import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../sh
 import { resolveGeneratedSkillsDirectory, resolveProjectDirectory, validateProjectDirectory } from "../../shared/paths.js";
 import { generateSkillRun } from "../../generate/service.js";
 import { parseTemplate, type TemplateName } from "../../generate/templates.js";
+import { parseSkillType, type SkillType } from "../../generate/skill-types.js";
 
 type GenerateOptions = {
   directory?: string;
@@ -12,6 +13,7 @@ type GenerateOptions = {
   force: boolean;
   tone: TonePreset;
   template: TemplateName;
+  skillType: SkillType;
 };
 
 export type { GenerateSkillRunInput, GenerateSkillRunResult } from "../../generate/service.js";
@@ -26,6 +28,7 @@ export function registerGenerateCommand(program: Command): void {
     .option("-o, --output <path>", "Directory where generated skill artifacts should be written")
     .option("--tone <preset>", "Output tone: concise, balanced, or detailed", parseTonePreset, "balanced")
     .option("--template <name>", "Output template: claude-skill, opencode-skill, cursor-mdc, copilot-instructions", parseTemplate, "claude-skill")
+    .option("--skill-type <type>", "Skill type focus: workflow, testing, code-style, debugging, review", parseSkillType, "workflow")
     .option("--force", "Allow overwriting existing generated outputs", false)
     .action(async (options: GenerateOptions) => {
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
@@ -39,6 +42,7 @@ export function registerGenerateCommand(program: Command): void {
         force: options.force,
         tone: options.tone,
         template: options.template,
+        skillType: options.skillType,
       });
 
       if (result === null) {

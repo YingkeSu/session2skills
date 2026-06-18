@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { parsePositiveInteger, parseTonePreset, type TonePreset } from "../../shared/cli.js";
 import { resolveGeneratedSkillsDirectory, resolveProjectDirectory, validateProjectDirectory } from "../../shared/paths.js";
 import { generateSkillRun } from "../../generate/service.js";
+import { parseTemplate, type TemplateName } from "../../generate/templates.js";
 
 type GenerateOptions = {
   directory?: string;
@@ -10,6 +11,7 @@ type GenerateOptions = {
   output?: string;
   force: boolean;
   tone: TonePreset;
+  template: TemplateName;
 };
 
 export type { GenerateSkillRunInput, GenerateSkillRunResult } from "../../generate/service.js";
@@ -23,6 +25,7 @@ export function registerGenerateCommand(program: Command): void {
     .option("-r, --recent <number>", "Number of recent sessions to analyze", parsePositiveInteger, 10)
     .option("-o, --output <path>", "Directory where generated skill artifacts should be written")
     .option("--tone <preset>", "Output tone: concise, balanced, or detailed", parseTonePreset, "balanced")
+    .option("--template <name>", "Output template: claude-skill, opencode-skill, cursor-mdc, copilot-instructions", parseTemplate, "claude-skill")
     .option("--force", "Allow overwriting existing generated outputs", false)
     .action(async (options: GenerateOptions) => {
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
@@ -35,6 +38,7 @@ export function registerGenerateCommand(program: Command): void {
         recent: options.recent,
         force: options.force,
         tone: options.tone,
+        template: options.template,
       });
 
       if (result === null) {

@@ -13,6 +13,7 @@ import { loadSessions, buildSessionLoadNotes } from "../sessions/load-sessions.j
 import { EvidenceStore } from "../evidence-store/index.js";
 import { getDefaultEvidenceStorePath } from "../evidence-store/paths.js";
 import { persistRawEvidence } from "../evidence-store/persist.js";
+import { loadTemplateMarkdown, type TemplateName } from "./templates.js";
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
@@ -23,6 +24,7 @@ export type GenerateSkillRunInput = {
   recent: number;
   force: boolean;
   tone: TonePreset;
+  template?: TemplateName;
   llmProvider?: ResolvedLlmProvider;
   promptRegistry?: PromptRegistry;
 };
@@ -72,12 +74,17 @@ export async function generateSkillRun(
   const resolved = input.llmProvider ?? resolveHybridLlmProvider();
   const registry = input.promptRegistry ?? buildPromptRegistry();
 
+  const templateMarkdown = input.template
+    ? await loadTemplateMarkdown(input.template)
+    : undefined;
+
   const harnessResult = await analyzeWithHarness({
     sessions: normalizedSessions,
     evidence: evidenceIndex,
     provider: resolved,
     registry,
     tone: input.tone,
+    templateMarkdown,
   });
 
   const selfContainedManifest = enrichManifestWithEvidence(

@@ -1,9 +1,13 @@
 import type { EvidenceItem, LLMTrace } from "../normalize/models.js";
+import type { LlmStructuredGenerationResult } from "../llm/types.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { ClaimManifest, HarnessBudget, ManifestClaim, WriterOutput, WriterSection } from "./types.js";
+import { generateTraceID } from "../llm/trace.js";
 import { buildWriterPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
+
+const WRITER_MAX_RETRIES = 2;
 
 type RawWriterOutput = {
   skillMarkdown?: unknown;
@@ -39,46 +43,114 @@ export async function runWriterStage(
   const resolvedBudget = resolveHarnessBudget(budget);
   const packet = buildWriterPacket(manifest, tone, registry, evidence);
 
-  const result = await provider.provider.generateStructured<RawWriterOutput>({
-    model: provider.model,
-    messages: packet.messages,
-    temperature: resolvedBudget.temperature,
-    maxOutputTokens: resolvedBudget.maxOutputTokens,
-    options: { timeoutMs: resolvedBudget.timeoutMs },
-    schema: {
-      name: packet.schema.name,
-      description: packet.schema.description,
-      schema: packet.schema.schema,
-      parse: (value: unknown): RawWriterOutput => {
-        if (!value || typeof value !== "object") return {};
-        return value as RawWriterOutput;
-      },
-    },
-  });
+  let lastResult: LlmStructuredGenerationResult<RawWriterOutput> | undefined;
+  let output: WriterOutput | undefined;
 
-  const output = parseWriterOutput(result.object, manifest);
+  for (let attempt = 0; attempt <= WRITER_MAX_RETRIES; attempt++) {
+    const traceID = generateTraceID();
+
+    let result: LlmStructuredGenerationResult<RawWriterOutput>;
+    try {
+      result = await provider.provider.generateStructured<RawWriterOutput>({
+        model: provider.model,
+        messages: packet.messages,
+        temperature: resolvedBudget.temperature,
+        maxOutputTokens: resolvedBudget.maxOutputTokens,
+        options: { timeoutMs: resolvedBudget.timeoutMs },
+        schema: {
+          name: packet.schema.name,
+          description: packet.schema.description,
+          schema: packet.schema.schema,
+          parse: (value: unknown): RawWriterOutput => {
+            if (!value || typeof value !== "object") return {};
+            return value as RawWriterOutput;
+          },
+        },
+      });
+    } catch {
+      if (attempt < WRITER_MAX_RETRIES) continue;
+      const fallbackMarkdown = buildFallbackMarkdown(manifest);
+      const fallbackSections = buildSectionsFromClaims(manifest);
+      const exhaustedTrace: LLMTrace = {
+        schemaVersion: "llm-trace/v1",
+        traceID,
+        timestamp: new Date().toISOString(),
+        promptSetVersion: "prompt-set/v1",
+        stage: "harness-writer",
+        provider: provider.provider.provider,
+        model: provider.model.model,
+        inputArtifactRef: "harness:writer:retries-exhausted",
+        request: {
+          promptName: packet.promptId,
+          messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+        },
+        response: {
+          finishReason: "error",
+          rawText: "Writer stage failed after all retries",
+        },
+        usage: {},
+      };
+      return {
+        output: { skillMarkdown: fallbackMarkdown, sections: fallbackSections },
+        trace: exhaustedTrace,
+      };
+    }
+
+    lastResult = result;
+    output = parseWriterOutput(result.object, manifest);
+
+    if (output.skillMarkdown.trim()) {
+      const trace: LLMTrace = {
+        schemaVersion: "llm-trace/v1",
+        traceID,
+        timestamp: new Date().toISOString(),
+        promptSetVersion: "prompt-set/v1",
+        stage: "harness-writer",
+        provider: result.metadata.provider,
+        model: result.metadata.model,
+        inputArtifactRef: `harness:writer${attempt > 0 ? `:retry-${attempt}` : ""}`,
+        request: {
+          promptName: packet.promptId,
+          messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+        },
+        response: {
+          finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+          rawText: result.rawText,
+        },
+        usage: result.metadata.usage,
+      };
+
+      return { output, trace };
+    }
+
+    if (attempt < WRITER_MAX_RETRIES) continue;
+  }
+
+  const fallbackMarkdown = buildFallbackMarkdown(manifest);
+  const fallbackSections = buildSectionsFromClaims(manifest);
+  const exhaustedTrace: LLMTrace = {
+    schemaVersion: "llm-trace/v1",
+    traceID: generateTraceID(),
+    timestamp: new Date().toISOString(),
+    promptSetVersion: "prompt-set/v1",
+    stage: "harness-writer",
+    provider: lastResult!.metadata.provider,
+    model: lastResult!.metadata.model,
+    inputArtifactRef: "harness:writer:retries-exhausted",
+    request: {
+      promptName: packet.promptId,
+      messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
+    },
+    response: {
+      finishReason: (lastResult!.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
+      rawText: lastResult!.rawText,
+    },
+    usage: lastResult!.metadata.usage,
+  };
 
   return {
-    output,
-    trace: {
-      schemaVersion: "llm-trace/v1",
-      traceID: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      promptSetVersion: "prompt-set/v1",
-      stage: "harness-writer",
-      provider: result.metadata.provider,
-      model: result.metadata.model,
-      inputArtifactRef: "harness:writer",
-      request: {
-        promptName: packet.promptId,
-        messages: packet.messages.map((m) => ({ role: m.role, content: m.content })),
-      },
-      response: {
-        finishReason: (result.finishReason as LLMTrace["response"]["finishReason"]) ?? "stop",
-        rawText: result.rawText,
-      },
-      usage: result.metadata.usage,
-    },
+    output: { skillMarkdown: fallbackMarkdown, sections: fallbackSections },
+    trace: exhaustedTrace,
   };
 }
 

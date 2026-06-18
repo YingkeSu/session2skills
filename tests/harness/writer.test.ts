@@ -92,15 +92,72 @@ describe("harness writer stage", () => {
     expect(result.output.sections).toHaveLength(7);
   });
 
-  it("handles LLM timeout", async () => {
+  it("handles LLM timeout with retry then fallback", async () => {
     const manifest = makeClaimManifest();
     const provider = new MockLlmProvider({
-      structuredScenarios: [{ kind: "timeout", message: "Writer timed out" }],
+      structuredScenarios: [
+        { kind: "timeout", message: "Writer timed out" },
+        { kind: "timeout", message: "Writer timed out" },
+        { kind: "timeout", message: "Writer timed out" },
+      ],
     });
 
-    await expect(
-      runWriterStage(manifest, "balanced", provider.toResolved()),
-    ).rejects.toThrow("Writer timed out");
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved());
+
+    expect(result.output.skillMarkdown).toContain("Personalized Workflow Skill");
+    expect(result.output.skillMarkdown).toContain("# ");
+    expect(result.trace.response.finishReason).toBe("error");
+  });
+
+  it("retries on transient failure then succeeds", async () => {
+    const manifest = makeClaimManifest();
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "timeout", message: "Transient failure" },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Workflow Skill\n\n## Workflow\nBegin with analysis.\n",
+            sections: [
+              {
+                title: "Workflow",
+                summary: "The developer prefers analysis-first",
+                directives: [
+                  { text: "Begin with code inspection", sourceClaimId: "claim_001" },
+                ],
+                groundingClaimIds: ["claim_001"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved());
+
+    expect(result.output.skillMarkdown).toContain("Workflow Skill");
+    expect(result.output.sections).toHaveLength(1);
+    expect(result.output.sections[0]!.directives[0]!.sourceClaimId).toBe("claim_001");
+    expect(result.trace.response.finishReason).toBe("stop");
+  });
+
+  it("produces fallback markdown after all retries exhausted", async () => {
+    const manifest = makeClaimManifest();
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "network-error", message: "Network error 1" },
+        { kind: "network-error", message: "Network error 2" },
+        { kind: "network-error", message: "Network error 3" },
+      ],
+    });
+
+    const result = await runWriterStage(manifest, "balanced", provider.toResolved());
+
+    expect(result.output.skillMarkdown).toContain("Personalized Workflow Skill");
+    expect(result.output.skillMarkdown).toContain("# ");
+    expect(result.output.sections).toHaveLength(1);
+    expect(result.output.sections[0]!.directives[0]!.sourceClaimId).toBe("claim_001");
+    expect(result.trace.response.finishReason).toBe("error");
   });
 
   it("generates fallback markdown when LLM returns empty", async () => {

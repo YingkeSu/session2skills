@@ -129,7 +129,7 @@ function parseWriterOutput(raw: RawWriterOutput, manifest: ClaimManifest): Write
   return { skillMarkdown, sections };
 }
 
-function buildFallbackMarkdown(manifest: ClaimManifest): string {
+export function buildFallbackMarkdown(manifest: ClaimManifest): string {
   const sections = buildSectionsFromClaims(manifest);
   const lines: Array<string> = [
     "---",

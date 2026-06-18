@@ -4,9 +4,10 @@ import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget, HarnessResult, SkepticSeverity } from "./types.js";
 import { DEFAULT_HARNESS_BUDGET } from "./types.js";
+import { generateTraceID } from "../llm/trace.js";
 import { runAnalystStage } from "./analyst.js";
 import { runSkepticStage } from "./skeptic.js";
-import { runWriterStage } from "./writer.js";
+import { buildFallbackMarkdown, runWriterStage } from "./writer.js";
 import { runVerifierStage } from "./verifier.js";
 
 export type RunHarnessInput = {
@@ -29,40 +30,92 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
   } = input;
 
   const traces: Array<LLMTrace> = [];
+  const emptyManifest: ClaimManifest = {
+    schemaVersion: "claim-manifest/v1",
+    claims: [],
+    evidenceSummary: "",
+    dimensionsCovered: [],
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      sessionCount: sessions.length,
+      totalEvidenceItems: evidence.length,
+    },
+  };
 
-  const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget);
-  traces.push(analystResult.trace);
+  let manifest: ClaimManifest;
+  try {
+    const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget);
+    traces.push(analystResult.trace);
+    manifest = analystResult.manifest;
+  } catch (error: unknown) {
+    traces.push(buildErrorTrace("harness-analyst", error));
+    return {
+      manifest: emptyManifest,
+      traces,
+      error: `analyst failed: ${String(error)}`,
+      failedStage: "analyst",
+    };
+  }
 
-  const skepticResult = await runSkepticStage(
-    analystResult.manifest,
-    evidence,
-    provider,
-    registry,
-    budget,
-  );
-  traces.push(skepticResult.trace);
+  let skepticReport: HarnessResult["skepticReport"];
+  let revisedManifest: ClaimManifest;
+  try {
+    const skepticResult = await runSkepticStage(manifest, evidence, provider, registry, budget);
+    traces.push(skepticResult.trace);
+    skepticReport = skepticResult.report;
+    revisedManifest = applySkepticFeedback(manifest, skepticResult.report.issues);
+  } catch (error: unknown) {
+    traces.push(buildErrorTrace("harness-skeptic", error));
+    skepticReport = undefined;
+    revisedManifest = manifest;
+  }
 
-  const revisedManifest = applySkepticFeedback(analystResult.manifest, skepticResult.report.issues);
+  let writerOutput: HarnessResult["writerOutput"];
+  try {
+    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence);
+    traces.push(writerResult.trace);
+    writerOutput = writerResult.output;
+  } catch (error: unknown) {
+    traces.push(buildErrorTrace("harness-writer", error));
+    const fallbackMarkdown = buildFallbackMarkdown(revisedManifest);
+    writerOutput = {
+      skillMarkdown: fallbackMarkdown,
+      sections: [],
+    };
+  }
 
-  const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence);
-  traces.push(writerResult.trace);
+  let verifierReport: HarnessResult["verifierReport"];
+  try {
+    const verifierResult = await runVerifierStage(
+      writerOutput.skillMarkdown,
+      revisedManifest,
+      provider,
+      registry,
+      budget,
+    );
+    traces.push(verifierResult.trace);
+    verifierReport = verifierResult.report;
+  } catch (error: unknown) {
+    traces.push(buildErrorTrace("harness-verifier", error));
+    verifierReport = undefined;
+  }
 
-  const verifierResult = await runVerifierStage(
-    writerResult.output.skillMarkdown,
-    revisedManifest,
-    provider,
-    registry,
-    budget,
-  );
-  traces.push(verifierResult.trace);
+  const failedStage = !skepticReport ? "skeptic"
+    : !verifierReport ? "verifier"
+    : undefined;
+
+  const error = failedStage
+    ? `${failedStage} failed: see traces`
+    : undefined;
 
   return {
-    manifest: analystResult.manifest,
-    skepticReport: skepticResult.report,
-    writerOutput: writerResult.output,
-    verifierReport: verifierResult.report,
+    manifest,
+    skepticReport,
+    writerOutput,
+    verifierReport,
     revisedManifest,
     traces,
+    ...(error ? { error, failedStage } : {}),
   };
 }
 
@@ -95,5 +148,21 @@ function applySkepticFeedback(
     ...manifest,
     claims: revisedClaims,
     dimensionsCovered,
+  };
+}
+
+function buildErrorTrace(stage: string, error: unknown): LLMTrace {
+  return {
+    schemaVersion: "llm-trace/v1",
+    traceID: generateTraceID(),
+    timestamp: new Date().toISOString(),
+    promptSetVersion: "prompt-set/v1",
+    stage: stage as LLMTrace["stage"],
+    provider: "",
+    model: "",
+    inputArtifactRef: `harness:${stage}:error`,
+    request: { promptName: "", messages: [] },
+    response: { finishReason: "error", rawText: String(error) },
+    usage: {},
   };
 }

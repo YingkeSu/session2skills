@@ -80,11 +80,13 @@ describe("harness orchestrator", () => {
     });
 
     expect(result.manifest.schemaVersion).toBe("claim-manifest/v1");
-    expect(result.skepticReport.schemaVersion).toBe("skeptic-report/v1");
-    expect(result.writerOutput.skillMarkdown).toContain("Skill");
-    expect(result.verifierReport.schemaVersion).toBe("verifier-report/v1");
+    expect(result.skepticReport!.schemaVersion).toBe("skeptic-report/v1");
+    expect(result.writerOutput!.skillMarkdown).toContain("Skill");
+    expect(result.verifierReport!.schemaVersion).toBe("verifier-report/v1");
     expect(result.traces).toHaveLength(4);
-    expect(result.revisedManifest.claims).toHaveLength(1);
+    expect(result.revisedManifest!.claims).toHaveLength(1);
+    expect(result.error).toBeUndefined();
+    expect(result.failedStage).toBeUndefined();
   });
 
   it("drops high-severity claims after skeptic feedback", async () => {
@@ -141,9 +143,9 @@ describe("harness orchestrator", () => {
       provider: provider.toResolved(),
     });
 
-    expect(result.revisedManifest.claims).toHaveLength(1);
-    expect(result.revisedManifest.claims[0]!.id).toBe("c1");
-    expect(result.revisedManifest.dimensionsCovered).not.toContain("constraint");
+    expect(result.revisedManifest!.claims).toHaveLength(1);
+    expect(result.revisedManifest!.claims[0]!.id).toBe("c1");
+    expect(result.revisedManifest!.dimensionsCovered).not.toContain("constraint");
   });
 
   it("reduces confidence for medium-severity issues", async () => {
@@ -188,10 +190,10 @@ describe("harness orchestrator", () => {
       provider: provider.toResolved(),
     });
 
-    expect(result.revisedManifest.claims[0]!.confidence).toBe(0.75);
+    expect(result.revisedManifest!.claims[0]!.confidence).toBe(0.75);
   });
 
-  it("propagates errors from any stage", async () => {
+  it("returns partial result when skeptic fails", async () => {
     const provider = new MockLlmProvider({
       structuredScenarios: [
         {
@@ -205,19 +207,50 @@ describe("harness orchestrator", () => {
         { kind: "timeout", message: "Skeptic timed out" },
         { kind: "timeout", message: "Skeptic timed out" },
         { kind: "timeout", message: "Skeptic timed out" },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Begin with analysis\n",
+            sections: [{
+              title: "Workflow",
+              summary: "Analysis-first approach",
+              directives: [{ text: "Begin with analysis", sourceClaimId: "c1" }],
+              groundingClaimIds: ["c1"],
+            }],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [
+              { directive: "Begin with analysis", claimId: "c1", status: "verified" },
+            ],
+            issues: [],
+          },
+        },
       ],
     });
 
-    await expect(
-      analyzeWithHarness({
-        sessions: [makeTestSession("s1")],
-        evidence: makeEvidenceItems(3),
-        provider: provider.toResolved(),
-      }),
-    ).rejects.toThrow("Skeptic stage failed after 3 attempts");
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(3),
+      provider: provider.toResolved(),
+    });
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.skepticReport).toBeUndefined();
+    expect(result.revisedManifest).toBeDefined();
+    expect(result.revisedManifest!.claims).toHaveLength(1);
+    expect(result.writerOutput).toBeDefined();
+    expect(result.writerOutput!.skillMarkdown).toContain("Skill");
+    expect(result.verifierReport).toBeDefined();
+    expect(result.error).toBe("skeptic failed: see traces");
+    expect(result.failedStage).toBe("skeptic");
+    expect(result.traces.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("collects traces from all completed stages before error", async () => {
+  it("uses fallback markdown when writer fails", async () => {
     const provider = new MockLlmProvider({
       structuredScenarios: [
         {
@@ -230,19 +263,78 @@ describe("harness orchestrator", () => {
         },
         { kind: "success", object: { issues: [], overallScore: 1.0 } },
         { kind: "network-error", message: "Writer crashed" },
+        { kind: "network-error", message: "Writer crashed" },
+        { kind: "network-error", message: "Writer crashed" },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [],
+            issues: [],
+          },
+        },
       ],
     });
 
-    try {
-      await analyzeWithHarness({
-        sessions: [makeTestSession("s1")],
-        evidence: makeEvidenceItems(3),
-        provider: provider.toResolved(),
-      });
-    } catch {
-      // Expected to throw
-    }
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(3),
+      provider: provider.toResolved(),
+    });
 
-    expect(provider.structuredRequests).toHaveLength(3);
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.skepticReport).toBeDefined();
+    expect(result.writerOutput).toBeDefined();
+    expect(result.writerOutput!.skillMarkdown).toContain("personalized-workflow");
+    expect(result.writerOutput!.skillMarkdown).toContain("analysis first");
+    expect(result.writerOutput!.sections).toHaveLength(0);
+    expect(result.error).toBeUndefined();
+    expect(result.failedStage).toBeUndefined();
+  });
+
+  it("skips verifier when verifier fails", async () => {
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [{ id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001"] }],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+        { kind: "success", object: { issues: [], overallScore: 1.0 } },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Begin with analysis\n",
+            sections: [{
+              title: "Workflow",
+              summary: "Analysis-first approach",
+              directives: [{ text: "Begin with analysis", sourceClaimId: "c1" }],
+              groundingClaimIds: ["c1"],
+            }],
+          },
+        },
+        { kind: "timeout", message: "Verifier timed out" },
+        { kind: "timeout", message: "Verifier timed out" },
+        { kind: "timeout", message: "Verifier timed out" },
+      ],
+    });
+
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(3),
+      provider: provider.toResolved(),
+    });
+
+    expect(result.manifest.claims).toHaveLength(1);
+    expect(result.skepticReport).toBeDefined();
+    expect(result.writerOutput).toBeDefined();
+    expect(result.writerOutput!.skillMarkdown).toContain("Skill");
+    expect(result.verifierReport).toBeUndefined();
+    expect(result.error).toBe("verifier failed: see traces");
+    expect(result.failedStage).toBe("verifier");
+    expect(result.traces.length).toBeGreaterThanOrEqual(4);
   });
 });

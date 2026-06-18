@@ -206,13 +206,17 @@ export type HarnessResult = {
   /** Stage 1: Claim manifest from evidence analyst. */
   manifest: ClaimManifest;
   /** Stage 2: Skeptic critique of the manifest. */
-  skepticReport: SkepticReport;
+  skepticReport?: SkepticReport;
   /** Stage 3: Writer output (SKILL.md + structured). */
-  writerOutput: WriterOutput;
+  writerOutput?: WriterOutput;
   /** Stage 4: Verifier cross-check result. */
-  verifierReport: VerifierReport;
+  verifierReport?: VerifierReport;
   /** LLM traces from all 4 stages. */
   traces: Array<LLMTrace>;
   /** Manifest after applying skeptic feedback. */
-  revisedManifest: ClaimManifest;
+  revisedManifest?: ClaimManifest;
+  /** Error message if any stage failed after retries. */
+  error?: string;
+  /** Which stage threw the error. */
+  failedStage?: "analyst" | "skeptic" | "writer" | "verifier";
 };

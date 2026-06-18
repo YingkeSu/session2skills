@@ -46,16 +46,21 @@
     "test:e2e:web": "vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts",
     "electron:build:main": "tsc -p electron/tsconfig.json && node scripts/create-electron-cjs-marker.mjs",
     "electron:dev": "npm run build:all && npm run electron:build:main && electron dist-electron/main.js",
-    "electron:build": "npm run build:all && npm run electron:build:main && electron-builder"
+    "electron:build": "npm run build:all && npm run electron:build:main && electron-builder",
+    "electron:build:mac": "npm run build:all && npm run electron:build:main && electron-builder --mac",
+    "electron:build:win": "npm run build:all && npm run electron:build:main && electron-builder --win",
+    "electron:build:linux": "npm run build:all && npm run electron:build:main && electron-builder --linux",
+    "electron:smoke": "node scripts/electron-smoke-test.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
     "@opencode-ai/sdk": "1.4.0",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.11.1",
     "commander": "^14.0.0",
     "hono": "^4.12.25"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.5.2",
     "@types/react": "^19.2.17",

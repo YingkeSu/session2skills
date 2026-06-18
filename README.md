@@ -65,6 +65,7 @@ export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
 | `SESSION2SKILLS_LLM_API_KEY` | ❌ | API key (not needed for some local/self-hosted endpoints) |
 | `SESSION2SKILLS_LLM_PROVIDER` | ❌ | Provider label, defaults to `openai-compatible` |
 | `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | Optional version label |
+| `SESSION2SKILLS_API_TOKEN` | ❌ | Bearer token for `POST /api/runs` endpoint (optional auth) |
 
 ### 4. Configure Session Source Adapter
 
@@ -85,6 +86,13 @@ export SESSION2SKILLS_ADAPTER="claude"  # or "codex", "sdk", "sqlite"
 1. OpenCode SQLite database detected → use `sqlite`
 2. Otherwise → use `sdk` (OpenCode API)
 
+**SQLite adapter environment variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SESSION2SKILLS_DB_PATH` | `~/.local/share/opencode/opencode.db` | OpenCode SQLite database path |
+| `SESSION2SKILLS_SNAPSHOT_DIR` | `~/.local/share/opencode/snapshot` | Snapshot directory for diffs |
+
 #### Codex Adapter
 
 For users of [Codex CLI](https://github.com/openai/codex):
@@ -94,7 +102,12 @@ export SESSION2SKILLS_ADAPTER="codex"
 node dist/cli/main.js inspect --directory /project/path --recent 5
 ```
 
-**Data location:** `~/.codex/sessions.db` (SQLite database)
+**Data location:** `~/.codex/state_5.sqlite` (SQLite database)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CODEX_HOME` | `~/.codex` | Codex home directory |
+| `CODEX_SQLITE_HOME` | `$CODEX_HOME` | Override SQLite database location |
 
 #### Claude Adapter
 
@@ -107,6 +120,10 @@ node dist/cli/main.js inspect --directory /project/path --recent 5
 
 **Data location:** `~/.claude/projects/<project-hash>/` (JSONL transcript files)
 
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config directory |
+
 ---
 
 ## 📖 Command Guide
@@ -118,6 +135,14 @@ View recent OpenCode sessions:
 ```bash
 node dist/cli/main.js inspect --directory /project/path --recent 5
 ```
+
+**Parameters:**
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--directory <path>` | `-d` | — | Target project directory |
+| `--workspace <id>` | `-w` | — | Optional OpenCode workspace id |
+| `--recent <number>` | `-r` | `10` | Number of recent sessions to inspect |
 
 ### 🛠️ Generate Skills
 
@@ -133,13 +158,14 @@ node dist/cli/main.js generate \
 
 **Parameters:**
 
-| Parameter | Description |
-|-----------|-------------|
-| `--directory` | Project directory to analyze (absolute path) |
-| `--recent` | Analyze the most recent N sessions |
-| `--output` | Output directory |
-| `--tone` | Output style: `concise` / `balanced` / `detailed` |
-| `--force` | Overwrite existing output files |
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--directory <path>` | `-d` | — | Target project directory |
+| `--workspace <id>` | `-w` | — | Optional OpenCode workspace id |
+| `--recent <number>` | `-r` | `10` | Number of recent sessions to analyze |
+| `--output <path>` | `-o` | — | Output directory for artifacts |
+| `--tone <preset>` | — | `balanced` | Output style: `concise` / `balanced` / `detailed` |
+| `--force` | — | `false` | Allow overwriting existing outputs |
 
 **Generated files:**
 
@@ -157,8 +183,18 @@ node dist/cli/main.js generate \
 Run quality checks on generated skill files:
 
 ```bash
-node dist/cli/main.js evaluate --skill generated-skills/my-skill/SKILL.md
+node dist/cli/main.js evaluate --directory /project/path
 ```
+
+**Parameters:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--directory <path>` | — | Target project directory containing `generated-skills/` |
+| `--skill-directory <path>` | — | Explicit path to skill directory (overrides `--directory`) |
+| `--skill-file-name <name>` | `SKILL.md` | Name of the skill markdown file |
+| `--verifier-report-file-name <name>` | `verifier-report.json` | Name of the verifier report file |
+| `--size-budget <bytes>` | `120000` | Maximum allowed size for skill markdown |
 
 Checks include:
 - ✅ Lint rule validation
@@ -176,15 +212,36 @@ npm run build:all
 node dist/cli/main.js serve --directory /project/path
 ```
 
+**Parameters:**
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--directory <path>` | `-d` | — | Target project directory |
+| `--port <number>` | `-p` | `3000` | HTTP port |
+| `--host <address>` | `-H` | `0.0.0.0` | Hostname/IP to bind |
+
 **Access URLs:**
 - 🏠 Local: http://localhost:3000
 - 🌐 Network: http://100.98.177.122:3000
 
-**Web UI features:**
-- 📊 Run dashboard — view all generated skill runs
-- 📝 Detail pages — view audit, reports, previews
-- 🔍 Evidence chain tracing — click to expand evidence details
-- 🌏 Multi-language support — Chinese/English switching
+**Web UI features (React + Vite):**
+- 📊 Run dashboard — view all generated skill runs with status indicators
+- 📝 Detail pages — tabbed view for audit, reports, preview, and traces
+- 🔍 Evidence chain tracing — click to expand evidence details with lazy loading
+- 🌏 Multi-language support — Chinese/English switching with locale persistence
+- 📱 Responsive design — desktop and mobile viewport support
+- 🔗 URL state management — `?run=<name>` query params for deep linking
+
+**Web API endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/runs` | List all generated runs |
+| `GET` | `/api/runs/:name` | Get run details (manifest, reports, traces) |
+| `GET` | `/api/runs/:name/evidence/:id` | Get specific evidence item |
+| `POST` | `/api/runs` | Generate a new run (requires auth if `SESSION2SKILLS_API_TOKEN` set) |
+| `POST` | `/api/runs/:name/evaluate` | Run evaluation on existing run |
 
 **Verify Web Pipeline:**
 
@@ -224,17 +281,20 @@ npm run verify:web   # Verify web pipeline
 
 ```
 src/
-├── cli/            # Commander CLI entry + sub-commands
-├── adapters/       # External system adapters
-├── analyze/        # Core analysis pipeline
-├── generate/       # Skill rendering pipeline
-├── llm/            # LLM abstraction layer
-├── normalize/      # Session normalization
-├── persist/        # Secure directory writing
-├── profile/        # Heuristic profiling
-└── shared/         # Shared utilities
-web/                # Web UI frontend
-tests/              # Test files
+├── cli/            # Commander CLI entry + 4 sub-commands (inspect, evaluate, generate, serve)
+├── adapters/       # Session source adapters (opencode, sqlite, codex, claude)
+├── evidence-store/ # SQLite-backed evidence persistence
+├── generate/       # Skill evaluation and rendering
+├── harness/        # 4-stage LLM pipeline (analyst → skeptic → writer → verifier)
+├── llm/            # LLM abstraction layer (provider, registry, prompts)
+├── normalize/      # Session normalization and type models
+├── persist/        # Secure staged directory write
+├── server/         # Hono web server for serve command
+├── sessions/       # Session loading and tree filtering
+└── shared/         # Shared utilities (errors, cli, paths, redaction)
+web/                # React + Vite Web UI frontend
+tests/              # Unit, golden, and e2e tests
+docs/               # Design docs and audit notes
 ```
 
 ---
@@ -253,9 +313,7 @@ Use the `--tone` parameter to control output verbosity:
 
 ## ⚠️ Current Limitations
 
-- 📦 Only supports OpenCode (no other session sources yet)
-- 📚 Only analyzes historical sessions
-- 💻 CLI mode only (no service/daemon)
+- 📚 Only analyzes historical sessions (no real-time monitoring)
 - 🤖 LLM pipeline has non-zero hallucination — claims are cross-checked against evidence, but final output still reflects model inference
 
 ---

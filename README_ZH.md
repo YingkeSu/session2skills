@@ -65,6 +65,7 @@ export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
 | `SESSION2SKILLS_LLM_API_KEY` | ❌ | API 密钥，某些本地/自托管端点不需要 |
 | `SESSION2SKILLS_LLM_PROVIDER` | ❌ | 提供商标签，默认 `openai-compatible` |
 | `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | 可选的版本标签 |
+| `SESSION2SKILLS_API_TOKEN` | ❌ | `POST /api/runs` 端点的 Bearer 令牌（可选认证） |
 
 ### 4. 配置会话源适配器
 
@@ -85,6 +86,13 @@ export SESSION2SKILLS_ADAPTER="claude"  # 或 "codex"、"sdk"、"sqlite"
 1. 检测到 OpenCode SQLite 数据库 → 使用 `sqlite`
 2. 否则 → 使用 `sdk`（OpenCode API）
 
+**SQLite 适配器环境变量：**
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `SESSION2SKILLS_DB_PATH` | `~/.local/share/opencode/opencode.db` | OpenCode SQLite 数据库路径 |
+| `SESSION2SKILLS_SNAPSHOT_DIR` | `~/.local/share/opencode/snapshot` | 快照目录（用于 diff） |
+
 #### Codex 适配器
 
 适用于使用 [Codex CLI](https://github.com/openai/codex) 的用户：
@@ -94,7 +102,12 @@ export SESSION2SKILLS_ADAPTER="codex"
 node dist/cli/main.js inspect --directory /项目路径 --recent 5
 ```
 
-**数据位置：** `~/.codex/sessions.db`（SQLite 数据库）
+**数据位置：** `~/.codex/state_5.sqlite`（SQLite 数据库）
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CODEX_HOME` | `~/.codex` | Codex 主目录 |
+| `CODEX_SQLITE_HOME` | `$CODEX_HOME` | 覆盖 SQLite 数据库位置 |
 
 #### Claude 适配器
 
@@ -107,6 +120,10 @@ node dist/cli/main.js inspect --directory /项目路径 --recent 5
 
 **数据位置：** `~/.claude/projects/<project-hash>/`（JSONL 转录文件）
 
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude 配置目录 |
+
 ---
 
 ## 📖 命令指南
@@ -118,6 +135,14 @@ node dist/cli/main.js inspect --directory /项目路径 --recent 5
 ```bash
 node dist/cli/main.js inspect --directory /项目路径 --recent 5
 ```
+
+**参数说明：**
+
+| 参数 | 短写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--directory <path>` | `-d` | — | 目标项目目录 |
+| `--workspace <id>` | `-w` | — | 可选的 OpenCode 工作区 ID |
+| `--recent <number>` | `-r` | `10` | 检查最近 N 个会话 |
 
 ### 🛠️ 生成技能
 
@@ -133,13 +158,14 @@ node dist/cli/main.js generate \
 
 **参数说明：**
 
-| 参数 | 说明 |
-|------|------|
-| `--directory` | 要分析的项目目录（绝对路径） |
-| `--recent` | 分析最近 N 个会话 |
-| `--output` | 输出目录 |
-| `--tone` | 输出风格：`concise`（简洁）/ `balanced`（平衡）/ `detailed`（详细） |
-| `--force` | 覆盖已存在的输出文件 |
+| 参数 | 短写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--directory <path>` | `-d` | — | 目标项目目录 |
+| `--workspace <id>` | `-w` | — | 可选的 OpenCode 工作区 ID |
+| `--recent <number>` | `-r` | `10` | 分析最近 N 个会话 |
+| `--output <path>` | `-o` | — | 输出目录 |
+| `--tone <preset>` | — | `balanced` | 输出风格：`concise` / `balanced` / `detailed` |
+| `--force` | — | `false` | 覆盖已存在的输出文件 |
 
 **生成的文件：**
 
@@ -157,8 +183,18 @@ node dist/cli/main.js generate \
 对生成的技能文件运行质量检查：
 
 ```bash
-node dist/cli/main.js evaluate --skill generated-skills/my-skill/SKILL.md
+node dist/cli/main.js evaluate --directory /项目路径
 ```
+
+**参数说明：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--directory <path>` | — | 包含 `generated-skills/` 的目标项目目录 |
+| `--skill-directory <path>` | — | 技能目录的显式路径（覆盖 `--directory`） |
+| `--skill-file-name <name>` | `SKILL.md` | 技能 Markdown 文件名 |
+| `--verifier-report-file-name <name>` | `verifier-report.json` | 验证报告文件名 |
+| `--size-budget <bytes>` | `120000` | 技能 Markdown 的最大允许大小 |
 
 检查项包括：
 - ✅ Lint 规则检查
@@ -176,15 +212,36 @@ npm run build:all
 node dist/cli/main.js serve --directory /项目路径
 ```
 
+**参数说明：**
+
+| 参数 | 短写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--directory <path>` | `-d` | — | 目标项目目录 |
+| `--port <number>` | `-p` | `3000` | HTTP 端口 |
+| `--host <address>` | `-H` | `0.0.0.0` | 绑定的主机名/IP |
+
 **访问地址：**
 - 🏠 本地：http://localhost:3000
 - 🌐 内网：http://100.98.177.122:3000
 
-**Web UI 功能：**
-- 📊 运行仪表盘 — 查看所有生成的技能运行
-- 📝 详情页 — 查看审计、报告、预览
-- 🔍 证据链追溯 — 点击展开查看证据详情
-- 🌏 多语言支持 — 中文/英文切换
+**Web UI 功能（React + Vite）：**
+- 📊 运行仪表盘 — 查看所有生成的技能运行及状态指示器
+- 📝 详情页 — 审计、报告、预览、追踪的标签页视图
+- 🔍 证据链追溯 — 点击展开查看证据详情（支持懒加载）
+- 🌏 多语言支持 — 中文/英文切换（带本地持久化）
+- 📱 响应式设计 — 支持桌面和移动端视口
+- 🔗 URL 状态管理 — `?run=<name>` 查询参数支持深度链接
+
+**Web API 端点：**
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/health` | 健康检查 |
+| `GET` | `/api/runs` | 列出所有生成的运行 |
+| `GET` | `/api/runs/:name` | 获取运行详情（清单、报告、追踪） |
+| `GET` | `/api/runs/:name/evidence/:id` | 获取特定证据项 |
+| `POST` | `/api/runs` | 生成新运行（如设置了 `SESSION2SKILLS_API_TOKEN` 则需要认证） |
+| `POST` | `/api/runs/:name/evaluate` | 对现有运行执行评估 |
 
 **验证 Web 管道：**
 
@@ -224,17 +281,20 @@ npm run verify:web   # 验证 Web 管道
 
 ```
 src/
-├── cli/            # Commander CLI 入口 + 子命令
-├── adapters/       # 外部系统适配器
-├── analyze/        # 核心分析管道
-├── generate/       # 技能渲染管道
-├── llm/            # LLM 抽象层
-├── normalize/      # 会话规范化
-├── persist/        # 安全的目录写入
-├── profile/        # 启发式分析
-└── shared/         # 共享工具
-web/                # Web UI 前端
-tests/              # 测试文件
+├── cli/            # Commander CLI 入口 + 4 个子命令（inspect, evaluate, generate, serve）
+├── adapters/       # 会话源适配器（opencode, sqlite, codex, claude）
+├── evidence-store/ # SQLite 证据持久化层
+├── generate/       # 技能评估和渲染
+├── harness/        # 4 阶段 LLM 管道（analyst → skeptic → writer → verifier）
+├── llm/            # LLM 抽象层（provider, registry, prompts）
+├── normalize/      # 会话规范化和类型模型
+├── persist/        # 安全的分阶段目录写入
+├── server/         # Hono Web 服务器（serve 命令）
+├── sessions/       # 会话加载和树过滤
+└── shared/         # 共享工具（errors, cli, paths, redaction）
+web/                # React + Vite Web UI 前端
+tests/              # 单元测试、黄金文件测试和端到端测试
+docs/               # 设计文档和审计记录
 ```
 
 ---
@@ -253,9 +313,7 @@ tests/              # 测试文件
 
 ## ⚠️ 当前限制
 
-- 📦 仅支持 OpenCode（暂无其他会话源）
-- 📚 仅分析历史会话
-- 💻 仅 CLI 模式（无服务/守护进程）
+- 📚 仅分析历史会话（无实时监控）
 - 🤖 LLM 管道非零幻觉 — 声明基于证据交叉检查，但最终输出仍反映模型推断
 
 ---

@@ -3,7 +3,7 @@
 > 🤖 Transform your OpenCode sessions into reusable AI assistant skill files
 
 [![GitHub Stars](https://img.shields.io/github/stars/YingkeSu/session2skills?style=social)](https://github.com/YingkeSu/session2skills)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--only-red.svg)](LICENSE)
 
 **[中文文档](README_ZH.md)**
 
@@ -349,7 +349,7 @@ Issues and Pull Requests are welcome!
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE)
+GNU Affero General Public License v3.0 - see [LICENSE](LICENSE)
 
 ---
 

@@ -6,7 +6,7 @@
   "bin": {
     "session2skills": "./dist/cli/main.js"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=20.0.0"
   },

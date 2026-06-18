@@ -3,7 +3,7 @@
 > 🤖 将你的 OpenCode 会话转化为 AI 助手可复用的技能文件
 
 [![GitHub Stars](https://img.shields.io/github/stars/YingkeSu/session2skills?style=social)](https://github.com/YingkeSu/session2skills)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--only-red.svg)](LICENSE)
 
 **[English](README.md)**
 
@@ -349,7 +349,7 @@ docs/               # 设计文档和审计记录
 
 ## 📄 许可证
 
-MIT License - 详见 [LICENSE](LICENSE)
+GNU Affero General Public License v3.0 - 详见 [LICENSE](LICENSE)
 
 ---
 

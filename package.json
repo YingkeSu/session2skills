@@ -34,6 +34,7 @@
     "postbuild": "node scripts/fix-bin-mode.mjs",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:web": "tsc --noEmit -p web/tsconfig.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "dev": "tsx src/cli/main.ts",
     "start": "node dist/cli/main.js",

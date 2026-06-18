@@ -6,6 +6,7 @@ import {
   type GenerateRunRequest,
   type RunSummary,
 } from "./runs.js";
+import { DocsPage } from "./components/DocsPage.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
@@ -31,6 +32,7 @@ export function App(): JSX.Element {
   const [selectedRun, setSelectedRun] = useState<string | null>(() =>
     getInitialSelectedRun(),
   );
+  const [showDocs, setShowDocs] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +114,12 @@ export function App(): JSX.Element {
     }
   };
 
+  if (showDocs) {
+    return (
+      <DocsPage onBack={() => setShowDocs(false)} />
+    );
+  }
+
   if (selectedRun) {
     return (
       <RunDetailPage
@@ -122,23 +130,23 @@ export function App(): JSX.Element {
   }
 
   if (state.status === "loading") {
-    return <Shell>{t("app.loading")}</Shell>;
+    return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.loading")}</Shell>;
   }
 
   if (state.status === "error") {
     return (
-      <Shell style={{ color: "#c0392b" }}>
+      <Shell style={{ color: "#c0392b" }} onShowDocs={() => setShowDocs(true)}>
         {t("app.errorPrefix", { message: state.message })}
       </Shell>
     );
   }
 
   if (state.runs.length === 0) {
-    return <Shell>{t("app.noRuns")}</Shell>;
+    return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.noRuns")}</Shell>;
   }
 
   return (
-    <Shell>
+    <Shell onShowDocs={() => setShowDocs(true)}>
       <RunsDashboard
         runs={state.runs}
         generateState={generateState}
@@ -501,16 +509,29 @@ function formatGeneratedAt(value: string): string {
 function Shell({
   children,
   style,
+  onShowDocs,
 }: {
   children: React.ReactNode;
   style?: React.CSSProperties;
+  onShowDocs?: () => void;
 }): JSX.Element {
   const { t } = useLocale();
   return (
     <div className="app-shell" style={style}>
       <div className="app-header">
         <h1>{t("app.title")}</h1>
-        <LanguageToggle />
+        <div className="app-header-actions">
+          {onShowDocs && (
+            <button
+              type="button"
+              onClick={onShowDocs}
+              className="docs-button"
+            >
+              {t("docs.button")}
+            </button>
+          )}
+          <LanguageToggle />
+        </div>
       </div>
       {children}
     </div>

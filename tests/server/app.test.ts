@@ -170,8 +170,10 @@ describe("scanRuns", () => {
 describe("Hono app", () => {
   let tempRoot: string;
   let runsDir: string;
+  const testToken = "test-api-token-12345";
 
   beforeAll(async () => {
+    process.env["SESSION2SKILLS_API_TOKEN"] = testToken;
     tempRoot = await mkdtemp(join(tmpdir(), "s2k-app-test-"));
     runsDir = join(tempRoot, "generated-skills");
     const runDir = join(runsDir, "app-run");
@@ -186,6 +188,7 @@ describe("Hono app", () => {
   });
 
   afterAll(async () => {
+    delete process.env["SESSION2SKILLS_API_TOKEN"];
     await rm(tempRoot, { recursive: true, force: true });
   });
 
@@ -288,6 +291,7 @@ describe("Hono app", () => {
     const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs/app-run/evaluate", {
       method: "POST",
+      headers: { Authorization: `Bearer ${testToken}` },
     });
 
     expect(res.status).toBe(200);
@@ -319,7 +323,10 @@ describe("Hono app", () => {
 
     const res = await app.request("/api/runs", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${testToken}`,
+      },
       body: JSON.stringify({
         name: "My Skill!",
         recent: 3,
@@ -356,7 +363,10 @@ describe("Hono app", () => {
     const app = createServer(runsDir, { projectDirectory: tempRoot });
     const res = await app.request("/api/runs", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${testToken}`,
+      },
       body: JSON.stringify({ recent: 0, tone: "loud" }),
     });
 
@@ -364,5 +374,62 @@ describe("Hono app", () => {
     expect(await res.json()).toEqual({
       error: "recent must be a positive integer",
     });
+  });
+
+  test("POST /api/runs returns 401 without Authorization header", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "test-skill" }),
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  test("POST /api/runs/:name/evaluate returns 401 without Authorization header", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs/app-run/evaluate", {
+      method: "POST",
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  test("GET /api/runs rejects requests from non-localhost origins", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs", {
+      headers: { Origin: "http://evil.com" },
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Origin not allowed" });
+  });
+
+  test("GET /api/runs allows requests from localhost origin", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs", {
+      headers: { Origin: "http://localhost:3000" },
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  test("GET /api/runs/:name rejects path traversal attempts", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs/..%2F..%2Fetc%2Fpasswd");
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid run name" });
+  });
+
+  test("GET /api/runs/:name rejects names with .. segments", async () => {
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const res = await app.request("/api/runs/foo%2F..%2Fbar");
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid run name" });
   });
 });

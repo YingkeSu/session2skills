@@ -294,6 +294,7 @@ export function DetailShell({
               onClick={() => onTabChange(tab.id)}
               onKeyDown={handleTabKeyDown}
               style={tabButtonStyle(selected)}
+              data-testid={`${tab.id}-tab`}
             >
               {tab.label}
             </button>

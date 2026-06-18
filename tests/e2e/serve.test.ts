@@ -10,53 +10,10 @@ import {
   getSeededBrowserFixtureRun,
   seedBrowserFixtureRun,
 } from "./fixture-run.js";
+import { pickPort, waitForServer, waitForStdout } from "./serve-helpers.js";
 
 const projectDir = process.cwd();
 const seededRun = getSeededBrowserFixtureRun();
-
-function waitForStdout(child: ChildProcess, needle: string, timeoutMs: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let buffer = "";
-    const timer = setTimeout(() => {
-      reject(new Error(`Timed out waiting for "${needle}" in stdout. Got:\n${buffer}`));
-    }, timeoutMs);
-
-    child.stdout?.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString();
-      if (buffer.includes(needle)) {
-        clearTimeout(timer);
-        resolve(buffer);
-      }
-    });
-
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      reject(new Error(`Server exited early with code ${code}. stdout:\n${buffer}`));
-    });
-  });
-}
-
-async function waitForServer(port: number, timeoutMs = 10000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/health`);
-      if (res.ok) return;
-    } catch {
-      await new Promise((r) => setTimeout(r, 200));
-    }
-  }
-  throw new Error(`Server at port ${port} did not become healthy within ${timeoutMs}ms`);
-}
-
-function pickPort(): number {
-  return 49000 + Math.floor(Math.random() * 1000);
-}
 
 describe("serve command (e2e)", () => {
   let tempRoot: string;
@@ -246,6 +203,15 @@ describe("serve command (e2e)", () => {
         latencyMs: 1200,
         finishReason: "stop",
         promptName: "claim-analysis",
+      }),
+      expect.objectContaining({
+        stage: "writer",
+        model: "glm-4.7",
+        provider: "zhipuai",
+        usage: expect.objectContaining({ total_tokens: 75 }),
+        latencyMs: 1800,
+        finishReason: "stop",
+        promptName: "skill-writer",
       }),
     ]);
 

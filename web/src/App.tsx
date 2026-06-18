@@ -206,7 +206,7 @@ export function RunsDashboard({
   const summary = summarizeRuns(runs);
 
   return (
-    <main className="runs-dashboard" aria-label={t("dashboard.label")}>
+    <main className="runs-dashboard" aria-label={t("dashboard.label")} data-testid="run-dashboard">
       <section className="dashboard-summary" aria-label={t("dashboard.summary")}>
         <MetricCard label={t("dashboard.totalRuns")} value={summary.totalRuns} />
         <MetricCard

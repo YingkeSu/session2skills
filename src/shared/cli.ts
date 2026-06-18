@@ -23,3 +23,25 @@ export function parseTonePreset(value: string): TonePreset {
 
   throw new CliUsageError(`Expected tone to be one of concise, balanced, detailed. Received: ${value}`);
 }
+
+export function coercePositiveInteger(value: unknown, defaultValue: number): number {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new CliUsageError("recent must be a positive integer");
+  }
+
+  return value;
+}
+
+export function coerceTonePreset(value: unknown, defaultValue: TonePreset): TonePreset {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (typeof value !== "string") {
+    throw new CliUsageError("tone must be a valid preset");
+  }
+  return parseTonePreset(value);
+}

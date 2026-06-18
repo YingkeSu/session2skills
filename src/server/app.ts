@@ -8,9 +8,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { evaluateSkill } from "../generate/evaluate-skill.js";
-import { generateSkillRun, type GenerateSkillRunInput } from "../cli/commands/generate.js";
-import { parseTonePreset, type TonePreset } from "../shared/cli.js";
+import { generateSkillRun, type GenerateSkillRunInput } from "../generate/service.js";
+import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../shared/cli.js";
 import { CliUsageError } from "../shared/errors.js";
+import { isValidRunName, normalizeRunName } from "../shared/paths.js";
 import type { RunSummary } from "../shared/run-summary.js";
 
 // dist/server/app.js → ../../web/dist
@@ -51,13 +52,6 @@ function isAllowedOrigin(origin: string | undefined): boolean {
   } catch {
     return false;
   }
-}
-
-function isValidRunName(name: string): boolean {
-  if (!name || name.length === 0) return false;
-  if (name.includes("..")) return false;
-  if (name.startsWith("/") || name.startsWith("\\")) return false;
-  return /^[a-zA-Z0-9_-]+$/.test(name);
 }
 
 export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
@@ -259,8 +253,8 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         force: boolean;
       }>>();
 
-      const recent = validateRecent(body.recent);
-      const tone = validateTone(body.tone);
+      const recent = coercePositiveInteger(body.recent, 10);
+      const tone = coerceTonePreset(body.tone, "balanced");
       const force = body.force === true;
       const workspace = typeof body.workspace === "string" && body.workspace.length > 0
         ? body.workspace
@@ -372,47 +366,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function normalizeRunName(name?: string): string {
-  const fallback = timestampedRunName();
-  if (!name || name.trim().length === 0) {
-    return fallback;
-  }
-
-  const normalized = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function timestampedRunName(): string {
-  return new Date().toISOString().replace(/[:.]/g, "-");
-}
-
-function validateRecent(value: unknown): number {
-  if (value === undefined) {
-    return 10;
-  }
-
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new CliUsageError("recent must be a positive integer");
-  }
-
-  return value;
-}
-
-function validateTone(value: unknown): TonePreset {
-  if (value === undefined) {
-    return "balanced";
-  }
-  if (typeof value !== "string") {
-    throw new CliUsageError("tone must be a valid preset");
-  }
-  return parseTonePreset(value);
 }
 
 function getArtifactStatus(input: {

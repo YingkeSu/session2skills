@@ -1,5 +1,5 @@
 import { useState, type JSX } from "react";
-import type { EvidenceDetail } from "../runs.js";
+import { useEvidenceDetailQuery } from "../hooks/useQueries.js";
 import { useLocale } from "../i18n/LocaleContext.js";
 
 type EvidencePanelProps = {
@@ -23,43 +23,18 @@ export function EvidencePanel({
 }: EvidencePanelProps): JSX.Element {
   const { t, tEnum } = useLocale();
   const [expanded, setExpanded] = useState(false);
-  const [fullText, setFullText] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useEvidenceDetailQuery(
+    runName,
+    expanded ? evidenceId : null,
+  );
 
-  const displayText = fullText ?? excerpt;
+  const displayText = data?.excerpt ?? excerpt;
   const badgeColor = sourceTypeColors[sourceType] ?? "#6c757d";
   const panelId = `evidence-${runName}-${evidenceId}`.replace(/\s+/g, "-");
 
-  const handleToggle = async () => {
-    if (loading) return;
-    if (!expanded) {
-      setExpanded(true);
-    } else {
-      setExpanded(false);
-      return;
-    }
-
-    if (fullText === null) {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `/api/runs/${encodeURIComponent(runName)}/evidence/${encodeURIComponent(evidenceId)}`
-        );
-        if (!res.ok) {
-          throw new Error(t("evidence.loadFailed", { status: res.status }));
-        }
-        const data = (await res.json()) as EvidenceDetail;
-        setFullText(data.excerpt);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : t("evidence.loadFailedGeneric"),
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
+  const handleToggle = () => {
+    if (isLoading) return;
+    setExpanded((prev) => !prev);
   };
 
   return (
@@ -78,15 +53,15 @@ export function EvidencePanel({
         onClick={handleToggle}
         aria-expanded={expanded}
         aria-controls={panelId}
-        aria-busy={loading}
-        disabled={loading}
+        aria-busy={isLoading}
+        disabled={isLoading}
         style={{
           width: "100%",
           textAlign: "left",
           padding: "8px 10px",
           border: "none",
           background: "transparent",
-          cursor: loading ? "wait" : "pointer",
+          cursor: isLoading ? "wait" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -110,7 +85,7 @@ export function EvidencePanel({
         <span style={{ fontSize: "12px", color: "#495057" }}>
           {expanded
             ? t("evidence.hide")
-            : loading
+            : isLoading
               ? t("evidence.loading")
               : t("evidence.show")}
         </span>
@@ -126,7 +101,7 @@ export function EvidencePanel({
         }}
       >
         <div style={{ padding: "0 10px 10px" }}>
-          {loading && (
+          {isLoading && (
             <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#495057" }}>
               {t("evidence.loading")}
             </p>
@@ -147,7 +122,7 @@ export function EvidencePanel({
           </pre>
           {error && (
             <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#c0392b" }}>
-              {error}
+              {error instanceof Error ? error.message : String(error)}
             </p>
           )}
         </div>

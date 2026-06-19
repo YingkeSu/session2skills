@@ -11,6 +11,7 @@ import {
   RunsDashboard,
 } from "./App.js";
 import { LocaleProvider } from "./i18n/LocaleContext.js";
+import { withQueryClient } from "./test-utils.js";
 import type { RunSummary } from "./runs.js";
 
 const runs: RunSummary[] = [
@@ -102,7 +103,9 @@ describe("RunsDashboard", () => {
   });
 
   it("submits generation settings to the runs API", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const requests: Array<{ url: string; init?: RequestInit }> = [];
+    let progressCallCount = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -112,15 +115,25 @@ describe("RunsDashboard", () => {
         if (url === "/api/runs" && init?.method === "POST") {
           return jsonResponse({
             name: "new-web-skill",
-            model: "gpt-5",
-            generatedAt: "2026-06-18T09:00:00.000Z",
-            verifierPassed: true,
-            claimCount: 4,
-            skepticScore: 0.88,
-            skepticIssueCount: 0,
-            artifactStatus: "complete",
-            skillAvailable: true,
-            summaryAvailable: true,
+            status: "running",
+          });
+        }
+
+        if (url === "/api/runs/new-web-skill/progress") {
+          progressCallCount += 1;
+          if (progressCallCount <= 1) {
+            return jsonResponse({
+              stage: "analyst",
+              completedStages: [],
+              startedAt: "2026-06-18T09:00:00.000Z",
+              updatedAt: "2026-06-18T09:00:01.000Z",
+            });
+          }
+          return jsonResponse({
+            stage: "done",
+            completedStages: ["analyst", "skeptic", "writer", "verifier"],
+            startedAt: "2026-06-18T09:00:00.000Z",
+            updatedAt: "2026-06-18T09:00:05.000Z",
           });
         }
 
@@ -133,9 +146,11 @@ describe("RunsDashboard", () => {
     document.body.append(container);
     await React.act(async () => {
       createRoot(container).render(
-        <LocaleProvider>
-          <App />
-        </LocaleProvider>,
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
       );
     });
 
@@ -148,6 +163,10 @@ describe("RunsDashboard", () => {
       buttonByText("Generate").click();
     });
 
+    await React.act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
     await screenText("Generated new-web-skill");
     const postRequest = requests.find(
       (request) => request.url === "/api/runs" && request.init?.method === "POST",
@@ -157,9 +176,14 @@ describe("RunsDashboard", () => {
         name: "new-web-skill",
         recent: 3,
         tone: "detailed",
+        template: "claude-skill",
+        skillType: "workflow",
         force: true,
+        evidenceConfig: { tokenBudget: 160000, maxChars: 5000, maxItems: 3000 },
+        async: true,
       }),
     );
+    vi.useRealTimers();
   });
 });
 

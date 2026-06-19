@@ -14,6 +14,7 @@ export type RunSummary = {
 export type GenerateRunRequest = {
   name?: string;
   recent?: number;
+  sessionSelections?: Array<{ adapter: string; sessionId: string }>;
   workspace?: string;
   tone?: "concise" | "balanced" | "detailed";
   force?: boolean;
@@ -24,6 +25,28 @@ export type GenerateRunRequest = {
     maxChars?: number;
     maxItems?: number;
   };
+};
+
+export type GenerationStage =
+  | "analyst"
+  | "skeptic"
+  | "writer"
+  | "verifier"
+  | "done"
+  | "error"
+  | "idle";
+
+export type GenerationProgress = {
+  stage: GenerationStage;
+  completedStages: GenerationStage[];
+  startedAt?: string;
+  updatedAt?: string;
+  error?: string;
+};
+
+export type AsyncRunResponse = {
+  name: string;
+  status: "running";
 };
 
 export type SkillGateStatus = "pass" | "fail";
@@ -44,7 +67,11 @@ export type SkillEvaluation = {
     safety: number;
     concision: number;
     discoverability: number;
+    skepticQuality?: number;
+    evidenceRichness?: number;
   };
+  composite?: number;
+  grade?: "A" | "B" | "C" | "D" | "F";
   verdict: "pass" | "needs-patch" | "reject";
   issues: Array<{
     severity: "high" | "medium" | "low";
@@ -172,11 +199,53 @@ export async function createRun(request: GenerateRunRequest): Promise<RunSummary
   return res.json();
 }
 
+export async function createRunAsync(request: GenerateRunRequest): Promise<AsyncRunResponse> {
+  const res = await fetch("/api/runs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...request, async: true }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to generate run: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchGenerationProgress(runName: string): Promise<GenerationProgress> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(runName)}/progress`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch progress: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
 export type EvidenceDetail = {
   evidenceID: string;
   sourceType: string;
   excerpt: string;
 };
+
+export type SessionMeta = {
+  providerId: string;
+  sessionId: string;
+  title: string | null;
+  sourceType: string;
+  sourcePath: string | null;
+  updatedAt: number | null;
+  messageCount: number | null;
+};
+
+export async function fetchSessions(
+  adapter: string,
+  directory: string,
+): Promise<SessionMeta[]> {
+  const params = new URLSearchParams({ adapter, directory, recent: "50" });
+  const res = await fetch(`/api/sessions?${params}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sessions: ${res.status}`);
+  }
+  return res.json();
+}
 
 export async function fetchRunDetail(name: string): Promise<RunDetail> {
   const res = await fetch(`/api/runs/${encodeURIComponent(name)}`);

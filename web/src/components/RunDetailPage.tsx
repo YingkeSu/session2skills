@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useState, type JSX, type KeyboardEvent, type ReactNode } from "react";
 
 import { LanguageToggle } from "../i18n/LanguageToggle.js";
 import { useLocale } from "../i18n/LocaleContext.js";
-import { evaluateRun, fetchRunDetail, type RunDetail, type SkillEvaluation } from "../runs.js";
+import { type RunDetail, type SkillEvaluation } from "../runs.js";
+import { useEvaluateMutation, useRunDetailQuery } from "../hooks/useQueries.js";
 import { AuditViewTab } from "./AuditViewTab.js";
 import { PreviewTracesTab } from "./PreviewTracesTab.js";
 import { ReportsTab } from "./ReportsTab.js";
+import { ScoreCard } from "./ScoreCard.js";
 
 type Tab = "audit" | "reports" | "preview";
 
@@ -20,6 +22,8 @@ type DetailShellProps = {
   activeTab: Tab;
   onBack: () => void;
   onTabChange: (tab: Tab) => void;
+  evaluationState?: EvaluationState;
+  onEvaluate?: () => void;
   children?: ReactNode;
 };
 
@@ -43,63 +47,45 @@ export function RunDetailPage({
   runName,
   onBack,
 }: RunDetailPageProps): JSX.Element {
-  const { t } = useLocale();
-  const [detail, setDetail] = useState<RunDetail | null>(null);
-  const [status, setStatus] = useState<"loading" | "error" | "ready">(
-    "loading",
-  );
-  const [error, setError] = useState<string>("");
-  const [tab, setTab] = useState<Tab>("audit");
-  const [evaluationState, setEvaluationState] = useState<EvaluationState>({
-    status: "idle",
-  });
+  const { data: detail, isLoading, error: detailError } = useRunDetailQuery(runName);
+  const [activeTab, setActiveTab] = useState<Tab>("audit");
+  const [evaluation, setEvaluation] = useState<SkillEvaluation | null>(null);
+  const [evaluateError, setEvaluateError] = useState<string | null>(null);
+  const evaluateMutation = useEvaluateMutation();
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    setError("");
+  const handleEvaluate = async (): Promise<void> => {
+    setEvaluation(null);
+    setEvaluateError(null);
+    try {
+      const result = await evaluateMutation.mutateAsync(runName);
+      setEvaluation(result);
+    } catch (err: unknown) {
+      setEvaluateError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
-    fetchRunDetail(runName)
-      .then((data) => {
-        if (!cancelled) {
-          setDetail(data);
-          setStatus("ready");
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setStatus("error");
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      });
+  const evaluationState: EvaluationState = evaluateMutation.isPending
+    ? { status: "pending" }
+    : evaluation
+      ? { status: "ready", evaluation }
+      : evaluateError
+        ? { status: "error", message: evaluateError }
+        : { status: "idle" };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [runName]);
+  const status = isLoading ? "loading" : detailError ? "error" : "ready";
+  const errorMessage = detailError instanceof Error ? detailError.message : detailError ? String(detailError) : "";
 
   return (
     <RunDetailPageView
       runName={runName}
       onBack={onBack}
       status={status}
-      error={error}
-      detail={detail}
-      activeTab={tab}
-      onTabChange={setTab}
+      error={errorMessage}
+      detail={detail ?? null}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
       evaluationState={evaluationState}
-      onEvaluate={async () => {
-        setEvaluationState({ status: "pending" });
-        try {
-          const evaluation = await evaluateRun(runName);
-          setEvaluationState({ status: "ready", evaluation });
-        } catch (err: unknown) {
-          setEvaluationState({
-            status: "error",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }}
+      onEvaluate={handleEvaluate}
     />
   );
 }
@@ -125,6 +111,8 @@ export function RunDetailPageView({
       activeTab={activeTab}
       onBack={onBack}
       onTabChange={onTabChange}
+      evaluationState={evaluationState}
+      onEvaluate={onEvaluate}
     >
       {status === "loading" && <ShellState>{t("detail.loading")}</ShellState>}
       {status === "error" && (
@@ -213,6 +201,8 @@ export function DetailShell({
   activeTab,
   onBack,
   onTabChange,
+  evaluationState,
+  onEvaluate,
   children,
 }: DetailShellProps): JSX.Element {
   const { t } = useLocale();
@@ -222,6 +212,13 @@ export function DetailShell({
     { id: "preview", label: t("tab.preview") },
   ];
   const reportStatus = detail ? describeReportStatus(detail, t) : null;
+  const currentEvaluationState: EvaluationState = evaluationState ?? {
+    status: "idle",
+  };
+  const scoreCardEvaluation =
+    currentEvaluationState.status === "ready"
+      ? currentEvaluationState.evaluation
+      : null;
 
   const handleTabKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -277,6 +274,12 @@ export function DetailShell({
           </div>
         )}
       </header>
+
+      {scoreCardEvaluation && (
+        <section aria-label="Score card" style={scoreCardSectionStyle}>
+          <ScoreCard evaluation={scoreCardEvaluation} />
+        </section>
+      )}
 
       <nav aria-label={t("app.title")} role="tablist" style={tabsStyle}>
         {tabs.map((tab) => {
@@ -464,6 +467,10 @@ const shellStateStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
+const scoreCardSectionStyle: React.CSSProperties = {
+  marginBottom: "4px",
+};
+
 const evaluateCardStyle: React.CSSProperties = {
   border: "1px solid #dee2e6",
   borderRadius: "6px",
@@ -503,3 +510,4 @@ const evaluateResultStyle: React.CSSProperties = {
   fontSize: "13px",
   color: "#212529",
 };
+

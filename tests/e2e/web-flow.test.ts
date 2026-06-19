@@ -193,6 +193,11 @@ describe("served web UI flow (browser e2e)", () => {
       });
       const page = await context.newPage();
       await page.goto(`http://127.0.0.1:${port}/`);
+      await page.waitForFunction(
+        (name) => document.body.textContent?.includes(name) === true,
+        seededRun.runName,
+        { timeout: 15_000 },
+      );
       await expect(page.locator("body").innerText()).resolves.toContain(
         seededRun.runName,
       );

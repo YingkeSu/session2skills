@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleContext.js";
+import { withQueryClient } from "../test-utils.js";
 import { EvidencePanel } from "./EvidencePanel.js";
 
 const storage = new Map<string, string>();
@@ -32,14 +33,16 @@ function renderEvidencePanel(): HTMLDivElement {
   document.body.append(container);
 
   createRoot(container).render(
-    <LocaleProvider>
-      <EvidencePanel
-        evidenceId="ev 1"
-        excerpt="Short excerpt"
-        sourceType="message"
-        runName="run alpha"
-      />
-    </LocaleProvider>,
+    withQueryClient(
+      <LocaleProvider>
+        <EvidencePanel
+          evidenceId="ev 1"
+          excerpt="Short excerpt"
+          sourceType="message"
+          runName="run alpha"
+        />
+      </LocaleProvider>,
+    ),
   );
 
   return container;

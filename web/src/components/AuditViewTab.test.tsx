@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleContext.js";
+import { withQueryClient } from "../test-utils.js";
 import { AuditViewTab } from "./AuditViewTab.js";
 import type { ClaimManifest, SkepticReport, VerifierReport } from "../runs.js";
 
@@ -37,14 +38,16 @@ function renderAuditTab(
   document.body.append(container);
 
   createRoot(container).render(
-    <LocaleProvider>
-      <AuditViewTab
-        manifest={manifest}
-        skepticReport={skepticReport}
-        verifierReport={verifierReport}
-        runName="run-audit"
-      />
-    </LocaleProvider>,
+    withQueryClient(
+      <LocaleProvider>
+        <AuditViewTab
+          manifest={manifest}
+          skepticReport={skepticReport}
+          verifierReport={verifierReport}
+          runName="run-audit"
+        />
+      </LocaleProvider>,
+    ),
   );
 
   return container;

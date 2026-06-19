@@ -1,59 +1,64 @@
 import { useEffect, useState, type JSX } from "react";
 
 import {
-  createRun,
-  fetchRuns,
   type GenerateRunRequest,
+  type GenerationProgress,
   type RunSummary,
 } from "./runs.js";
+import type { SessionSelection } from "./components/SessionBrowser.js";
+import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress } from "./hooks/useQueries.js";
 import { DocsPage } from "./components/DocsPage.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
+import { ProviderPicker } from "./components/ProviderPicker.js";
+import { SessionBrowser } from "./components/SessionBrowser.js";
 import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
 import "./styles.css";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; runs: RunSummary[] };
-
 type GenerateState =
   | { status: "idle" }
   | { status: "pending" }
+  | { status: "running"; runName: string }
   | { status: "success"; runName: string }
   | { status: "error"; message: string };
 
 export function App(): JSX.Element {
   const { t } = useLocale();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [generateState, setGenerateState] = useState<GenerateState>({
-    status: "idle",
-  });
+  const { data: runs, isLoading, error: runsError } = useRunsQuery();
   const [selectedRun, setSelectedRun] = useState<string | null>(() =>
     getInitialSelectedRun(),
   );
   const [showDocs, setShowDocs] = useState(false);
+  const [generateSuccessName, setGenerateSuccessName] = useState<string | null>(null);
+  const [generateErrorMessage, setGenerateErrorMessage] = useState<string | null>(null);
+  const [runningRunName, setRunningRunName] = useState<string | null>(null);
+
+  const generateMutation = useGenerateMutation();
+  const { data: progress } = useGenerationProgress(
+    runningRunName,
+    runningRunName !== null,
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    fetchRuns()
-      .then((runs) => {
-        if (!cancelled) {
-          setState({ status: "ready", runs });
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setState({
-            status: "error",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!progress || !runningRunName) return;
+    if (progress.stage === "done") {
+      setRunningRunName(null);
+      setGenerateSuccessName(runningRunName);
+    } else if (progress.stage === "error") {
+      setRunningRunName(null);
+      setGenerateErrorMessage(progress.error ?? "Generation failed");
+    }
+  }, [progress, runningRunName]);
+
+  const generateState: GenerateState = runningRunName
+    ? { status: "running", runName: runningRunName }
+    : generateMutation.isPending
+      ? { status: "pending" }
+      : generateSuccessName
+        ? { status: "success", runName: generateSuccessName }
+        : generateErrorMessage
+          ? { status: "error", message: generateErrorMessage }
+          : { status: "idle" };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -95,22 +100,16 @@ export function App(): JSX.Element {
   };
 
   const handleGenerate = async (request: GenerateRunRequest): Promise<void> => {
-    setGenerateState({ status: "pending" });
+    setGenerateSuccessName(null);
+    setGenerateErrorMessage(null);
+    setRunningRunName(null);
     try {
-      const generated = await createRun(request);
-      setGenerateState({ status: "success", runName: generated.name });
-      setState((current) => {
-        if (current.status !== "ready") {
-          return current;
-        }
-        const remaining = current.runs.filter((run) => run.name !== generated.name);
-        return { status: "ready", runs: [generated, ...remaining] };
-      });
+      const result = await generateMutation.mutateAsync(request);
+      setRunningRunName(result.name);
     } catch (err: unknown) {
-      setGenerateState({
-        status: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      setGenerateErrorMessage(
+        err instanceof Error ? err.message : String(err),
+      );
     }
   };
 
@@ -129,27 +128,32 @@ export function App(): JSX.Element {
     );
   }
 
-  if (state.status === "loading") {
+  const runsErrorMessage = runsError instanceof Error ? runsError.message : runsError ? String(runsError) : null;
+
+  if (isLoading) {
     return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.loading")}</Shell>;
   }
 
-  if (state.status === "error") {
+  if (runsErrorMessage) {
     return (
       <Shell style={{ color: "#c0392b" }} onShowDocs={() => setShowDocs(true)}>
-        {t("app.errorPrefix", { message: state.message })}
+        {t("app.errorPrefix", { message: runsErrorMessage })}
       </Shell>
     );
   }
 
-  if (state.runs.length === 0) {
+  const readyRuns = runs ?? [];
+
+  if (readyRuns.length === 0) {
     return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.noRuns")}</Shell>;
   }
 
   return (
     <Shell onShowDocs={() => setShowDocs(true)}>
       <RunsDashboard
-        runs={state.runs}
+        runs={readyRuns}
         generateState={generateState}
+        progress={progress}
         onGenerate={handleGenerate}
         onSelect={(name) => setSelectedRun(name)}
       />
@@ -202,11 +206,13 @@ export function buildSelectedRunUrl(
 export function RunsDashboard({
   runs,
   generateState = { status: "idle" },
+  progress,
   onGenerate = () => undefined,
   onSelect,
 }: {
   runs: RunSummary[];
   generateState?: GenerateState;
+  progress?: GenerationProgress | null;
   onGenerate?: (request: GenerateRunRequest) => void | Promise<void>;
   onSelect: (name: string) => void;
 }): JSX.Element {
@@ -236,6 +242,7 @@ export function RunsDashboard({
 
       <GenerateRunPanel
         generateState={generateState}
+        progress={progress}
         onGenerate={onGenerate}
       />
 
@@ -310,11 +317,52 @@ export function RunsDashboard({
   );
 }
 
+type SessionSelectionStepProps = {
+  selectedAdapter: string | null;
+  onAdapterChange: (adapter: string) => void;
+  selectedSessions: SessionSelection[];
+  onSessionsChange: (selections: SessionSelection[]) => void;
+  directory: string;
+};
+
+function SessionSelectionStep({
+  selectedAdapter,
+  onAdapterChange,
+  selectedSessions,
+  onSessionsChange,
+  directory,
+}: SessionSelectionStepProps): JSX.Element {
+  const { data: sessionsData } = useSessionsQuery(
+    selectedAdapter,
+    directory,
+  );
+
+  return (
+    <>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <ProviderPicker
+          value={selectedAdapter ?? "all"}
+          onChange={onAdapterChange}
+        />
+      </div>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <SessionBrowser
+          sessions={sessionsData ?? []}
+          selected={selectedSessions}
+          onChange={onSessionsChange}
+        />
+      </div>
+    </>
+  );
+}
+
 function GenerateRunPanel({
   generateState,
+  progress,
   onGenerate,
 }: {
   generateState: GenerateState;
+  progress?: GenerationProgress | null;
   onGenerate: (request: GenerateRunRequest) => void | Promise<void>;
 }): JSX.Element {
   const { t } = useLocale();
@@ -328,12 +376,18 @@ function GenerateRunPanel({
   const [evidenceMaxChars, setEvidenceMaxChars] = useState("5000");
   const [evidenceMaxItems, setEvidenceMaxItems] = useState("3000");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const pending = generateState.status === "pending";
+  const [showSessionSelection, setShowSessionSelection] = useState(false);
+  const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
+  const [selectedSessions, setSelectedSessions] = useState<SessionSelection[]>([]);
+  const [directory] = useState(".");
+  const pending = generateState.status === "pending" || generateState.status === "running";
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    void onGenerate({
+    const request: GenerateRunRequest = {
       name: name.trim() || undefined,
-      recent: Number.parseInt(recent, 10) || 10,
+      ...(selectedSessions.length > 0
+        ? { sessionSelections: selectedSessions }
+        : { recent: Number.parseInt(recent, 10) || 10 }),
       tone,
       template,
       skillType,
@@ -343,7 +397,8 @@ function GenerateRunPanel({
         maxChars: Number.parseInt(evidenceMaxChars, 10) || 5000,
         maxItems: Number.parseInt(evidenceMaxItems, 10) || 3000,
       },
-    });
+    };
+    void onGenerate(request);
   };
 
   return (
@@ -378,6 +433,27 @@ function GenerateRunPanel({
               onChange={(event) => setRecent(event.currentTarget.value)}
             />
           </label>
+          <button
+            type="button"
+            className="generate-advanced-toggle"
+            onClick={() => setShowSessionSelection(!showSessionSelection)}
+            aria-expanded={showSessionSelection}
+            style={{ gridColumn: "1 / -1", justifySelf: "start" }}
+          >
+            {showSessionSelection ? "▾" : "▸"} Session Selection
+          </button>
+          {showSessionSelection && (
+            <SessionSelectionStep
+              selectedAdapter={selectedAdapter}
+              onAdapterChange={(value) => {
+                setSelectedAdapter(value);
+                setSelectedSessions([]);
+              }}
+              selectedSessions={selectedSessions}
+              onSessionsChange={setSelectedSessions}
+              directory={directory}
+            />
+          )}
           <label htmlFor="generate-tone">
             <span>{t("generate.tone")}</span>
             <select
@@ -489,6 +565,9 @@ function GenerateRunPanel({
           </button>
         </div>
       </form>
+      {generateState.status === "running" && progress && (
+        <ProgressStepper progress={progress} />
+      )}
       {generateState.status === "error" && (
         <p className="generate-message error">
           {t("generate.error", { message: generateState.message })}
@@ -500,6 +579,48 @@ function GenerateRunPanel({
         </p>
       )}
     </section>
+  );
+}
+
+const HARNESS_STAGES = ["analyst", "skeptic", "writer", "verifier"] as const;
+
+function ProgressStepper({ progress }: { progress: GenerationProgress }): JSX.Element {
+  const { t } = useLocale();
+  const completedSet = new Set(progress.completedStages);
+
+  return (
+    <div className="progress-stepper" data-testid="progress-stepper" role="status" aria-live="polite">
+      {HARNESS_STAGES.map((stage, index) => {
+        const isCompleted = completedSet.has(stage);
+        const isCurrent = progress.stage === stage;
+        const label = t(`progress.${stage}`);
+
+        return (
+          <div key={stage} className="progress-step-wrapper">
+            {index > 0 && (
+              <div className={`progress-connector ${isCompleted || isCurrent ? "active" : ""}`} />
+            )}
+            <div
+              className={`progress-step ${isCompleted ? "completed" : isCurrent ? "current" : "pending"}`}
+              aria-current={isCurrent ? "step" : undefined}
+            >
+              <span className="progress-step-icon">
+                {isCompleted ? "✓" : isCurrent ? "●" : ""}
+              </span>
+              <span className="progress-step-label">{label}</span>
+            </div>
+          </div>
+        );
+      })}
+      {progress.stage === "done" && (
+        <p className="generate-message">{t("progress.completed")}</p>
+      )}
+      {progress.stage === "error" && (
+        <p className="generate-message error">
+          {t("progress.failed", { message: progress.error ?? "" })}
+        </p>
+      )}
+    </div>
   );
 }
 

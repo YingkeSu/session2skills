@@ -119,6 +119,13 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.skillType.debugging": "调试",
     "generate.skillType.review": "审查",
 
+    "progress.analyst": "分析",
+    "progress.skeptic": "质疑",
+    "progress.writer": "撰写",
+    "progress.verifier": "验证",
+    "progress.completed": "生成完成",
+    "progress.failed": "生成失败: {message}",
+
     "artifact.complete": "完整",
     "artifact.partial": "部分",
     "artifact.legacy": "旧版",
@@ -325,6 +332,13 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.skillType.code-style": "Code Style",
     "generate.skillType.debugging": "Debugging",
     "generate.skillType.review": "Review",
+
+    "progress.analyst": "Analyst",
+    "progress.skeptic": "Skeptic",
+    "progress.writer": "Writer",
+    "progress.verifier": "Verifier",
+    "progress.completed": "Generation complete",
+    "progress.failed": "Generation failed: {message}",
 
     "artifact.complete": "complete",
     "artifact.partial": "partial",

@@ -50,6 +50,39 @@ describe("buildAnalystPacket", () => {
     expect(citeInstructionLine!).toContain(realExample);
     expect(citeInstructionLine!).not.toMatch(/ev_001/);
   });
+
+  it("respects custom evidenceConfig for tokenBudget, maxChars, and maxItems", () => {
+    const evidence = makeEvidenceItems(50);
+    const packetDefault = buildAnalystPacket(mockSessions, evidence);
+    const packetCustom = buildAnalystPacket(mockSessions, evidence, undefined, 1000, undefined, {
+      maxChars: 100,
+      maxItems: 5,
+    });
+
+    const defaultUser = packetDefault.messages.find((m) => m.role === "user");
+    const customUser = packetCustom.messages.find((m) => m.role === "user");
+    expect(defaultUser).toBeDefined();
+    expect(customUser).toBeDefined();
+
+    const defaultEvidenceLines = defaultUser!.content.split("\n").filter((l) => l.startsWith("["));
+    const customEvidenceLines = customUser!.content.split("\n").filter((l) => l.startsWith("["));
+
+    expect(customEvidenceLines.length).toBeLessThanOrEqual(5);
+    expect(customEvidenceLines.length).toBeLessThan(defaultEvidenceLines.length);
+
+    for (const line of customEvidenceLines) {
+      expect(line.length).toBeLessThanOrEqual(120);
+    }
+  });
+
+  it("uses default evidenceConfig when none provided", () => {
+    const evidence = makeEvidenceItems(10);
+    const packet = buildAnalystPacket(mockSessions, evidence);
+
+    const userMessage = packet.messages.find((m) => m.role === "user");
+    expect(userMessage).toBeDefined();
+    expect(userMessage!.content).toContain("Evidence (");
+  });
 });
 
 describe("buildVerifierPacket", () => {

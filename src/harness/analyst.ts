@@ -4,6 +4,7 @@ import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget } from "./types.js";
+import type { EvidenceConfig } from "./packets.js";
 import { generateTraceID } from "../llm/trace.js";
 import { buildAnalystPacket } from "./packets.js";
 import { resolveHarnessBudget } from "./stage-runner.js";
@@ -40,9 +41,10 @@ export async function runAnalystStage(
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
   selectedDimensions?: ReadonlyArray<string>,
+  evidenceConfig?: EvidenceConfig,
 ): Promise<AnalystStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildAnalystPacket(sessions, evidence, registry, 6000, selectedDimensions);
+  const packet = buildAnalystPacket(sessions, evidence, registry, evidenceConfig?.tokenBudget ?? 160000, selectedDimensions, evidenceConfig);
   const knownEvidenceIds = new Set(evidence.map((e) => e.evidenceID));
 
   let lastResult: LlmStructuredGenerationResult<RawAnalystOutput> | undefined;
@@ -168,14 +170,22 @@ function parseAnalystOutput(
       };
     })
     .filter((entry) => !entry.citedEvidence || entry.validRefs.length > 0)
-    .map((entry, i) => ({
-      id: entry.raw.id ? String(entry.raw.id) : `claim_${String(i + 1).padStart(3, "0")}`,
-      dimension: String(entry.raw.dimension) as ClaimManifest["claims"][number]["dimension"],
-      label: String(entry.raw.label),
-      confidence: Math.max(0, Math.min(1, Number(entry.raw.confidence) || 0)),
-      rationale: String(entry.raw.rationale ?? entry.raw.reasoning ?? ""),
-      evidenceRefs: entry.validRefs,
-    }));
+    .map((entry, i) => {
+      const rawRationale = String(entry.raw.rationale ?? entry.raw.reasoning ?? "").trim();
+      const claim = {
+        id: entry.raw.id ? String(entry.raw.id) : `claim_${String(i + 1).padStart(3, "0")}`,
+        dimension: String(entry.raw.dimension) as ClaimManifest["claims"][number]["dimension"],
+        label: String(entry.raw.label),
+        confidence: Math.max(0, Math.min(1, Number(entry.raw.confidence) || 0)),
+        rationale: rawRationale,
+        evidenceRefs: entry.validRefs,
+      };
+      if (!claim.rationale) {
+        const dimLabels = HARNESS_LABELS[claim.dimension];
+        claim.rationale = `Observed ${claim.label} pattern in ${claim.dimension} across ${claim.evidenceRefs.length} evidence item(s).`;
+      }
+      return claim;
+    });
 
   const dimensionsCovered = Array.isArray(raw.dimensionsCovered)
     ? raw.dimensionsCovered.filter((d): d is string => typeof d === "string")

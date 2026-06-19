@@ -3,6 +3,7 @@ import type { ResolvedLlmProvider } from "../llm/provider.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget, HarnessResult, SkepticSeverity } from "./types.js";
+import type { EvidenceConfig } from "./packets.js";
 import { DEFAULT_HARNESS_BUDGET } from "./types.js";
 import { generateTraceID } from "../llm/trace.js";
 import { runAnalystStage } from "./analyst.js";
@@ -20,6 +21,7 @@ export type RunHarnessInput = {
   templateMarkdown?: string;
   selectedDimensions?: ReadonlyArray<string>;
   skillTypeFocus?: string;
+  evidenceConfig?: EvidenceConfig;
 };
 
 export async function analyzeWithHarness(input: RunHarnessInput): Promise<HarnessResult> {
@@ -33,6 +35,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     templateMarkdown,
     selectedDimensions,
     skillTypeFocus,
+    evidenceConfig,
   } = input;
 
   const traces: Array<LLMTrace> = [];
@@ -50,7 +53,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
 
   let manifest: ClaimManifest;
   try {
-    const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget, selectedDimensions);
+    const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget, selectedDimensions, evidenceConfig);
     traces.push(analystResult.trace);
     manifest = analystResult.manifest;
   } catch (error: unknown) {

@@ -5,6 +5,18 @@ import type { ClaimManifest } from "./types.js";
 import { estimateTokens } from "../shared/evidence.js";
 import { selectEvidenceForBudget } from "./evidence-index.js";
 
+export type EvidenceConfig = {
+  tokenBudget?: number;
+  maxChars?: number;
+  maxItems?: number;
+};
+
+export const DEFAULT_EVIDENCE_CONFIG: Required<EvidenceConfig> = {
+  tokenBudget: 160000,
+  maxChars: 5000,
+  maxItems: 3000,
+};
+
 // ---------------------------------------------------------------------------
 // Taxonomy (all 7 dimensions for harness pipeline)
 // ---------------------------------------------------------------------------
@@ -145,12 +157,12 @@ const FALLBACK_VERIFIER_SYSTEM = [
 // Evidence rendering
 // ---------------------------------------------------------------------------
 
-function renderEvidenceLines(items: ReadonlyArray<EvidenceItem>): string {
+function renderEvidenceLines(items: ReadonlyArray<EvidenceItem>, maxChars: number = DEFAULT_EVIDENCE_CONFIG.maxChars): string {
   return [...items]
     .sort((a, b) => a.evidenceID.localeCompare(b.evidenceID))
     .map((item) => {
-      const text = item.summaryText.length > 200
-        ? item.summaryText.substring(0, 200) + "..."
+      const text = item.summaryText.length > maxChars
+        ? item.summaryText.substring(0, maxChars) + "..."
         : item.summaryText;
       return `[${item.evidenceID}] (${item.citation.sourceType}) ${text}`;
     })
@@ -180,8 +192,9 @@ export function buildAnalystPacket(
   sessions: ReadonlyArray<NormalizedSession>,
   evidence: ReadonlyArray<EvidenceItem>,
   registry?: PromptRegistry,
-  tokenBudget: number = 6000,
+  tokenBudget: number = DEFAULT_EVIDENCE_CONFIG.tokenBudget,
   selectedDimensions?: ReadonlyArray<string>,
+  evidenceConfig?: EvidenceConfig,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -189,6 +202,9 @@ export function buildAnalystPacket(
     FALLBACK_ANALYST_SYSTEM,
     {},
   );
+
+  const cfg = { ...DEFAULT_EVIDENCE_CONFIG, ...evidenceConfig };
+  const effectiveTokenBudget = evidenceConfig?.tokenBudget ?? tokenBudget;
 
   const sessionSection = renderSessionSummaries(sessions);
   const taxonomySection = renderTaxonomy(selectedDimensions);
@@ -198,14 +214,14 @@ export function buildAnalystPacket(
     estimateTokens(taxonomySection) +
     estimateTokens(sessionSection);
 
-  const evidenceBudget = Math.max(0, tokenBudget - fixedOverhead);
+  const evidenceBudget = Math.max(0, effectiveTokenBudget - fixedOverhead);
   const selectedEvidence = selectEvidenceForBudget(
     [...evidence],
     evidenceBudget,
-    { preferDirectUser: true, maxItems: 100 },
+    { preferDirectUser: true, maxItems: cfg.maxItems },
   );
 
-  const evidenceSection = renderEvidenceLines(selectedEvidence);
+  const evidenceSection = renderEvidenceLines(selectedEvidence, cfg.maxChars);
 
   const userPayload = [
     `# Sessions (${sessions.length})`,

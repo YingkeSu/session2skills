@@ -8,7 +8,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { evaluateSkill } from "../generate/evaluate-skill.js";
-import { generateSkillRun, type GenerateSkillRunInput } from "../generate/service.js";
+import { generateSkillRun, type GenerateSkillRunInput, type EvidenceConfig } from "../generate/service.js";
 import { parseTemplate, type TemplateName } from "../generate/templates.js";
 import { parseSkillType, type SkillType } from "../generate/skill-types.js";
 import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../shared/cli.js";
@@ -255,6 +255,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         force: boolean;
         template: string;
         skillType: string;
+        evidenceConfig?: {
+          tokenBudget?: number;
+          maxChars?: number;
+          maxItems?: number;
+        };
       }>>();
 
       const recent = coercePositiveInteger(body.recent, 10);
@@ -269,6 +274,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       const skillType = typeof body.skillType === "string" && body.skillType.length > 0
         ? parseSkillType(body.skillType)
         : undefined;
+      const evidenceConfig: EvidenceConfig | undefined = body.evidenceConfig && typeof body.evidenceConfig === "object" ? {
+        tokenBudget: typeof body.evidenceConfig.tokenBudget === "number" ? body.evidenceConfig.tokenBudget : undefined,
+        maxChars: typeof body.evidenceConfig.maxChars === "number" ? body.evidenceConfig.maxChars : undefined,
+        maxItems: typeof body.evidenceConfig.maxItems === "number" ? body.evidenceConfig.maxItems : undefined,
+      } : undefined;
       const name = normalizeRunName(body.name);
       const outputDirectory = join(runsDirectory, name);
 
@@ -281,6 +291,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         force,
         template,
         skillType,
+        evidenceConfig,
       });
 
       const summaries = await scanRuns(runsDirectory);

@@ -324,6 +324,10 @@ function GenerateRunPanel({
   const [template, setTemplate] = useState<NonNullable<GenerateRunRequest["template"]>>("claude-skill");
   const [skillType, setSkillType] = useState<NonNullable<GenerateRunRequest["skillType"]>>("workflow");
   const [force, setForce] = useState(false);
+  const [evidenceBudget, setEvidenceBudget] = useState("160000");
+  const [evidenceMaxChars, setEvidenceMaxChars] = useState("5000");
+  const [evidenceMaxItems, setEvidenceMaxItems] = useState("3000");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const pending = generateState.status === "pending";
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -334,6 +338,11 @@ function GenerateRunPanel({
       template,
       skillType,
       force,
+      evidenceConfig: {
+        tokenBudget: Number.parseInt(evidenceBudget, 10) || 160000,
+        maxChars: Number.parseInt(evidenceMaxChars, 10) || 5000,
+        maxItems: Number.parseInt(evidenceMaxItems, 10) || 3000,
+      },
     });
   };
 
@@ -427,6 +436,54 @@ function GenerateRunPanel({
             />
             <span>{t("generate.force")}</span>
           </label>
+          <button
+            type="button"
+            className="generate-advanced-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
+          >
+            {showAdvanced ? "▾" : "▸"} Advanced
+          </button>
+          {showAdvanced && (
+            <>
+              <label htmlFor="generate-evidence-budget">
+                <span>Evidence Token Budget</span>
+                <input
+                  id="generate-evidence-budget"
+                  aria-label="Evidence Token Budget"
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  value={evidenceBudget}
+                  onChange={(event) => setEvidenceBudget(event.currentTarget.value)}
+                />
+              </label>
+              <label htmlFor="generate-evidence-max-chars">
+                <span>Max Chars Per Evidence</span>
+                <input
+                  id="generate-evidence-max-chars"
+                  aria-label="Max Chars Per Evidence"
+                  type="number"
+                  min="100"
+                  step="100"
+                  value={evidenceMaxChars}
+                  onChange={(event) => setEvidenceMaxChars(event.currentTarget.value)}
+                />
+              </label>
+              <label htmlFor="generate-evidence-max-items">
+                <span>Max Evidence Items</span>
+                <input
+                  id="generate-evidence-max-items"
+                  aria-label="Max Evidence Items"
+                  type="number"
+                  min="10"
+                  step="10"
+                  value={evidenceMaxItems}
+                  onChange={(event) => setEvidenceMaxItems(event.currentTarget.value)}
+                />
+              </label>
+            </>
+          )}
           <button type="submit" disabled={pending} className="generate-submit">
             {pending ? t("generate.pending") : t("generate.submit")}
           </button>

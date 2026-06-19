@@ -10,12 +10,14 @@ import { analyzeWithHarness } from "../harness/run-harness.js";
 import { buildEvidenceIndex } from "../harness/evidence-index.js";
 import { enrichManifestWithEvidence } from "../harness/enrich-evidence.js";
 import { loadSessions, buildSessionLoadNotes } from "../sessions/load-sessions.js";
+import { loadSpecificSessions, type SessionSelection } from "../sessions/load-specific-sessions.js";
 import { EvidenceStore } from "../evidence-store/index.js";
 import { getDefaultEvidenceStorePath } from "../evidence-store/paths.js";
 import { persistRawEvidence } from "../evidence-store/persist.js";
 import { loadTemplateMarkdown, type TemplateName } from "./templates.js";
 import { SKILL_TYPE_DIMENSIONS, SKILL_TYPE_FOCUS, type SkillType } from "./skill-types.js";
 import type { EvidenceConfig } from "../harness/packets.js";
+import type { HarnessStageName } from "../harness/run-harness.js";
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
@@ -31,6 +33,8 @@ export type GenerateSkillRunInput = {
   llmProvider?: ResolvedLlmProvider;
   promptRegistry?: PromptRegistry;
   evidenceConfig?: EvidenceConfig;
+  sessionSelections?: Array<SessionSelection>;
+  onStageComplete?: (stage: HarnessStageName) => void;
 };
 
 export type GenerateSkillRunResult = {
@@ -56,11 +60,27 @@ export type GenerateSkillRunResult = {
 export async function generateSkillRun(
   input: GenerateSkillRunInput,
 ): Promise<GenerateSkillRunResult | null> {
-  const { normalizedSessions, warnings, skippedSessions } = await loadSessions({
-    directory: input.projectDirectory,
-    workspace: input.workspace,
-    recent: input.recent,
-  });
+  let normalizedSessions;
+  let warnings;
+  let skippedSessions = 0;
+
+  if (input.sessionSelections && input.sessionSelections.length > 0) {
+    const result = await loadSpecificSessions(input.sessionSelections, {
+      directory: input.projectDirectory,
+      workspace: input.workspace,
+    });
+    normalizedSessions = result.normalizedSessions;
+    warnings = result.warnings;
+  } else {
+    const result = await loadSessions({
+      directory: input.projectDirectory,
+      workspace: input.workspace,
+      recent: input.recent,
+    });
+    normalizedSessions = result.normalizedSessions;
+    warnings = result.warnings;
+    skippedSessions = result.skippedSessions;
+  }
 
   if (normalizedSessions.length === 0) {
     return null;
@@ -99,6 +119,7 @@ export async function generateSkillRun(
     selectedDimensions,
     skillTypeFocus,
     evidenceConfig: input.evidenceConfig,
+    onStageComplete: input.onStageComplete,
   });
 
   const selfContainedManifest = enrichManifestWithEvidence(

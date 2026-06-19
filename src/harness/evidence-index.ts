@@ -183,3 +183,154 @@ export function isDirectUserEvidence(item: EvidenceItem): boolean {
     !item.citation.partID
   );
 }
+
+export type EvidenceNoiseFilterConfig = {
+  filterMode?: "off" | "structural" | "structural+density";
+  minTextDensity?: number;
+  maxNgramRepetition?: number;
+  minLexicalDiversity?: number;
+};
+
+export type EvidenceFilterRemovedItem = {
+  evidenceID: string;
+  reason: "structural" | "low-density" | "high-repetition" | "low-diversity";
+};
+
+export type EvidenceFilterReport = {
+  inputCount: number;
+  outputCount: number;
+  removedByStructural: number;
+  removedByDensity: number;
+  removedItems: Array<EvidenceFilterRemovedItem>;
+};
+
+export type EvidenceFilterResult = {
+  items: Array<EvidenceItem>;
+  report: EvidenceFilterReport;
+};
+
+const STRUCTURAL_NOISE_PATTERNS: Array<{ pattern: RegExp; source?: string }> = [
+  { pattern: /^Base directory for this skill:/m, source: "claude" },
+  { pattern: /<invocation\s+name="/i, source: "claude" },
+  { pattern: /^---\n(?:name|description):/m, source: "claude" },
+  { pattern: /^Skill:\s+\S+\n/im, source: "codex" },
+  { pattern: /^\/[a-z][a-z0-9-]+\s/m, source: "codex" },
+  { pattern: /^Tool:\s+skill\s/m, source: "opencode" },
+  { pattern: /^---name:\s/m, source: "opencode" },
+  { pattern: /^Use this skill when\s/im },
+  { pattern: /^Skill:\s+\S/im },
+];
+
+function isStructuralNoise(text: string): boolean {
+  return STRUCTURAL_NOISE_PATTERNS.some(({ pattern }) => pattern.test(text));
+}
+
+function extractWords(text: string): Array<string> {
+  return text.split(/\s+/).filter((w) => w.length > 0);
+}
+
+function computeLexicalDiversity(words: ReadonlyArray<string>): number {
+  if (words.length === 0) return 0;
+  const unique = new Set(words);
+  return unique.size / words.length;
+}
+
+function computeNgramRepetitionRatio(words: ReadonlyArray<string>, n: number = 3): number {
+  if (words.length < n) return 0;
+  const ngrams = new Map<string, number>();
+  for (let i = 0; i <= words.length - n; i++) {
+    const ngram = words.slice(i, i + n).join(" ");
+    ngrams.set(ngram, (ngrams.get(ngram) ?? 0) + 1);
+  }
+  let repeated = 0;
+  for (const count of ngrams.values()) {
+    if (count > 1) repeated += count;
+  }
+  const total = words.length - n + 1;
+  return total > 0 ? repeated / total : 0;
+}
+
+function isLowDensity(
+  text: string,
+  minTextDensity: number,
+  maxNgramRepetition: number,
+  minLexicalDiversity: number,
+): EvidenceFilterRemovedItem["reason"] | null {
+  const words = extractWords(text);
+  const wordCount = words.length;
+
+  if (wordCount < minTextDensity) return "low-density";
+
+  const ngramRatio = computeNgramRepetitionRatio(words);
+  if (ngramRatio > maxNgramRepetition) return "high-repetition";
+
+  const diversity = computeLexicalDiversity(words);
+  if (diversity < minLexicalDiversity) return "low-diversity";
+
+  return null;
+}
+
+export function filterEvidenceNoise(
+  evidence: ReadonlyArray<EvidenceItem>,
+  config?: EvidenceNoiseFilterConfig,
+): EvidenceFilterResult {
+  const mode = config?.filterMode ?? "off";
+
+  if (mode === "off") {
+    return {
+      items: [...evidence],
+      report: {
+        inputCount: evidence.length,
+        outputCount: evidence.length,
+        removedByStructural: 0,
+        removedByDensity: 0,
+        removedItems: [],
+      },
+    };
+  }
+
+  const minTextDensity = config?.minTextDensity ?? 5;
+  const maxNgramRepetition = config?.maxNgramRepetition ?? 0.5;
+  const minLexicalDiversity = config?.minLexicalDiversity ?? 0.2;
+  const applyDensity = mode === "structural+density";
+
+  const kept: Array<EvidenceItem> = [];
+  const removedItems: Array<EvidenceFilterRemovedItem> = [];
+  let removedByStructural = 0;
+  let removedByDensity = 0;
+
+  for (const item of evidence) {
+    if (isStructuralNoise(item.summaryText)) {
+      removedItems.push({ evidenceID: item.evidenceID, reason: "structural" });
+      removedByStructural++;
+      continue;
+    }
+
+    if (applyDensity) {
+      const densityReason = isLowDensity(
+        item.summaryText,
+        minTextDensity,
+        maxNgramRepetition,
+        minLexicalDiversity,
+      );
+      if (densityReason) {
+        removedItems.push({ evidenceID: item.evidenceID, reason: densityReason });
+        removedByDensity++;
+        continue;
+      }
+    }
+
+    kept.push(item);
+  }
+
+  return {
+    items: kept,
+    report: {
+      inputCount: evidence.length,
+      outputCount: kept.length,
+      removedByStructural,
+      removedByDensity,
+      removedItems,
+    },
+  };
+}

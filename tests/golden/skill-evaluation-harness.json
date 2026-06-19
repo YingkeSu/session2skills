@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "skill-evaluation/v1",
+  "skillID": "harness",
+  "gates": {
+    "lint": "pass",
+    "redaction": "pass",
+    "grounding": "pass"
+  },
+  "scores": {
+    "grounding": 1,
+    "actionability": 0.8,
+    "specificity": 0.7,
+    "safety": 0.9,
+    "concision": 1,
+    "discoverability": 0.7,
+    "skepticQuality": 1,
+    "evidenceRichness": 1
+  },
+  "composite": 0.8949999999999999,
+  "grade": "A",
+  "verdict": "pass",
+  "issues": []
+}

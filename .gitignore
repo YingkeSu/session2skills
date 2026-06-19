@@ -70,5 +70,9 @@ coverage/
 # Build artifacts
 *.tsbuildinfo
 
+# Electron build artifacts
+dist-electron/
+release/
+
 # Playwright MCP runtime artifacts (page snapshots)
 .playwright-mcp/

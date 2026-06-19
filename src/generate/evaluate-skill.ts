@@ -9,7 +9,7 @@ import type {
   SkillEvaluationIssueSeverity,
   SkillGateStatus,
 } from "../normalize/models.js";
-import type { VerifierReport } from "../harness/types.js";
+import type { VerifierReport, ClaimManifest, SkepticReport } from "../harness/types.js";
 
 const SIZE_BUDGET = 120_000;
 
@@ -17,6 +17,8 @@ export type EvaluateSkillInput = {
   skillDirectory: string;
   skillFileName?: string;
   verifierReportFileName?: string;
+  claimManifestFileName?: string;
+  skepticReportFileName?: string;
   sizeBudget?: number;
 };
 
@@ -34,6 +36,8 @@ export async function evaluateSkill(input: EvaluateSkillInput): Promise<Evaluate
 
   const skillPath = path.join(skillDir, skillFileName);
   const verifierPath = path.join(skillDir, verifierFileName);
+  const manifestPath = path.join(skillDir, input.claimManifestFileName ?? "claim-manifest.json");
+  const skepticPath = path.join(skillDir, input.skepticReportFileName ?? "skeptic-report.json");
 
   const skillMarkdown = await readFile(skillPath, "utf8");
   const skillSize = Buffer.byteLength(skillMarkdown, "utf8");
@@ -49,6 +53,22 @@ export async function evaluateSkill(input: EvaluateSkillInput): Promise<Evaluate
     verifierReport = JSON.parse(verifierRaw) as VerifierReport;
   } catch {
     verifierReport = null;
+  }
+
+  let claimManifest: ClaimManifest | null = null;
+  try {
+    const manifestRaw = await readFile(manifestPath, "utf8");
+    claimManifest = JSON.parse(manifestRaw) as ClaimManifest;
+  } catch {
+    claimManifest = null;
+  }
+
+  let skepticReport: SkepticReport | null = null;
+  try {
+    const skepticRaw = await readFile(skepticPath, "utf8");
+    skepticReport = JSON.parse(skepticRaw) as SkepticReport;
+  } catch {
+    skepticReport = null;
   }
 
   const issues: Array<SkillEvaluationIssue> = [];
@@ -100,9 +120,26 @@ export async function evaluateSkill(input: EvaluateSkillInput): Promise<Evaluate
     overBudget,
     skillSize,
     verifierReport,
+    skepticReport,
+    claimManifest,
   });
 
-  const verdict = buildVerdict(gates, issues);
+  const composite = computeComposite(scores);
+  let grade = computeGrade(composite);
+  let verdict = buildVerdict(gates, issues);
+
+  if (!redactionPass) {
+    grade = "F";
+    verdict = "reject";
+  } else if (!groundingPass) {
+    verdict = "needs-patch";
+    const gradeOrder = ["A", "B", "C", "D", "F"] as const;
+    const currentIndex = gradeOrder.indexOf(grade);
+    const capIndex = gradeOrder.indexOf("C");
+    if (currentIndex > capIndex) {
+      grade = "C";
+    }
+  }
 
   const evaluation: SkillEvaluation = {
     schemaVersion: "skill-evaluation/v1",
@@ -110,6 +147,8 @@ export async function evaluateSkill(input: EvaluateSkillInput): Promise<Evaluate
     evaluatedAt: new Date().toISOString(),
     gates,
     scores,
+    composite,
+    grade,
     verdict,
     issues,
   };
@@ -130,14 +169,23 @@ function buildScores(input: {
   overBudget: boolean;
   skillSize: number;
   verifierReport: VerifierReport | null;
+  skepticReport?: SkepticReport | null;
+  claimManifest?: ClaimManifest | null;
 }): SkillEvaluation["scores"] {
-  const grounding = input.groundingPass ? 1.0 : input.verifierReport ? 0.0 : 0.0;
+  const grounding = input.groundingPass ? 1.0 : input.verifierReport ? 0.0 : 0.5;
   const actionability = input.lintPass ? 0.8 : 0.3;
   const hasFrontmatter = input.hasFrontmatterName && input.hasFrontmatterDescription;
   const specificity = hasFrontmatter ? 0.7 : 0.4;
   const safety = input.redactionPass ? 0.9 : 0.0;
   const concision = input.overBudget ? 0.5 : 1.0;
   const discoverability = hasFrontmatter ? 0.7 : 0.4;
+
+  const skepticQuality = input.skepticReport?.overallScore ?? 0.5;
+
+  const claims = input.claimManifest?.claims;
+  const evidenceRichness = claims && claims.length > 0
+    ? Math.min(1.0, Math.max(0.3, claims.reduce((sum, c) => sum + (c.evidenceRefs?.length ?? 0), 0) / claims.length / 3))
+    : 0.3;
 
   return {
     grounding,
@@ -146,7 +194,39 @@ function buildScores(input: {
     safety,
     concision,
     discoverability,
+    skepticQuality,
+    evidenceRichness,
   };
+}
+
+export function computeComposite(scores: {
+  grounding: number;
+  actionability: number;
+  safety: number;
+  specificity: number;
+  concision: number;
+  discoverability: number;
+  skepticQuality?: number;
+  evidenceRichness?: number;
+}): number {
+  return (
+    scores.grounding * 0.20 +
+    scores.actionability * 0.15 +
+    scores.safety * 0.15 +
+    scores.specificity * 0.10 +
+    scores.concision * 0.10 +
+    scores.discoverability * 0.10 +
+    (scores.skepticQuality ?? 0.5) * 0.10 +
+    (scores.evidenceRichness ?? 0.3) * 0.10
+  );
+}
+
+export function computeGrade(composite: number): "A" | "B" | "C" | "D" | "F" {
+  if (composite >= 0.85) return "A";
+  if (composite >= 0.75) return "B";
+  if (composite >= 0.65) return "C";
+  if (composite >= 0.50) return "D";
+  return "F";
 }
 
 function buildVerdict(

@@ -4,10 +4,70 @@ import { CliUsageError, OpenCodeAdapterError, toErrorMessage } from "../shared/e
 import { openCodeDBExists } from "./sqlite/paths.js";
 import { createSqliteSessionProvider } from "./sqlite/sessions.js";
 
-type ProviderHandle = {
+export type AdapterType = "sdk" | "sqlite" | "codex" | "claude";
+
+export type ProviderHandle = {
   provider: SessionProvider;
   close: () => Promise<void>;
 };
+
+export type AvailableAdapter = {
+  adapterType: AdapterType;
+  sourceType: "file" | "sqlite" | "sdk";
+  sourcePath: string | null;
+};
+
+export function makeSessionKey(adapter: string, sessionId: string, source: string): string {
+  return `${adapter}:${sessionId}:${source}`;
+}
+
+export async function listAvailableAdapters(
+  _options?: SessionProviderOptions,
+): Promise<Array<AvailableAdapter>> {
+  const adapters: Array<AvailableAdapter> = [];
+
+  try {
+    const { codexDbExists } = await import("./codex/paths.js");
+    if (codexDbExists()) {
+      adapters.push({ adapterType: "codex", sourceType: "sqlite", sourcePath: null });
+    }
+  } catch {}
+
+  try {
+    const { claudeProjectsDirExists } = await import("./claude/paths.js");
+    if (claudeProjectsDirExists()) {
+      adapters.push({ adapterType: "claude", sourceType: "file", sourcePath: null });
+    }
+  } catch {}
+
+  if (openCodeDBExists()) {
+    adapters.push({ adapterType: "sqlite", sourceType: "sqlite", sourcePath: null });
+  }
+
+  adapters.push({ adapterType: "sdk", sourceType: "sdk", sourcePath: null });
+
+  return adapters;
+}
+
+export async function createSessionProviderForType(
+  adapterType: AdapterType,
+  options?: SessionProviderOptions,
+): Promise<ProviderHandle> {
+  switch (adapterType) {
+    case "sdk":
+      return createSdkProvider(options ?? { directory: "" });
+    case "sqlite":
+      return createSqliteProvider({ eager: true });
+    case "codex":
+      return createCodexProvider();
+    case "claude":
+      return createClaudeProvider();
+    default:
+      throw new CliUsageError(
+        `Unknown adapter type "${adapterType}". Expected "sdk", "sqlite", "codex", or "claude".`,
+      );
+  }
+}
 
 export async function createSessionProvider(
   options: SessionProviderOptions,

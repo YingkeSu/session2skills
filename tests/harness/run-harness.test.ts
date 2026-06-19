@@ -1,12 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MockLlmProvider } from "../mock-provider.js";
-import { analyzeWithHarness } from "../../src/harness/run-harness.js";
 import type { NormalizedSession } from "../../src/normalize/models.js";
 import {
   makeEvidenceItems,
-  makeClaimManifest,
-  makeManifestClaim,
 } from "./fixtures.js";
+import * as evidenceIndex from "../../src/harness/evidence-index.js";
+import { analyzeWithHarness } from "../../src/harness/run-harness.js";
 
 function makeTestSession(id: string): NormalizedSession {
   return {
@@ -399,6 +398,39 @@ describe("harness orchestrator", () => {
     expect(result.revisedManifest!.claims[0]!.confidence).toBe(0.75);
   });
 
+  it("short-circuits when analyst returns zero claims", async () => {
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        { kind: "success", object: { claims: [], evidenceSummary: "no patterns found", dimensionsCovered: [] } },
+        { kind: "success", object: { claims: [], evidenceSummary: "no patterns found", dimensionsCovered: [] } },
+        { kind: "success", object: { claims: [], evidenceSummary: "no patterns found", dimensionsCovered: [] } },
+        { kind: "success", object: { issues: [], overallScore: 1.0 } },
+        { kind: "success", object: { skillMarkdown: "# Should not be used\n", sections: [] } },
+        { kind: "success", object: { pass: true, checkedItems: [], issues: [] } },
+      ],
+    });
+
+    const result = await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: makeEvidenceItems(5),
+      provider: provider.toResolved(),
+    });
+
+    expect(result.manifest.claims).toHaveLength(0);
+    expect(result.manifest.schemaVersion).toBe("claim-manifest/v1");
+    expect(result.skepticReport).toBeUndefined();
+    expect(result.writerOutput).toBeDefined();
+    expect(result.writerOutput!.skillMarkdown).toBe("");
+    expect(result.writerOutput!.sections).toHaveLength(0);
+    expect(result.verifierReport).toBeUndefined();
+    expect(result.revisedManifest).toBeDefined();
+    expect(result.revisedManifest!.claims).toHaveLength(0);
+    expect(provider.structuredRequests).toHaveLength(3);
+    expect(result.error).toBeUndefined();
+    expect(result.failedStage).toBeUndefined();
+    expect(result.traces).toHaveLength(1);
+  });
+
   it("skips verifier when verifier fails", async () => {
     const provider = new MockLlmProvider({
       structuredScenarios: [
@@ -443,5 +475,169 @@ describe("harness orchestrator", () => {
     expect(result.error).toBe("verifier failed: see traces");
     expect(result.failedStage).toBe("verifier");
     expect(result.traces.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("pre-computes selectedEvidence once and passes to skeptic/writer", async () => {
+    const selectSpy = vi.spyOn(evidenceIndex, "selectEvidenceForBudget");
+
+    const allEvidence = makeEvidenceItems(10);
+    const selectedEvidence = allEvidence.slice(0, 3);
+    selectSpy.mockReturnValue(selectedEvidence);
+
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001"] },
+            ],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+        { kind: "success", object: { issues: [], overallScore: 1.0 } },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Begin with analysis\n",
+            sections: [{
+              title: "Workflow",
+              summary: "Analysis-first",
+              directives: [{ text: "Begin with analysis", sourceClaimId: "c1" }],
+              groundingClaimIds: ["c1"],
+            }],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [{ directive: "Begin with analysis", claimId: "c1", status: "verified" }],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: allEvidence,
+      provider: provider.toResolved(),
+    });
+
+    expect(selectSpy).toHaveBeenCalledTimes(2);
+    expect(selectSpy).toHaveBeenNthCalledWith(2, expect.any(Array), expect.any(Number), expect.objectContaining({ preferDirectUser: true }));
+
+    selectSpy.mockRestore();
+  });
+
+  it("skeptic and writer receive pre-computed evidence, not full evidence", async () => {
+    const allEvidence = makeEvidenceItems(10);
+
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001"] },
+            ],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+        { kind: "success", object: { issues: [], overallScore: 1.0 } },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Begin with analysis\n",
+            sections: [{
+              title: "Workflow",
+              summary: "Analysis-first",
+              directives: [{ text: "Begin with analysis", sourceClaimId: "c1" }],
+              groundingClaimIds: ["c1"],
+            }],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [{ directive: "Begin with analysis", claimId: "c1", status: "verified" }],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: allEvidence,
+      provider: provider.toResolved(),
+    });
+
+    const requests = provider.structuredRequests;
+    expect(requests.length).toBeGreaterThanOrEqual(2);
+
+    const skepticContent = String(requests[1]!.messages.find((m) => { const msg = m as { role: string; content: string }; return msg.role === "user"; })?.content ?? "");
+
+    expect(skepticContent).toContain("ev_001");
+  });
+
+  it("filters skeptic evidence from selectedEvidence, not full evidence", async () => {
+    const allEvidence = makeEvidenceItems(20);
+
+    const provider = new MockLlmProvider({
+      structuredScenarios: [
+        {
+          kind: "success",
+          object: {
+            claims: [
+              { id: "c1", dimension: "work-style", label: "analysis-first", confidence: 0.8, rationale: "r", evidenceRefs: ["ev_001", "ev_015"] },
+            ],
+            evidenceSummary: "test",
+            dimensionsCovered: ["work-style"],
+          },
+        },
+        { kind: "success", object: { issues: [], overallScore: 1.0 } },
+        {
+          kind: "success",
+          object: {
+            skillMarkdown: "# Skill\n\n## Workflow\n- Begin with analysis\n",
+            sections: [{
+              title: "Workflow",
+              summary: "Analysis-first",
+              directives: [{ text: "Begin with analysis", sourceClaimId: "c1" }],
+              groundingClaimIds: ["c1"],
+            }],
+          },
+        },
+        {
+          kind: "success",
+          object: {
+            pass: true,
+            checkedItems: [{ directive: "Begin with analysis", claimId: "c1", status: "verified" }],
+            issues: [],
+          },
+        },
+      ],
+    });
+
+    await analyzeWithHarness({
+      sessions: [makeTestSession("s1")],
+      evidence: allEvidence,
+      provider: provider.toResolved(),
+    });
+
+    const requests = provider.structuredRequests;
+    const skepticContent = String(requests[1]!.messages.find((m) => { const msg = m as { role: string; content: string }; return msg.role === "user"; })?.content ?? "");
+
+    const evidenceSectionMatch = skepticContent.match(/# Referenced Evidence \((\d+) items\)/);
+    expect(evidenceSectionMatch).not.toBeNull();
+    const evidenceItemCount = Number(evidenceSectionMatch![1]);
+
+    expect(evidenceItemCount).toBeLessThan(20);
+    expect(evidenceItemCount).toBeGreaterThan(0);
   });
 });

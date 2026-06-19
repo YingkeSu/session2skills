@@ -188,14 +188,14 @@ function renderSessionSummaries(sessions: ReadonlyArray<NormalizedSession>): str
 // Stage 1: Analyst packet
 // ---------------------------------------------------------------------------
 
-export function buildAnalystPacket(
+export async function buildAnalystPacket(
   sessions: ReadonlyArray<NormalizedSession>,
   evidence: ReadonlyArray<EvidenceItem>,
   registry?: PromptRegistry,
   tokenBudget: number = DEFAULT_EVIDENCE_CONFIG.tokenBudget,
   selectedDimensions?: ReadonlyArray<string>,
   evidenceConfig?: EvidenceConfig,
-): HarnessPacket {
+): Promise<HarnessPacket> {
   const resolved = resolveHarnessTemplate(
     registry,
     "harness-analyst",
@@ -206,8 +206,10 @@ export function buildAnalystPacket(
   const cfg = { ...DEFAULT_EVIDENCE_CONFIG, ...evidenceConfig };
   const effectiveTokenBudget = evidenceConfig?.tokenBudget ?? tokenBudget;
 
-  const sessionSection = renderSessionSummaries(sessions);
-  const taxonomySection = renderTaxonomy(selectedDimensions);
+  const [sessionSection, taxonomySection] = await Promise.all([
+    Promise.resolve(renderSessionSummaries(sessions)),
+    Promise.resolve(renderTaxonomy(selectedDimensions)),
+  ]);
 
   const fixedOverhead =
     estimateTokens(resolved.systemPrompt) +
@@ -265,6 +267,8 @@ export function buildSkepticPacket(
   manifest: ClaimManifest,
   evidence: ReadonlyArray<EvidenceItem>,
   registry?: PromptRegistry,
+  preComputedEvidence?: ReadonlyArray<EvidenceItem>,
+  cachedClaimsJson?: string,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -273,7 +277,7 @@ export function buildSkepticPacket(
     {},
   );
 
-  const manifestJson = JSON.stringify(
+  const manifestJson = cachedClaimsJson ?? JSON.stringify(
     {
       claims: manifest.claims.map((c) => ({
         id: c.id,
@@ -288,11 +292,11 @@ export function buildSkepticPacket(
     2,
   );
 
-  const evidenceLookup = new Map(evidence.map((e) => [e.evidenceID, e]));
+  const evidenceSource = preComputedEvidence ?? evidence;
   const relevantEvidenceIds = new Set(
     manifest.claims.flatMap((c) => c.evidenceRefs),
   );
-  const relevantEvidence = evidence.filter((e) => relevantEvidenceIds.has(e.evidenceID));
+  const relevantEvidence = evidenceSource.filter((e) => relevantEvidenceIds.has(e.evidenceID));
   const evidenceSection = renderEvidenceLines(relevantEvidence);
 
   const userPayload = [
@@ -337,6 +341,7 @@ export function buildWriterPacket(
   evidence?: ReadonlyArray<EvidenceItem>,
   templateMarkdown?: string,
   skillTypeFocus?: string,
+  preComputedEvidence?: ReadonlyArray<EvidenceItem>,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -345,7 +350,8 @@ export function buildWriterPacket(
     {},
   );
 
-  const evidenceLookup = new Map((evidence ?? []).map((e) => [e.evidenceID, e]));
+  const evidenceSource = preComputedEvidence ?? evidence;
+  const evidenceLookup = new Map((evidenceSource ?? []).map((e) => [e.evidenceID, e]));
 
   const manifestJson = JSON.stringify(
     manifest.claims.map((c) => {
@@ -437,6 +443,7 @@ export function buildVerifierPacket(
   skillMarkdown: string,
   manifest: ClaimManifest,
   registry?: PromptRegistry,
+  cachedClaimsJson?: string,
 ): HarnessPacket {
   const resolved = resolveHarnessTemplate(
     registry,
@@ -445,7 +452,7 @@ export function buildVerifierPacket(
     {},
   );
 
-  const manifestClaimsJson = JSON.stringify(
+  const manifestClaimsJson = cachedClaimsJson ?? JSON.stringify(
     manifest.claims.map((c) => ({
       id: c.id,
       dimension: c.dimension,

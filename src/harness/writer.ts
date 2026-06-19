@@ -41,9 +41,10 @@ export async function runWriterStage(
   evidence?: ReadonlyArray<EvidenceItem>,
   templateMarkdown?: string,
   skillTypeFocus?: string,
+  preComputedEvidence?: ReadonlyArray<EvidenceItem>,
 ): Promise<WriterStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildWriterPacket(manifest, tone, registry, evidence, templateMarkdown, skillTypeFocus);
+  const packet = buildWriterPacket(manifest, tone, registry, evidence, templateMarkdown, skillTypeFocus, preComputedEvidence);
 
   let lastResult: LlmStructuredGenerationResult<RawWriterOutput> | undefined;
   let output: WriterOutput | undefined;

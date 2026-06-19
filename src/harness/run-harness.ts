@@ -4,12 +4,15 @@ import type { PromptRegistry } from "../llm/prompts/registry.js";
 import type { EvidenceItem, NormalizedSession } from "../normalize/models.js";
 import type { ClaimManifest, HarnessBudget, HarnessResult, SkepticSeverity } from "./types.js";
 import type { EvidenceConfig } from "./packets.js";
-import { DEFAULT_HARNESS_BUDGET } from "./types.js";
 import { generateTraceID } from "../llm/trace.js";
 import { runAnalystStage } from "./analyst.js";
 import { runSkepticStage } from "./skeptic.js";
 import { buildFallbackMarkdown, runWriterStage } from "./writer.js";
 import { runVerifierStage } from "./verifier.js";
+import { selectEvidenceForBudget } from "./evidence-index.js";
+import { DEFAULT_EVIDENCE_CONFIG } from "./packets.js";
+
+export type HarnessStageName = "analyst" | "skeptic" | "writer" | "verifier";
 
 export type RunHarnessInput = {
   sessions: ReadonlyArray<NormalizedSession>;
@@ -22,6 +25,7 @@ export type RunHarnessInput = {
   selectedDimensions?: ReadonlyArray<string>;
   skillTypeFocus?: string;
   evidenceConfig?: EvidenceConfig;
+  onStageComplete?: (stage: HarnessStageName) => void;
 };
 
 export async function analyzeWithHarness(input: RunHarnessInput): Promise<HarnessResult> {
@@ -36,6 +40,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     selectedDimensions,
     skillTypeFocus,
     evidenceConfig,
+    onStageComplete,
   } = input;
 
   const traces: Array<LLMTrace> = [];
@@ -56,6 +61,7 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     const analystResult = await runAnalystStage(sessions, evidence, provider, registry, budget, selectedDimensions, evidenceConfig);
     traces.push(analystResult.trace);
     manifest = analystResult.manifest;
+    onStageComplete?.("analyst");
   } catch (error: unknown) {
     traces.push(buildErrorTrace("harness-analyst", error));
     return {
@@ -66,24 +72,69 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
     };
   }
 
+  if (manifest.claims.length === 0) {
+    return {
+      manifest,
+      revisedManifest: manifest,
+      writerOutput: { skillMarkdown: "", sections: [] },
+      traces,
+    };
+  }
+
+  const selectedEvidence = selectEvidenceForBudget(
+    [...evidence],
+    DEFAULT_EVIDENCE_CONFIG.tokenBudget,
+    { preferDirectUser: true, maxItems: DEFAULT_EVIDENCE_CONFIG.maxItems },
+  );
+
+  const skepticClaimsJson = JSON.stringify(
+    {
+      claims: manifest.claims.map((c) => ({
+        id: c.id,
+        dimension: c.dimension,
+        label: c.label,
+        confidence: c.confidence,
+        rationale: c.rationale,
+        evidenceRefs: c.evidenceRefs,
+      })),
+    },
+    null,
+    2,
+  );
+
   let skepticReport: HarnessResult["skepticReport"];
   let revisedManifest: ClaimManifest;
   try {
-    const skepticResult = await runSkepticStage(manifest, evidence, provider, registry, budget);
+    const skepticResult = await runSkepticStage(manifest, evidence, provider, registry, budget, selectedEvidence, skepticClaimsJson);
     traces.push(skepticResult.trace);
     skepticReport = skepticResult.report;
     revisedManifest = applySkepticFeedback(manifest, skepticResult.report.issues);
+    onStageComplete?.("skeptic");
   } catch (error: unknown) {
     traces.push(buildErrorTrace("harness-skeptic", error));
     skepticReport = undefined;
     revisedManifest = manifest;
   }
 
+  const revisedClaimsJson = JSON.stringify(
+    revisedManifest.claims.map((c) => ({
+      id: c.id,
+      dimension: c.dimension,
+      label: c.label,
+      confidence: c.confidence,
+      rationale: c.rationale,
+      evidenceRefs: c.evidenceRefs,
+    })),
+    null,
+    2,
+  );
+
   let writerOutput: HarnessResult["writerOutput"];
   try {
-    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence, templateMarkdown, skillTypeFocus);
+    const writerResult = await runWriterStage(revisedManifest, tone, provider, registry, budget, evidence, templateMarkdown, skillTypeFocus, selectedEvidence);
     traces.push(writerResult.trace);
     writerOutput = writerResult.output;
+    onStageComplete?.("writer");
   } catch (error: unknown) {
     traces.push(buildErrorTrace("harness-writer", error));
     const fallbackMarkdown = buildFallbackMarkdown(revisedManifest);
@@ -101,9 +152,11 @@ export async function analyzeWithHarness(input: RunHarnessInput): Promise<Harnes
       provider,
       registry,
       budget,
+      revisedClaimsJson,
     );
     traces.push(verifierResult.trace);
     verifierReport = verifierResult.report;
+    onStageComplete?.("verifier");
   } catch (error: unknown) {
     traces.push(buildErrorTrace("harness-verifier", error));
     verifierReport = undefined;

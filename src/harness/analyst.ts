@@ -44,7 +44,7 @@ export async function runAnalystStage(
   evidenceConfig?: EvidenceConfig,
 ): Promise<AnalystStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildAnalystPacket(sessions, evidence, registry, evidenceConfig?.tokenBudget ?? 160000, selectedDimensions, evidenceConfig);
+  const packet = await buildAnalystPacket(sessions, evidence, registry, evidenceConfig?.tokenBudget ?? 160000, selectedDimensions, evidenceConfig);
   const knownEvidenceIds = new Set(evidence.map((e) => e.evidenceID));
 
   let lastResult: LlmStructuredGenerationResult<RawAnalystOutput> | undefined;

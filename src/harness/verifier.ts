@@ -43,9 +43,10 @@ export async function runVerifierStage(
   provider: ResolvedLlmProvider,
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
+  cachedClaimsJson?: string,
 ): Promise<VerifierStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildVerifierPacket(skillMarkdown, manifest, registry);
+  const packet = buildVerifierPacket(skillMarkdown, manifest, registry, cachedClaimsJson);
   const markdownDirectives = extractMarkdownDirectives(skillMarkdown);
 
   let lastResult: LlmStructuredGenerationResult<RawVerifierOutput> | undefined;

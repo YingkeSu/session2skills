@@ -27,7 +27,7 @@ const mockSessions: Array<NormalizedSession> = [
 ];
 
 describe("buildAnalystPacket", () => {
-  it("instruction uses correct evidence ID format", () => {
+  it("instruction uses correct evidence ID format", async () => {
     const realEvidence = buildEvidenceIndex(mockSessions);
     const realIds = realEvidence.map((e) => e.evidenceID);
     expect(realIds.length).toBeGreaterThan(0);
@@ -36,7 +36,7 @@ describe("buildAnalystPacket", () => {
     }
 
     const evidence = makeEvidenceItems(3);
-    const packet = buildAnalystPacket(mockSessions, evidence);
+    const packet = await buildAnalystPacket(mockSessions, evidence);
 
     const userMessage = packet.messages.find((m) => m.role === "user");
     expect(userMessage).toBeDefined();
@@ -51,10 +51,10 @@ describe("buildAnalystPacket", () => {
     expect(citeInstructionLine!).not.toMatch(/ev_001/);
   });
 
-  it("respects custom evidenceConfig for tokenBudget, maxChars, and maxItems", () => {
+  it("respects custom evidenceConfig for tokenBudget, maxChars, and maxItems", async () => {
     const evidence = makeEvidenceItems(50);
-    const packetDefault = buildAnalystPacket(mockSessions, evidence);
-    const packetCustom = buildAnalystPacket(mockSessions, evidence, undefined, 1000, undefined, {
+    const packetDefault = await buildAnalystPacket(mockSessions, evidence);
+    const packetCustom = await buildAnalystPacket(mockSessions, evidence, undefined, 1000, undefined, {
       maxChars: 100,
       maxItems: 5,
     });
@@ -75,9 +75,9 @@ describe("buildAnalystPacket", () => {
     }
   });
 
-  it("uses default evidenceConfig when none provided", () => {
+  it("uses default evidenceConfig when none provided", async () => {
     const evidence = makeEvidenceItems(10);
-    const packet = buildAnalystPacket(mockSessions, evidence);
+    const packet = await buildAnalystPacket(mockSessions, evidence);
 
     const userMessage = packet.messages.find((m) => m.role === "user");
     expect(userMessage).toBeDefined();
@@ -298,10 +298,10 @@ describe("buildWriterPacket", () => {
 });
 
 describe("buildAnalystPacket with selectedDimensions", () => {
-  it("analyst packet only includes selected dimensions in taxonomy", () => {
+  it("analyst packet only includes selected dimensions in taxonomy", async () => {
     const evidence = makeEvidenceItems(3);
     const selectedDimensions = ["validation-habit", "constraint"];
-    const packet = buildAnalystPacket(mockSessions, evidence, undefined, 6000, selectedDimensions);
+    const packet = await buildAnalystPacket(mockSessions, evidence, undefined, 6000, selectedDimensions);
 
     const userMessage = packet.messages.find((m) => m.role === "user");
     expect(userMessage).toBeDefined();
@@ -315,9 +315,9 @@ describe("buildAnalystPacket with selectedDimensions", () => {
     expect(userMessage!.content).not.toContain("### delegation-pattern");
   });
 
-  it("analyst packet includes all dimensions when selectedDimensions is undefined", () => {
+  it("analyst packet includes all dimensions when selectedDimensions is undefined", async () => {
     const evidence = makeEvidenceItems(3);
-    const packet = buildAnalystPacket(mockSessions, evidence);
+    const packet = await buildAnalystPacket(mockSessions, evidence);
 
     const userMessage = packet.messages.find((m) => m.role === "user");
     expect(userMessage).toBeDefined();

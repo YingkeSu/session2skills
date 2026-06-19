@@ -38,9 +38,11 @@ export async function runSkepticStage(
   provider: ResolvedLlmProvider,
   registry?: PromptRegistry,
   budget?: Partial<HarnessBudget>,
+  preComputedEvidence?: ReadonlyArray<EvidenceItem>,
+  cachedClaimsJson?: string,
 ): Promise<SkepticStageResult> {
   const resolvedBudget = resolveHarnessBudget(budget);
-  const packet = buildSkepticPacket(manifest, evidence, registry);
+  const packet = buildSkepticPacket(manifest, evidence, registry, preComputedEvidence, cachedClaimsJson);
   const hasNonTrivialClaims = manifest.claims.length > 2;
 
   let lastResult: LlmStructuredGenerationResult<RawSkepticOutput> | undefined;

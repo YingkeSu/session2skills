@@ -142,7 +142,11 @@ export type SkillEvaluation = {
     concision: number;
     discoverability: number;
     duplication?: number;
+    skepticQuality?: number;
+    evidenceRichness?: number;
   };
+  composite?: number;
+  grade?: "A" | "B" | "C" | "D" | "F";
   verdict: SkillEvaluationVerdict;
   issues: Array<SkillEvaluationIssue>;
 };
@@ -178,6 +182,16 @@ export type LLMTraceCacheInfo = {
   hit: boolean;
   key: string;
   storedAt?: string;
+};
+
+export type SessionMeta = {
+  providerId: string;
+  sessionId: string;
+  title: string | null;
+  sourceType: "file" | "sqlite" | "sdk";
+  sourcePath: string | null;
+  updatedAt: number | null;
+  messageCount: number | null;
 };
 
 export type LLMTrace = {

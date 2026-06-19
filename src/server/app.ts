@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync } from "node:fs";
-import { access, readFile, readdir, stat } from "node:fs/promises";
+import { access, readFile, readdir, stat, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +15,22 @@ import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../sha
 import { CliUsageError } from "../shared/errors.js";
 import { isValidRunName, normalizeRunName } from "../shared/paths.js";
 import type { RunSummary } from "../shared/run-summary.js";
+import {
+  listAvailableAdapters,
+  createSessionProviderForType,
+  type AdapterType,
+} from "../adapters/registry.js";
+import type { SessionMeta } from "../normalize/models.js";
+import {
+  writeProgress,
+  readProgress,
+  createInitialProgress,
+  advanceProgress,
+  markProgressDone,
+  markProgressError,
+  type GenerationStage,
+} from "../generate/progress.js";
+import type { HarnessStageName } from "../harness/run-harness.js";
 
 // dist/server/app.js → ../../web/dist
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,6 +48,11 @@ function extractBearerToken(authHeader: string | undefined): string | null {
 }
 
 export type ServerGenerateRunner = (input: GenerateSkillRunInput) => Promise<unknown>;
+
+export type SessionSelectionInput = {
+  adapter: AdapterType;
+  sessionId: string;
+};
 
 export type CreateServerOptions = {
   projectDirectory: string;
@@ -172,6 +193,32 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
     }
   });
 
+  app.get("/api/runs/:name/progress", async (c) => {
+    const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    const progress = await readProgress(runDir);
+    if (!progress) {
+      return c.json({ stage: "idle", completedStages: [] });
+    }
+
+    return c.json(progress);
+  });
+
   app.get("/api/runs/:name/evidence/:evidenceId", async (c) => {
     const name = c.req.param("name");
     const evidenceId = c.req.param("evidenceId");
@@ -255,16 +302,19 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         force: boolean;
         template: string;
         skillType: string;
+        async: boolean;
         evidenceConfig?: {
           tokenBudget?: number;
           maxChars?: number;
           maxItems?: number;
         };
+        sessionSelections?: Array<{ adapter: string; sessionId: string }>;
       }>>();
 
       const recent = coercePositiveInteger(body.recent, 10);
       const tone = coerceTonePreset(body.tone, "balanced");
       const force = body.force === true;
+      const isAsync = body.async === true;
       const workspace = typeof body.workspace === "string" && body.workspace.length > 0
         ? body.workspace
         : undefined;
@@ -279,8 +329,65 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         maxChars: typeof body.evidenceConfig.maxChars === "number" ? body.evidenceConfig.maxChars : undefined,
         maxItems: typeof body.evidenceConfig.maxItems === "number" ? body.evidenceConfig.maxItems : undefined,
       } : undefined;
+      const sessionSelections = Array.isArray(body.sessionSelections)
+        ? body.sessionSelections.map((s) => ({
+            adapter: s.adapter as AdapterType,
+            sessionId: s.sessionId,
+          }))
+        : undefined;
       const name = normalizeRunName(body.name);
       const outputDirectory = join(runsDirectory, name);
+
+      if (isAsync) {
+        await mkdir(outputDirectory, { recursive: true });
+        const initialProgress = createInitialProgress();
+        await writeProgress(outputDirectory, initialProgress);
+
+        const stageMapping: Record<HarnessStageName, GenerationStage> = {
+          analyst: "analyst",
+          skeptic: "skeptic",
+          writer: "writer",
+          verifier: "verifier",
+        };
+
+        void (async () => {
+          let currentProgress = initialProgress;
+          try {
+            await generateRun({
+              projectDirectory: options.projectDirectory,
+              outputDirectory,
+              workspace,
+              recent,
+              tone,
+              force,
+              template,
+              skillType,
+              evidenceConfig,
+              sessionSelections,
+              onStageComplete: (stage: HarnessStageName) => {
+                const nextMap: Record<HarnessStageName, GenerationStage> = {
+                  analyst: "skeptic",
+                  skeptic: "writer",
+                  writer: "verifier",
+                  verifier: "done",
+                };
+                currentProgress = advanceProgress(currentProgress, stageMapping[stage], nextMap[stage]);
+                void writeProgress(outputDirectory, currentProgress);
+              },
+            });
+            currentProgress = markProgressDone(currentProgress);
+            await writeProgress(outputDirectory, currentProgress);
+          } catch (error: unknown) {
+            currentProgress = markProgressError(
+              currentProgress,
+              error instanceof Error ? error.message : String(error),
+            );
+            await writeProgress(outputDirectory, currentProgress);
+          }
+        })();
+
+        return c.json({ name, status: "running" }, 202);
+      }
 
       await generateRun({
         projectDirectory: options.projectDirectory,
@@ -292,6 +399,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         template,
         skillType,
         evidenceConfig,
+        sessionSelections,
       });
 
       const summaries = await scanRuns(runsDirectory);
@@ -310,6 +418,76 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   });
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
+
+  app.get("/api/sessions", async (c) => {
+    try {
+      const adapterParam = c.req.query("adapter") ?? undefined;
+      const directory = c.req.query("directory") ?? options.projectDirectory;
+      const workspace = c.req.query("workspace") ?? undefined;
+      const recent = coercePositiveInteger(
+        c.req.query("recent") ? Number(c.req.query("recent")) : undefined,
+        20,
+      );
+      const search = c.req.query("search")?.toLowerCase() ?? undefined;
+
+      const providerOpts = { directory, workspace };
+
+      let adapterTypes: Array<AdapterType>;
+      if (adapterParam === "all") {
+        const available = await listAvailableAdapters(providerOpts);
+        adapterTypes = available.map((a) => a.adapterType);
+      } else if (adapterParam) {
+        const KNOWN_ADAPTERS: ReadonlySet<string> = new Set(["sdk", "sqlite", "codex", "claude"]);
+        if (!KNOWN_ADAPTERS.has(adapterParam)) {
+          return c.json({ error: `Unknown adapter: ${adapterParam}` }, 400);
+        }
+        adapterTypes = [adapterParam as AdapterType];
+      } else {
+        const available = await listAvailableAdapters(providerOpts);
+        adapterTypes = available.length > 0 ? [available[0]!.adapterType] : ["sdk"];
+      }
+
+      const allMeta: Array<SessionMeta> = [];
+
+      for (const adapterType of adapterTypes) {
+        let handle;
+        try {
+          handle = await createSessionProviderForType(adapterType, providerOpts);
+        } catch {
+          continue;
+        }
+
+        try {
+          const sessions = await handle.provider.listRecentSessions(providerOpts, recent);
+          for (const session of sessions) {
+            const title = session.title ?? null;
+            if (search) {
+              const haystack = (title ?? "").toLowerCase();
+              if (!haystack.includes(search)) {
+                continue;
+              }
+            }
+            allMeta.push({
+              providerId: adapterType,
+              sessionId: session.id,
+              title,
+              sourceType: adapterType === "claude" ? "file" : adapterType === "sdk" ? "sdk" : "sqlite",
+              sourcePath: null,
+              updatedAt: session.updatedAt ?? null,
+              messageCount: null,
+            });
+          }
+        } catch {
+        } finally {
+          await handle.close();
+        }
+      }
+
+      return c.json(allMeta);
+    } catch {
+      return c.json({ error: "Failed to list sessions" }, 500);
+    }
+  });
 
   if (existsSync(webDist)) {
     app.use("/assets/*", serveStatic({ root: webDist }));

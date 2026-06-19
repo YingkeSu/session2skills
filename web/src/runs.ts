@@ -34,6 +34,7 @@ export type GenerationStage =
   | "verifier"
   | "done"
   | "error"
+  | "no-claims"
   | "idle";
 
 export type GenerationProgress = {

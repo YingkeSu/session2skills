@@ -19,6 +19,7 @@ import {
   listAvailableAdapters,
   createSessionProviderForType,
   type AdapterType,
+  type ProviderHandle,
 } from "../adapters/registry.js";
 import type { SessionMeta } from "../normalize/models.js";
 import {
@@ -28,6 +29,7 @@ import {
   advanceProgress,
   markProgressDone,
   markProgressError,
+  markProgressNoClaims,
   type GenerationStage,
 } from "../generate/progress.js";
 import type { HarnessStageName } from "../harness/run-harness.js";
@@ -375,7 +377,18 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
                 void writeProgress(outputDirectory, currentProgress);
               },
             });
-            currentProgress = markProgressDone(currentProgress);
+            try {
+              const manifestRaw = await readFile(join(outputDirectory, "claim-manifest.json"), "utf8");
+              const parsed: unknown = JSON.parse(manifestRaw);
+              const claimCount = typeof parsed === "object" && parsed !== null && "claims" in parsed && Array.isArray((parsed as { claims: unknown[] }).claims)
+                ? (parsed as { claims: unknown[] }).claims.length
+                : -1;
+              currentProgress = claimCount === 0
+                ? markProgressNoClaims(currentProgress)
+                : markProgressDone(currentProgress);
+            } catch {
+              currentProgress = markProgressDone(currentProgress);
+            }
             await writeProgress(outputDirectory, currentProgress);
           } catch (error: unknown) {
             currentProgress = markProgressError(
@@ -432,10 +445,20 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
 
       const providerOpts = { directory, workspace };
 
+      const availableAdapters = await listAvailableAdapters(providerOpts);
+      const sourceTypeMap = new Map<AdapterType, "file" | "sqlite" | "sdk">(
+        availableAdapters.map((a) => [a.adapterType, a.sourceType] as const),
+      );
+      const fallbackSourceType: Record<AdapterType, "file" | "sqlite" | "sdk"> = {
+        sdk: "sdk",
+        sqlite: "sqlite",
+        codex: "sqlite",
+        claude: "file",
+      };
+
       let adapterTypes: Array<AdapterType>;
       if (adapterParam === "all") {
-        const available = await listAvailableAdapters(providerOpts);
-        adapterTypes = available.map((a) => a.adapterType);
+        adapterTypes = availableAdapters.map((a) => a.adapterType);
       } else if (adapterParam) {
         const KNOWN_ADAPTERS: ReadonlySet<string> = new Set(["sdk", "sqlite", "codex", "claude"]);
         if (!KNOWN_ADAPTERS.has(adapterParam)) {
@@ -443,14 +466,13 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         }
         adapterTypes = [adapterParam as AdapterType];
       } else {
-        const available = await listAvailableAdapters(providerOpts);
-        adapterTypes = available.length > 0 ? [available[0]!.adapterType] : ["sdk"];
+        adapterTypes = availableAdapters.length > 0 ? [availableAdapters[0]!.adapterType] : ["sdk"];
       }
 
       const allMeta: Array<SessionMeta> = [];
 
       for (const adapterType of adapterTypes) {
-        let handle;
+        let handle: ProviderHandle | undefined;
         try {
           handle = await createSessionProviderForType(adapterType, providerOpts);
         } catch {
@@ -459,6 +481,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
 
         try {
           const sessions = await handle.provider.listRecentSessions(providerOpts, recent);
+          const sourceType = sourceTypeMap.get(adapterType) ?? fallbackSourceType[adapterType];
           for (const session of sessions) {
             const title = session.title ?? null;
             if (search) {
@@ -471,7 +494,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
               providerId: adapterType,
               sessionId: session.id,
               title,
-              sourceType: adapterType === "claude" ? "file" : adapterType === "sdk" ? "sdk" : "sqlite",
+              sourceType,
               sourcePath: null,
               updatedAt: session.updatedAt ?? null,
               messageCount: null,

@@ -7,7 +7,8 @@ export type GenerationStage =
   | "writer"
   | "verifier"
   | "done"
-  | "error";
+  | "error"
+  | "no-claims";
 
 export type ProgressFile = {
   stage: GenerationStage;
@@ -83,5 +84,13 @@ export function markProgressError(
     stage: "error",
     updatedAt: new Date().toISOString(),
     error,
+  };
+}
+
+export function markProgressNoClaims(current: ProgressFile): ProgressFile {
+  return {
+    ...current,
+    stage: "no-claims",
+    updatedAt: new Date().toISOString(),
   };
 }

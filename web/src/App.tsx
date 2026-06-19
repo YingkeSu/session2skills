@@ -44,6 +44,9 @@ export function App(): JSX.Element {
     if (progress.stage === "done") {
       setRunningRunName(null);
       setGenerateSuccessName(runningRunName);
+    } else if (progress.stage === "no-claims") {
+      setRunningRunName(null);
+      setGenerateSuccessName(runningRunName);
     } else if (progress.stage === "error") {
       setRunningRunName(null);
       setGenerateErrorMessage(progress.error ?? "Generation failed");
@@ -614,6 +617,11 @@ function ProgressStepper({ progress }: { progress: GenerationProgress }): JSX.El
       })}
       {progress.stage === "done" && (
         <p className="generate-message">{t("progress.completed")}</p>
+      )}
+      {progress.stage === "no-claims" && (
+        <p className="generate-message" style={{ color: "#d4a017" }}>
+          Completed but no claims extracted from sessions.
+        </p>
       )}
       {progress.stage === "error" && (
         <p className="generate-message error">

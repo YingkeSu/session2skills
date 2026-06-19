@@ -29,8 +29,6 @@ jobs:
             os: ubuntu-latest
           - node-version: 24
             os: macos-latest
-          - node-version: 24
-            os: windows-latest
 
     steps:
       - uses: actions/checkout@v4

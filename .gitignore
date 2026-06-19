@@ -76,3 +76,4 @@ release/
 
 # Playwright MCP runtime artifacts (page snapshots)
 .playwright-mcp/
+*.png

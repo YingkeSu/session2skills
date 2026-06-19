@@ -156,12 +156,28 @@ export async function runWriterStage(
   };
 }
 
+const REPORT_PROSE_PATTERNS: Array<{ regex: RegExp; replacement: string }> = [
+  { regex: /Ground this in the observed pattern[^.\n]*[.;]?/gi, replacement: "" },
+  { regex: /\bev_[a-z0-9_]+\b/gi, replacement: "" },
+  { regex: /\bses_[a-z0-9]+:msg_[a-z0-9]+\b/gi, replacement: "" },
+  { regex: /\bclaim_\d+\b/gi, replacement: "" },
+  { regex: /\bconfidence\s*:\s*\d+(?:\.\d+)?/gi, replacement: "" },
+];
+
+function sanitizeSkillMarkdown(markdown: string): string {
+  let sanitized = markdown;
+  for (const { regex, replacement } of REPORT_PROSE_PATTERNS) {
+    sanitized = sanitized.replace(regex, replacement);
+  }
+  return sanitized.replace(/[ \t]{2,}/g, " ").replace(/ +\n/g, "\n").trim();
+}
+
 function parseWriterOutput(raw: RawWriterOutput, manifest: ClaimManifest): WriterOutput {
   const validClaimIds = new Set(manifest.claims.map((c) => c.id));
 
   const rawMarkdown = raw.skillMarkdown ?? raw.skill_markdown;
   const initialMarkdown = typeof rawMarkdown === "string" && rawMarkdown.trim()
-    ? rawMarkdown
+    ? sanitizeSkillMarkdown(rawMarkdown)
     : buildFallbackMarkdown(manifest);
 
   const rawSections = Array.isArray(raw.sections) ? raw.sections : [];

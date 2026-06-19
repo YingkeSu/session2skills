@@ -42,6 +42,7 @@ export const harnessAnalystPrompt: PromptTemplate<unknown> = {
     "Each claim must cite specific evidence IDs from the provided data.",
     "Assign confidence 0–1 based on evidence strength and consistency.",
     "Do NOT fabricate evidence. Only cite IDs that appear in the input.",
+    "CRITICAL: Each claim's rationale must be a 1-2 sentence explanation of the observed pattern, grounded in the evidence. Empty rationale is invalid.",
     "Output valid JSON matching the provided schema.",
   ].join("\n"),
   outputSchema: {

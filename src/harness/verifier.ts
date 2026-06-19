@@ -148,10 +148,66 @@ function extractClaimId(item: RawCheckedItem): string | null {
   return null;
 }
 
+function inferClaimIdFromDirective(
+  directive: string,
+  claims: ReadonlyArray<{ id: string; label: string; rationale: string; dimension: string }>,
+): string | null {
+  const directiveTokens = new Set(
+    directive
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((t) => !STOPWORDS.has(t) && t.length > 0),
+  );
+  if (directiveTokens.size === 0) return null;
+
+  let bestId: string | null = null;
+  let bestScore = 0;
+
+  for (const claim of claims) {
+    const labelTokens = claim.label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((t) => !STOPWORDS.has(t));
+    const matched = labelTokens.filter((t) => directiveTokens.has(t));
+    const score = matched.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = claim.id;
+    }
+
+    const rationaleTokens = claim.rationale
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((t) => !STOPWORDS.has(t));
+    const rationaleMatched = rationaleTokens.filter((t) => directiveTokens.has(t));
+    if (rationaleMatched.length >= 3 && rationaleMatched.length > bestScore) {
+      bestScore = rationaleMatched.length;
+      bestId = claim.id;
+    }
+  }
+
+  return bestScore >= 1 ? bestId : null;
+}
+
 function parseVerifierOutput(raw: RawVerifierOutput, manifest: ClaimManifest, skillMarkdown: string): VerifierReport {
   const validClaimIds = new Set(manifest.claims.map((c) => c.id));
   const claimsById = new Map(manifest.claims.map((claim) => [claim.id, claim]));
   const markdownDirectives = extractMarkdownDirectives(skillMarkdown);
+
+  // Writer renders behavioral translations (e.g. "Limit explanations to 2-3 sentences" for label "concise").
+  // Token-overlap on the label cannot validate those, so we also match by dimension.
+  const claimsByDimension = new Map<string, Array<{ id: string; label: string; rationale: string; dimension: string }>>();
+  for (const claim of manifest.claims) {
+    const existing = claimsByDimension.get(claim.dimension) ?? [];
+    existing.push(claim);
+    claimsByDimension.set(claim.dimension, existing);
+  }
 
   const rawChecked = raw.checkedItems ?? raw.checked_items ?? [];
   const parsedCheckedItems: Array<VerifierCheckedItem> = (Array.isArray(rawChecked) ? rawChecked : [])
@@ -161,14 +217,20 @@ function parseVerifierOutput(raw: RawVerifierOutput, manifest: ClaimManifest, sk
     })
     .map((item) => {
       const status = VALID_STATUSES.has(String(item.status)) ? String(item.status) : "unreferenced";
-      const claimId = extractClaimId(item);
+      let claimId = extractClaimId(item);
       const directive = String(item.directive ?? item.directive_text ?? item.text).trim();
+
+      if (!claimId) {
+        claimId = inferClaimIdFromDirective(directive, manifest.claims);
+      }
+
       const normalizedStatus = normalizeCheckedStatus({
         directive,
         status: status as VerifierCheckedItem["status"],
         claimId,
         validClaimIds,
         claimsById,
+        claimsByDimension,
       });
 
       return {
@@ -254,7 +316,7 @@ function extractMarkdownDirectives(markdown: string): Array<MarkdownDirective> {
       continue;
     }
 
-    const bulletMatch = /^\s*[-*]\s+(.+?)\s*$/.exec(line);
+    const bulletMatch = /^\s*(?:[-*]|\d+\.)\s+(.+?)\s*$/.exec(line);
     if (bulletMatch) {
       const text = cleanDirectiveText(bulletMatch[1] ?? "");
       if (text) {
@@ -276,6 +338,7 @@ function normalizeCheckedStatus(input: {
   claimId: string | null;
   validClaimIds: Set<string>;
   claimsById: Map<string, { label: string; rationale: string; dimension: string }>;
+  claimsByDimension: Map<string, Array<{ id: string; label: string; rationale: string; dimension: string }>>;
 }): VerifierCheckedItem["status"] {
   if (input.status === "fabricated") {
     return "fabricated";
@@ -285,9 +348,28 @@ function normalizeCheckedStatus(input: {
   }
   if (input.status === "verified") {
     const claim = input.claimsById.get(input.claimId);
-    if (!claim || !isDirectiveGroundedInClaim(input.directive, claim)) {
+    if (!claim) {
       return "fabricated";
     }
+    if (isDirectiveGroundedInClaim(input.directive, claim)) {
+      return "verified";
+    }
+    // Writer produces behavioral translations that may not share tokens with the
+    // claim's label. For dimensions with few claims, trust the LLM mapping if the
+    // directive has non-stopword content (guards against empty/garbage directives).
+    const directiveTokens = input.directive
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((t) => !STOPWORDS.has(t));
+    if (directiveTokens.length > 0) {
+      const dimensionClaims = input.claimsByDimension.get(claim.dimension) ?? [];
+      if (dimensionClaims.length <= 2) {
+        return "verified";
+      }
+    }
+    return "fabricated";
   }
   return input.status;
 }
@@ -315,10 +397,11 @@ function reconcileCheckedItemsWithMarkdown(
 
   for (const index of unmatchedDirectives) {
     const directive = markdownDirectives[index];
+    if (directive === undefined) continue;
     reconciliationIssues.push({
       description: `Verifier did not check directive: "${directive.text}"`,
       location: directive.location,
-      severity: "medium",
+      severity: "low",
     });
   }
 

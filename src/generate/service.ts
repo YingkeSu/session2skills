@@ -15,6 +15,7 @@ import { getDefaultEvidenceStorePath } from "../evidence-store/paths.js";
 import { persistRawEvidence } from "../evidence-store/persist.js";
 import { loadTemplateMarkdown, type TemplateName } from "./templates.js";
 import { SKILL_TYPE_DIMENSIONS, SKILL_TYPE_FOCUS, type SkillType } from "./skill-types.js";
+import type { EvidenceConfig } from "../harness/packets.js";
 
 const HYBRID_LLM_PROVIDER = "openai-compatible";
 
@@ -29,6 +30,7 @@ export type GenerateSkillRunInput = {
   skillType?: SkillType;
   llmProvider?: ResolvedLlmProvider;
   promptRegistry?: PromptRegistry;
+  evidenceConfig?: EvidenceConfig;
 };
 
 export type GenerateSkillRunResult = {
@@ -96,6 +98,7 @@ export async function generateSkillRun(
     templateMarkdown,
     selectedDimensions,
     skillTypeFocus,
+    evidenceConfig: input.evidenceConfig,
   });
 
   const selfContainedManifest = enrichManifestWithEvidence(
@@ -178,6 +181,8 @@ export function resolveHybridLlmProvider(): ResolvedLlmProvider {
 
   return new LlmProviderRegistry([{ provider }]).resolve(provider.provider);
 }
+
+export type { EvidenceConfig } from "../harness/packets.js";
 
 export function buildPromptRegistry(): PromptRegistry {
   const registry = createPromptRegistry();

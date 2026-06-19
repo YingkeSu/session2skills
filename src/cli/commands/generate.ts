@@ -14,6 +14,9 @@ type GenerateOptions = {
   tone: TonePreset;
   template: TemplateName;
   skillType: SkillType;
+  evidenceBudget: number;
+  evidenceMaxChars: number;
+  evidenceMaxItems: number;
 };
 
 export type { GenerateSkillRunInput, GenerateSkillRunResult } from "../../generate/service.js";
@@ -29,6 +32,9 @@ export function registerGenerateCommand(program: Command): void {
     .option("--tone <preset>", "Output tone: concise, balanced, or detailed", parseTonePreset, "balanced")
     .option("--template <name>", "Output template: claude-skill, opencode-skill, cursor-mdc, copilot-instructions", parseTemplate, "claude-skill")
     .option("--skill-type <type>", "Skill type focus: workflow, testing, code-style, debugging, review", parseSkillType, "workflow")
+    .option("--evidence-budget <number>", "Evidence token budget for analyst (default: 160000)", parsePositiveInteger, 160000)
+    .option("--evidence-max-chars <number>", "Max chars per evidence item in prompt (default: 5000)", parsePositiveInteger, 5000)
+    .option("--evidence-max-items <number>", "Max evidence items in prompt (default: 3000)", parsePositiveInteger, 3000)
     .option("--force", "Allow overwriting existing generated outputs", false)
     .action(async (options: GenerateOptions) => {
       const directory = validateProjectDirectory(resolveProjectDirectory(options.directory));
@@ -43,6 +49,11 @@ export function registerGenerateCommand(program: Command): void {
         tone: options.tone,
         template: options.template,
         skillType: options.skillType,
+        evidenceConfig: {
+          tokenBudget: options.evidenceBudget,
+          maxChars: options.evidenceMaxChars,
+          maxItems: options.evidenceMaxItems,
+        },
       });
 
       if (result === null) {

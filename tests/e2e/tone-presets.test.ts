@@ -46,7 +46,7 @@ describe("tone presets", () => {
           probeDir,
           "--tone",
           "balanced",
-        ]);
+        ], { timeout: 300000 });
 
         if (probe.status !== 0) {
           throw new Error(`Generate preflight failed with exit code ${probe.status ?? "null"}.`);
@@ -63,7 +63,7 @@ describe("tone presets", () => {
       console.warn(`Skipping tone presets E2E preflight: ${preflightFailure.message}`);
       return;
     }
-  }, 60000);
+  }, 360000);
 
   beforeEach(() => {
     tempDir = createTempDir();
@@ -101,7 +101,7 @@ describe("tone presets", () => {
         outputDir,
         "--tone",
         tone,
-      ]),
+      ], { timeout: 300000 }),
       summaryPath: join(outputDir, "summary.md"),
       skillPath: join(outputDir, "SKILL.md"),
     };

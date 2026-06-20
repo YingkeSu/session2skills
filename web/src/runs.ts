@@ -1,3 +1,14 @@
+export type GenerationStage =
+  | "analyst"
+  | "skeptic"
+  | "writer"
+  | "verifier"
+  | "done"
+  | "error"
+  | "no-claims"
+  | "interrupted"
+  | "idle";
+
 export type RunSummary = {
   name: string;
   model: string;
@@ -9,6 +20,7 @@ export type RunSummary = {
   artifactStatus?: "complete" | "partial" | "legacy";
   skillAvailable?: boolean;
   summaryAvailable?: boolean;
+  progressStage?: GenerationStage;
 };
 
 export type GenerateRunRequest = {
@@ -16,6 +28,7 @@ export type GenerateRunRequest = {
   recent?: number;
   sessionSelections?: Array<{ adapter: string; sessionId: string }>;
   workspace?: string;
+  directory?: string;
   tone?: "concise" | "balanced" | "detailed";
   force?: boolean;
   template?: "claude-skill" | "opencode-skill" | "cursor-mdc" | "copilot-instructions";
@@ -27,15 +40,14 @@ export type GenerateRunRequest = {
   };
 };
 
-export type GenerationStage =
-  | "analyst"
-  | "skeptic"
-  | "writer"
-  | "verifier"
-  | "done"
-  | "error"
-  | "no-claims"
-  | "idle";
+export type DiscoveredProject = {
+  adapter: string;
+  encodedDir: string;
+  projectPath: string;
+  sessionCount: number;
+  lastModified: string;
+  configDir: string;
+};
 
 export type GenerationProgress = {
   stage: GenerationStage;
@@ -236,14 +248,52 @@ export type SessionMeta = {
   messageCount: number | null;
 };
 
+export type AdapterInfo = {
+  type: string;
+  available: boolean;
+  sourceType?: string;
+  sourcePath?: string | null;
+};
+
+export type AdapterError = {
+  adapter: string;
+  error: string;
+};
+
+export type SessionsResult = {
+  sessions: SessionMeta[];
+  adapterErrors: AdapterError[];
+};
+
+export async function fetchAdapters(): Promise<AdapterInfo[]> {
+  const res = await fetch("/api/adapters");
+  if (!res.ok) {
+    throw new Error(`Failed to fetch adapters: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchSessions(
   adapter: string,
   directory: string,
-): Promise<SessionMeta[]> {
+): Promise<SessionsResult> {
   const params = new URLSearchParams({ adapter, directory, recent: "50" });
   const res = await fetch(`/api/sessions?${params}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch sessions: ${res.status}`);
+  }
+  const sessions = (await res.json()) as SessionMeta[];
+  const errorHeader = res.headers.get("X-Adapter-Errors");
+  const adapterErrors: AdapterError[] = errorHeader
+    ? (JSON.parse(errorHeader) as AdapterError[])
+    : [];
+  return { sessions, adapterErrors };
+}
+
+export async function fetchProjects(adapter: string): Promise<DiscoveredProject[]> {
+  const res = await fetch(`/api/projects?adapter=${encodeURIComponent(adapter)}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch projects: ${res.status}`);
   }
   return res.json();
 }

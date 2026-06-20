@@ -4,15 +4,20 @@ import {
   createRun,
   createRunAsync,
   evaluateRun,
+  fetchAdapters,
   fetchEvidenceDetail,
   fetchGenerationProgress,
+  fetchProjects,
   fetchRunDetail,
   fetchRuns,
   fetchSessions,
+  type AdapterInfo,
   type AsyncRunResponse,
+  type DiscoveredProject,
   type EvidenceDetail,
   type GenerationProgress,
   type SkillEvaluation,
+  type SessionsResult,
 } from "../runs.js";
 
 export function createQueryClient(): QueryClient {
@@ -34,11 +39,31 @@ export function useRunsQuery() {
   });
 }
 
-export function useSessionsQuery(adapter: string | null, directory: string | null) {
-  return useQuery({
+export function useAdaptersQuery() {
+  return useQuery<AdapterInfo[]>({
+    queryKey: ["adapters"],
+    queryFn: fetchAdapters,
+    staleTime: 60_000,
+  });
+}
+
+export function useSessionsQuery(
+  adapter: string | null,
+  directory: string | null,
+) {
+  return useQuery<SessionsResult>({
     queryKey: ["sessions", adapter, directory],
     queryFn: () => fetchSessions(adapter!, directory!),
     enabled: Boolean(adapter && directory),
+  });
+}
+
+export function useProjectsQuery(adapter: string | null) {
+  return useQuery<DiscoveredProject[]>({
+    queryKey: ["projects", adapter],
+    queryFn: () => fetchProjects(adapter!),
+    enabled: Boolean(adapter),
+    staleTime: 60_000,
   });
 }
 

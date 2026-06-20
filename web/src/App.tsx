@@ -6,10 +6,11 @@ import {
   type RunSummary,
 } from "./runs.js";
 import type { SessionSelection } from "./components/SessionBrowser.js";
-import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress } from "./hooks/useQueries.js";
+import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery } from "./hooks/useQueries.js";
 import { DocsPage } from "./components/DocsPage.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { ProviderPicker } from "./components/ProviderPicker.js";
+import { ProjectPicker } from "./components/ProjectPicker.js";
 import { SessionBrowser } from "./components/SessionBrowser.js";
 import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
@@ -299,6 +300,7 @@ export function RunsDashboard({
                   </td>
                   <td>
                     <ArtifactStatus run={run} />
+                    <ProgressBadge stage={run.progressStage} />
                   </td>
                   <td>
                     <Badge pass={run.verifierPassed} />
@@ -326,6 +328,7 @@ type SessionSelectionStepProps = {
   selectedSessions: SessionSelection[];
   onSessionsChange: (selections: SessionSelection[]) => void;
   directory: string;
+  onDirectoryChange: (directory: string) => void;
 };
 
 function SessionSelectionStep({
@@ -334,25 +337,46 @@ function SessionSelectionStep({
   selectedSessions,
   onSessionsChange,
   directory,
+  onDirectoryChange,
 }: SessionSelectionStepProps): JSX.Element {
+  const { t } = useLocale();
+  const { data: adaptersData } = useAdaptersQuery();
   const { data: sessionsData } = useSessionsQuery(
     selectedAdapter,
     directory,
   );
+  const { data: projectsData, isLoading: projectsLoading } = useProjectsQuery(
+    selectedAdapter && selectedAdapter !== "all" ? selectedAdapter : null,
+  );
+
+  const sessions = sessionsData?.sessions ?? [];
+  const adapterErrors = sessionsData?.adapterErrors ?? [];
 
   return (
     <>
+      <label htmlFor="generate-directory" style={{ display: "block" }}>
+        <span>{t("generate.directory")}</span>
+        <ProjectPicker
+          adapter={selectedAdapter}
+          projects={projectsData}
+          projectsLoading={projectsLoading}
+          directory={directory}
+          onDirectoryChange={onDirectoryChange}
+        />
+      </label>
       <div style={{ gridColumn: "1 / -1" }}>
         <ProviderPicker
           value={selectedAdapter ?? "all"}
           onChange={onAdapterChange}
+          adapters={adaptersData}
         />
       </div>
       <div style={{ gridColumn: "1 / -1" }}>
         <SessionBrowser
-          sessions={sessionsData ?? []}
+          sessions={sessions}
           selected={selectedSessions}
           onChange={onSessionsChange}
+          adapterErrors={adapterErrors}
         />
       </div>
     </>
@@ -382,12 +406,13 @@ function GenerateRunPanel({
   const [showSessionSelection, setShowSessionSelection] = useState(false);
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<SessionSelection[]>([]);
-  const [directory] = useState(".");
+  const [directory, setDirectory] = useState(".");
   const pending = generateState.status === "pending" || generateState.status === "running";
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const request: GenerateRunRequest = {
       name: name.trim() || undefined,
+      ...(directory && directory !== "." ? { directory } : {}),
       ...(selectedSessions.length > 0
         ? { sessionSelections: selectedSessions }
         : { recent: Number.parseInt(recent, 10) || 10 }),
@@ -455,6 +480,7 @@ function GenerateRunPanel({
               selectedSessions={selectedSessions}
               onSessionsChange={setSelectedSessions}
               directory={directory}
+              onDirectoryChange={setDirectory}
             />
           )}
           <label htmlFor="generate-tone">
@@ -647,6 +673,34 @@ function ArtifactStatus({ run }: { run: RunSummary }): JSX.Element {
         {run.summaryAvailable === false ? t("artifact.noSummary") : t("artifact.summary")}
       </span>
     </div>
+  );
+}
+
+function ProgressBadge({ stage }: { stage?: string }): JSX.Element | null {
+  if (!stage) return null;
+  if (stage === "done" || stage === "no-claims" || stage === "idle") return null;
+
+  const isActive = ["analyst", "skeptic", "writer", "verifier"].includes(stage);
+  const label = stage === "interrupted"
+    ? "Interrupted"
+    : stage === "error"
+      ? "Errored"
+      : `Running: ${stage}`;
+  const className = stage === "interrupted"
+    ? "progress-badge progress-badge-interrupted"
+    : stage === "error"
+      ? "progress-badge progress-badge-error"
+      : "progress-badge progress-badge-running";
+
+  return (
+    <span
+      className={className}
+      role={isActive ? "status" : undefined}
+      aria-label={`Run ${label}`}
+      style={{ marginLeft: 8 }}
+    >
+      {label}
+    </span>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import type { SessionMeta } from "../runs.js";
+import type { AdapterError, SessionMeta } from "../runs.js";
 
 export type SessionSelection = { adapter: string; sessionId: string };
 
@@ -8,6 +8,7 @@ type SessionBrowserProps = {
   sessions: SessionMeta[];
   selected: SessionSelection[];
   onChange: (selections: SessionSelection[]) => void;
+  adapterErrors?: AdapterError[];
 };
 
 function formatRelativeTime(timestamp: number | null): string {
@@ -51,6 +52,7 @@ export function SessionBrowser({
   sessions,
   selected,
   onChange,
+  adapterErrors,
 }: SessionBrowserProps): ReactNode {
   const [searchText, setSearchText] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -151,6 +153,16 @@ export function SessionBrowser({
         <div style={styles.emptyIcon}>📭</div>
         <div style={styles.emptyText}>No sessions found</div>
         <div style={styles.emptyHint}>Try a different adapter or directory</div>
+        {adapterErrors && adapterErrors.length > 0 && (
+          <div style={styles.errorList} role="alert">
+            {adapterErrors.map((err) => (
+              <div key={err.adapter} style={styles.errorRow}>
+                <strong style={styles.errorAdapter}>{err.adapter}:</strong>{" "}
+                <span style={styles.errorText}>{err.error}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -167,6 +179,16 @@ export function SessionBrowser({
 
   return (
     <div style={styles.root}>
+      {adapterErrors && adapterErrors.length > 0 && (
+        <div style={styles.warningBanner} role="status">
+          {adapterErrors.map((err) => (
+            <div key={err.adapter} style={styles.errorRow}>
+              <strong style={styles.errorAdapter}>{err.adapter}:</strong>{" "}
+              <span style={styles.errorText}>{err.error}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={styles.filters}>
         <input
           type="text"
@@ -464,5 +486,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "#6b7280",
     marginTop: 4,
+  },
+  errorList: {
+    marginTop: 16,
+    padding: "10px 12px",
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: 6,
+    width: "100%",
+    maxWidth: 480,
+    textAlign: "left" as const,
+  },
+  warningBanner: {
+    padding: "8px 12px",
+    background: "#fef3c7",
+    borderBottom: "1px solid #fde68a",
+    fontSize: 12,
+    color: "#92400e",
+  },
+  errorRow: {
+    marginBottom: 4,
+    lineHeight: 1.4,
+  },
+  errorAdapter: {
+    textTransform: "capitalize" as const,
+  },
+  errorText: {
+    color: "#7f1d1d",
   },
 };

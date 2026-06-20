@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import type { AdapterInfo } from "../runs.js";
+
 type ProviderOption = {
   value: string;
   label: string;
@@ -17,24 +19,49 @@ const options: ProviderOption[] = [
 type ProviderPickerProps = {
   value: string;
   onChange: (value: string) => void;
+  adapters?: AdapterInfo[];
 };
 
-export function ProviderPicker({ value, onChange }: ProviderPickerProps): ReactNode {
+export function ProviderPicker({
+  value,
+  onChange,
+  adapters,
+}: ProviderPickerProps): ReactNode {
+  const availabilityMap = new Map(
+    (adapters ?? []).map((a) => [a.type, a.available] as const),
+  );
+  const hasAvailabilityInfo = (adapters?.length ?? 0) > 0;
+
   return (
     <div style={styles.container} role="radiogroup" aria-label="Adapter selector">
       {options.map((option) => {
         const isActive = value === option.value;
+        const isAvailable = !hasAvailabilityInfo || option.value === "all"
+          ? true
+          : availabilityMap.get(option.value) ?? false;
+        const isDisabled = hasAvailabilityInfo && option.value !== "all" && !isAvailable;
         return (
           <button
             key={option.value}
             type="button"
             role="radio"
             aria-checked={isActive}
+            aria-disabled={isDisabled || undefined}
+            data-available={hasAvailabilityInfo && option.value !== "all" ? isAvailable : undefined}
+            disabled={isDisabled || undefined}
+            title={
+              hasAvailabilityInfo && option.value !== "all" && !isAvailable
+                ? `${option.label} not detected`
+                : undefined
+            }
             style={{
               ...styles.button,
               ...(isActive ? styles.buttonActive : styles.buttonInactive),
+              ...(isDisabled ? styles.buttonDisabled : {}),
             }}
-            onClick={() => onChange(option.value)}
+            onClick={() => {
+              if (!isDisabled) onChange(option.value);
+            }}
           >
             <span style={styles.icon}>{option.icon}</span>
             <span>{option.label}</span>
@@ -74,6 +101,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#ffffff",
     borderColor: "#d0d5dd",
     color: "#374151",
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+    cursor: "not-allowed",
   },
   icon: {
     fontSize: 14,

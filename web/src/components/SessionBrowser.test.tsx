@@ -99,6 +99,44 @@ describe("SessionBrowser", () => {
     expect(html).toContain("No sessions found");
   });
 
+  it("shows adapter errors when provided alongside empty session list", () => {
+    const onChange = vi.fn();
+    const html = renderToStaticMarkup(
+      withQueryClient(
+        <SessionBrowser
+          sessions={[]}
+          selected={[]}
+          onChange={onChange}
+          adapterErrors={[
+            { adapter: "sqlite", error: "DB not found at /custom/path.db" },
+            { adapter: "claude", error: "Permission denied" },
+          ]}
+        />,
+      ),
+    );
+
+    expect(html).toContain("DB not found at /custom/path.db");
+    expect(html).toContain("Permission denied");
+  });
+
+  it("shows adapter errors even when sessions are present", () => {
+    const onChange = vi.fn();
+    const html = renderToStaticMarkup(
+      withQueryClient(
+        <SessionBrowser
+          sessions={sessions}
+          selected={[]}
+          onChange={onChange}
+          adapterErrors={[
+            { adapter: "claude", error: "Permission denied reading ~/.claude" },
+          ]}
+        />,
+      ),
+    );
+
+    expect(html).toContain("Permission denied reading ~/.claude");
+  });
+
   it("shows selected count in action bar", () => {
     const onChange = vi.fn();
     const selected = [

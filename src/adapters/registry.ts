@@ -1,5 +1,6 @@
 import type { SessionProvider, SessionProviderOptions } from "./provider.js";
 import type { RawSessionDiff } from "../normalize/raw-session.js";
+import type { DiscoveredProject } from "./contracts.js";
 import { CliUsageError, OpenCodeAdapterError, toErrorMessage } from "../shared/errors.js";
 import { openCodeDBExists } from "./sqlite/paths.js";
 import { createSqliteSessionProvider } from "./sqlite/sessions.js";
@@ -27,21 +28,34 @@ export async function listAvailableAdapters(
   const adapters: Array<AvailableAdapter> = [];
 
   try {
-    const { codexDbExists } = await import("./codex/paths.js");
+    const { codexDbExists, getCodexSqlitePath } = await import("./codex/paths.js");
     if (codexDbExists()) {
-      adapters.push({ adapterType: "codex", sourceType: "sqlite", sourcePath: null });
+      adapters.push({
+        adapterType: "codex",
+        sourceType: "sqlite",
+        sourcePath: getCodexSqlitePath(),
+      });
     }
   } catch {}
 
   try {
-    const { claudeProjectsDirExists } = await import("./claude/paths.js");
+    const { claudeProjectsDirExists, getClaudeProjectsDir } = await import("./claude/paths.js");
     if (claudeProjectsDirExists()) {
-      adapters.push({ adapterType: "claude", sourceType: "file", sourcePath: null });
+      adapters.push({
+        adapterType: "claude",
+        sourceType: "file",
+        sourcePath: getClaudeProjectsDir(),
+      });
     }
   } catch {}
 
   if (openCodeDBExists()) {
-    adapters.push({ adapterType: "sqlite", sourceType: "sqlite", sourcePath: null });
+    const { resolveOpenCodeDBPath } = await import("./sqlite/paths.js");
+    adapters.push({
+      adapterType: "sqlite",
+      sourceType: "sqlite",
+      sourcePath: resolveOpenCodeDBPath(),
+    });
   }
 
   adapters.push({ adapterType: "sdk", sourceType: "sdk", sourcePath: null });
@@ -175,4 +189,27 @@ async function createSdkProvider(options: SessionProviderOptions): Promise<Provi
     provider,
     close: runtime.close,
   };
+}
+
+export async function listProjectsForAdapter(
+  adapter: string,
+): Promise<Array<DiscoveredProject>> {
+  switch (adapter) {
+    case "claude": {
+      const { listClaudeProjects } = await import("./claude/discover.js");
+      return listClaudeProjects();
+    }
+    case "sqlite": {
+      const { listOpenCodeProjects } = await import("./sqlite/discover.js");
+      return listOpenCodeProjects();
+    }
+    case "codex": {
+      const { listCodexProjects } = await import("./codex/discover.js");
+      return listCodexProjects();
+    }
+    default:
+      throw new CliUsageError(
+        `Unsupported adapter: ${adapter}. Expected "claude", "sqlite", or "codex".`,
+      );
+  }
 }

@@ -8,7 +8,8 @@ export type GenerationStage =
   | "verifier"
   | "done"
   | "error"
-  | "no-claims";
+  | "no-claims"
+  | "interrupted";
 
 export type ProgressFile = {
   stage: GenerationStage;
@@ -19,6 +20,17 @@ export type ProgressFile = {
 };
 
 const PROGRESS_FILENAME = ".progress.json";
+
+const TERMINAL_STAGES: ReadonlySet<GenerationStage> = new Set([
+  "done",
+  "error",
+  "no-claims",
+  "interrupted",
+]);
+
+export function isTerminalStage(stage: GenerationStage): boolean {
+  return TERMINAL_STAGES.has(stage);
+}
 
 export async function writeProgress(
   runDir: string,
@@ -92,5 +104,17 @@ export function markProgressNoClaims(current: ProgressFile): ProgressFile {
     ...current,
     stage: "no-claims",
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export function markProgressInterrupted(
+  current: ProgressFile,
+  reason: string,
+): ProgressFile {
+  return {
+    ...current,
+    stage: "interrupted",
+    updatedAt: new Date().toISOString(),
+    error: reason,
   };
 }

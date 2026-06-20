@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import { createServer, scanRuns } from "../../src/server/app.js";
+import { createServer, scanRuns, reconcileOrphanedRuns } from "../../src/server/app.js";
 
 function validManifest(overrides?: Partial<Record<string, unknown>>): Record<string, unknown> {
   return {
@@ -431,5 +431,161 @@ describe("Hono app", () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid run name" });
+  });
+});
+
+describe("scanRuns progress state (issue #73)", () => {
+  let tempRoot: string;
+
+  beforeAll(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-progress-scan-"));
+  });
+
+  afterAll(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  test("exposes progressStage when .progress.json is in a non-terminal stage", async () => {
+    const runsDir = join(tempRoot, "non-terminal");
+    const runDir = join(runsDir, "stuck-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "analyst",
+        completedStages: [],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:01.000Z",
+      }),
+    );
+
+    const [run] = await scanRuns(runsDir);
+    expect(run.progressStage).toBe("analyst");
+  });
+
+  test("does not expose progressStage when stage is done", async () => {
+    const runsDir = join(tempRoot, "done");
+    const runDir = join(runsDir, "completed-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(join(runDir, "SKILL.md"), "# done\n");
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "done",
+        completedStages: ["analyst", "skeptic", "writer", "verifier"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:05.000Z",
+      }),
+    );
+
+    const [run] = await scanRuns(runsDir);
+    expect(run.progressStage).toBeUndefined();
+  });
+
+  test("exposes progressStage 'interrupted' for orphaned runs", async () => {
+    const runsDir = join(tempRoot, "interrupted");
+    const runDir = join(runsDir, "interrupted-run");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "interrupted",
+        completedStages: ["analyst"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:02.000Z",
+        error: "Server restarted mid-generation",
+      }),
+    );
+
+    const [run] = await scanRuns(runsDir);
+    expect(run.progressStage).toBe("interrupted");
+  });
+});
+
+describe("createServer startup reconciliation (issue #73)", () => {
+  let tempRoot: string;
+  let runsDir: string;
+
+  beforeAll(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-reconcile-"));
+    runsDir = join(tempRoot, "runs");
+  });
+
+  afterAll(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  test("marks orphaned non-terminal run as interrupted when SKILL.md is missing", async () => {
+    const runDir = join(runsDir, "orphaned-no-skill");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "skeptic",
+        completedStages: ["analyst"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:02.000Z",
+      }),
+    );
+
+    await reconcileOrphanedRuns(runsDir);
+
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const progressRes = await app.request("/api/runs/orphaned-no-skill/progress");
+    const progress = await progressRes.json();
+    expect(progress.stage).toBe("interrupted");
+    expect(progress.error).toEqual(expect.any(String));
+    expect(progress.completedStages).toEqual(["analyst"]);
+  });
+
+  test("marks orphaned non-terminal run as done when SKILL.md exists", async () => {
+    const runDir = join(runsDir, "orphaned-with-skill");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(join(runDir, "SKILL.md"), "# Recovered\n");
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "writer",
+        completedStages: ["analyst", "skeptic"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:03.000Z",
+      }),
+    );
+
+    await reconcileOrphanedRuns(runsDir);
+
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const progressRes = await app.request("/api/runs/orphaned-with-skill/progress");
+    const progress = await progressRes.json();
+    expect(progress.stage).toBe("done");
+  });
+
+  test("leaves terminal runs untouched", async () => {
+    const runDir = join(runsDir, "already-error");
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(
+      join(runDir, ".progress.json"),
+      JSON.stringify({
+        stage: "error",
+        completedStages: ["analyst"],
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:02.000Z",
+        error: "pre-existing failure",
+      }),
+    );
+
+    await reconcileOrphanedRuns(runsDir);
+
+    const app = createServer(runsDir, { projectDirectory: tempRoot });
+    const progressRes = await app.request("/api/runs/already-error/progress");
+    const progress = await progressRes.json();
+    expect(progress.stage).toBe("error");
+    expect(progress.error).toBe("pre-existing failure");
   });
 });

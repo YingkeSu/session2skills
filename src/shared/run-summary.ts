@@ -1,3 +1,5 @@
+import type { GenerationStage } from "../generate/progress.js";
+
 export type RunSummary = {
   name: string;
   model: string;
@@ -9,4 +11,5 @@ export type RunSummary = {
   artifactStatus: "complete" | "partial" | "legacy";
   skillAvailable: boolean;
   summaryAvailable: boolean;
+  progressStage?: GenerationStage;
 };

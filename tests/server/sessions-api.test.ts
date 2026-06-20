@@ -240,3 +240,155 @@ describe("GET /api/sessions", () => {
     expect(titles).toContain("Auth refactor");
   });
 });
+
+describe("GET /api/adapters (issue #74)", () => {
+  let tempRoot: string;
+
+  beforeAll(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-adapters-api-"));
+  });
+
+  afterAll(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  test("returns availability info for all known adapters", async () => {
+    vi.mocked(listAvailableAdapters).mockResolvedValue([
+      { adapterType: "codex", sourceType: "sqlite", sourcePath: "/home/user/.codex/state_5.sqlite" },
+      { adapterType: "sdk", sourceType: "sdk", sourcePath: null },
+    ]);
+
+    const app = createServer(join(tempRoot, "runs"), { projectDirectory: tempRoot });
+    const res = await app.request("/api/adapters");
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Array<{
+      type: string;
+      available: boolean;
+      sourceType?: string;
+      sourcePath?: string | null;
+    }>;
+
+    const types = body.map((a) => a.type);
+    expect(types).toEqual(expect.arrayContaining(["sdk", "sqlite", "codex", "claude"]));
+
+    const codex = body.find((a) => a.type === "codex");
+    expect(codex?.available).toBe(true);
+
+    const sqlite = body.find((a) => a.type === "sqlite");
+    expect(sqlite?.available).toBe(false);
+
+    const sdk = body.find((a) => a.type === "sdk");
+    expect(sdk?.available).toBe(true);
+  });
+
+  test("includes source path when available", async () => {
+    vi.mocked(listAvailableAdapters).mockResolvedValue([
+      { adapterType: "codex", sourceType: "sqlite", sourcePath: "/custom/path.db" },
+      { adapterType: "sdk", sourceType: "sdk", sourcePath: null },
+    ]);
+
+    const app = createServer(join(tempRoot, "runs"), { projectDirectory: tempRoot });
+    const res = await app.request("/api/adapters");
+
+    const body = (await res.json()) as Array<{ type: string; sourcePath?: string | null }>;
+    const codex = body.find((a) => a.type === "codex");
+    expect(codex?.sourcePath).toBe("/custom/path.db");
+  });
+});
+
+describe("GET /api/sessions adapter error surfacing (issue #74)", () => {
+  let tempRoot: string;
+
+  beforeAll(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-sessions-err-"));
+  });
+
+  afterAll(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  test("surfaces adapter errors via X-Adapter-Errors header when provider creation fails", async () => {
+    vi.mocked(listAvailableAdapters).mockResolvedValue([
+      { adapterType: "sqlite", sourceType: "sqlite", sourcePath: null },
+      { adapterType: "sdk", sourceType: "sdk", sourcePath: null },
+    ]);
+    vi.mocked(createSessionProviderForType).mockImplementation(async (type: string) => {
+      if (type === "sqlite") {
+        throw new Error("SQLite DB not found at /custom/path.db");
+      }
+      return {
+        provider: makeMockProvider([makeRawSession({ id: "sdk_1", title: "SDK session" })]),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    const app = createServer(join(tempRoot, "runs"), { projectDirectory: tempRoot });
+    const res = await app.request("/api/sessions?adapter=all");
+
+    expect(res.status).toBe(200);
+    const errorHeader = res.headers.get("X-Adapter-Errors");
+    expect(errorHeader).not.toBeNull();
+    const errors = JSON.parse(errorHeader!);
+    expect(errors).toContainEqual({
+      adapter: "sqlite",
+      error: "SQLite DB not found at /custom/path.db",
+    });
+
+    const body = (await res.json()) as SessionMeta[];
+    expect(body).toHaveLength(1);
+    expect(body[0]!.sessionId).toBe("sdk_1");
+  });
+
+  test("surfaces adapter errors when listing sessions throws", async () => {
+    vi.mocked(listAvailableAdapters).mockResolvedValue([
+      { adapterType: "claude", sourceType: "file", sourcePath: null },
+      { adapterType: "sdk", sourceType: "sdk", sourcePath: null },
+    ]);
+    vi.mocked(createSessionProviderForType).mockImplementation(async (type: string) => {
+      if (type === "claude") {
+        return {
+          provider: {
+            ...makeMockProvider([]),
+            async listRecentSessions() {
+              throw new Error("Permission denied reading ~/.claude/projects");
+            },
+          },
+          close: vi.fn().mockResolvedValue(undefined),
+        };
+      }
+      return {
+        provider: makeMockProvider([makeRawSession({ id: "sdk_1", title: "SDK session" })]),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    const app = createServer(join(tempRoot, "runs"), { projectDirectory: tempRoot });
+    const res = await app.request("/api/sessions?adapter=all");
+
+    expect(res.status).toBe(200);
+    const errorHeader = res.headers.get("X-Adapter-Errors");
+    expect(errorHeader).not.toBeNull();
+    const errors = JSON.parse(errorHeader!);
+    expect(errors).toContainEqual({
+      adapter: "claude",
+      error: "Permission denied reading ~/.claude/projects",
+    });
+  });
+
+  test("omits X-Adapter-Errors header when all adapters succeed", async () => {
+    vi.mocked(listAvailableAdapters).mockResolvedValue([
+      { adapterType: "sdk", sourceType: "sdk", sourcePath: null },
+    ]);
+    vi.mocked(createSessionProviderForType).mockResolvedValue({
+      provider: makeMockProvider([makeRawSession({ id: "sdk_1", title: "SDK session" })]),
+      close: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const app = createServer(join(tempRoot, "runs"), { projectDirectory: tempRoot });
+    const res = await app.request("/api/sessions");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Adapter-Errors")).toBeNull();
+  });
+});

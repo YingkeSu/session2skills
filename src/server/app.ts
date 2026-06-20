@@ -4,20 +4,20 @@ import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync } from "node:fs";
 import { access, readFile, readdir, stat, mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
 import { evaluateSkill } from "../generate/evaluate-skill.js";
 import { generateSkillRun, type GenerateSkillRunInput, type EvidenceConfig } from "../generate/service.js";
 import { parseTemplate, type TemplateName } from "../generate/templates.js";
 import { parseSkillType, type SkillType } from "../generate/skill-types.js";
 import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../shared/cli.js";
-import { CliUsageError } from "../shared/errors.js";
-import { isValidRunName, normalizeRunName } from "../shared/paths.js";
+import { CliUsageError, toErrorMessage } from "../shared/errors.js";
+import { isValidRunName, normalizeRunName, validateProjectDirectory } from "../shared/paths.js";
 import type { RunSummary } from "../shared/run-summary.js";
 import {
   listAvailableAdapters,
   createSessionProviderForType,
+  listProjectsForAdapter,
   type AdapterType,
   type ProviderHandle,
 } from "../adapters/registry.js";
@@ -30,6 +30,8 @@ import {
   markProgressDone,
   markProgressError,
   markProgressNoClaims,
+  markProgressInterrupted,
+  isTerminalStage,
   type GenerationStage,
 } from "../generate/progress.js";
 import type { HarnessStageName } from "../harness/run-harness.js";
@@ -83,6 +85,8 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   const app = new Hono();
   const generateRun = options.generateRun ?? generateSkillRun;
   const apiToken = getApiToken();
+
+  void reconcileOrphanedRuns(runsDirectory);
 
   app.use("/api/*", async (c, next) => {
     const origin = c.req.header("Origin");
@@ -305,6 +309,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         template: string;
         skillType: string;
         async: boolean;
+        directory: string;
         evidenceConfig?: {
           tokenBudget?: number;
           maxChars?: number;
@@ -340,6 +345,18 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       const name = normalizeRunName(body.name);
       const outputDirectory = join(runsDirectory, name);
 
+      let projectDirectory = options.projectDirectory;
+      if (typeof body.directory === "string" && body.directory.length > 0 && body.directory !== ".") {
+        try {
+          projectDirectory = validateProjectDirectory(resolve(body.directory));
+        } catch (error) {
+          if (error instanceof CliUsageError) {
+            return c.json({ error: error.message }, 400);
+          }
+          throw error;
+        }
+      }
+
       if (isAsync) {
         await mkdir(outputDirectory, { recursive: true });
         const initialProgress = createInitialProgress();
@@ -356,7 +373,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
           let currentProgress = initialProgress;
           try {
             await generateRun({
-              projectDirectory: options.projectDirectory,
+              projectDirectory,
               outputDirectory,
               workspace,
               recent,
@@ -403,7 +420,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       }
 
       await generateRun({
-        projectDirectory: options.projectDirectory,
+        projectDirectory,
         outputDirectory,
         workspace,
         recent,
@@ -431,6 +448,59 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   });
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
+
+  app.get("/api/projects", async (c) => {
+    const adapter = c.req.query("adapter");
+    if (!adapter) {
+      return c.json({ error: "Missing required query param: adapter" }, 400);
+    }
+    try {
+      const projects = await listProjectsForAdapter(adapter);
+      return c.json(projects);
+    } catch (error) {
+      if (error instanceof CliUsageError) {
+        return c.json({ error: error.message }, 400);
+      }
+      return c.json({ error: `Failed to list projects: ${toErrorMessage(error)}` }, 500);
+    }
+  });
+
+  app.get("/api/adapters", async (c) => {
+    try {
+      const providerOpts = { directory: options.projectDirectory };
+      const available = await listAvailableAdapters(providerOpts);
+      const availableTypes = new Set(available.map((a) => a.adapterType));
+      const fallbackSourceType: Record<AdapterType, "file" | "sqlite" | "sdk"> = {
+        sdk: "sdk",
+        sqlite: "sqlite",
+        codex: "sqlite",
+        claude: "file",
+      };
+
+      const allAdapters: AdapterType[] = ["sdk", "sqlite", "codex", "claude"];
+      const body = allAdapters.map((type) => {
+        const found = available.find((a) => a.adapterType === type);
+        if (found) {
+          return {
+            type,
+            available: true,
+            sourceType: found.sourceType,
+            sourcePath: found.sourcePath,
+          };
+        }
+        return {
+          type,
+          available: false,
+          sourceType: fallbackSourceType[type],
+          sourcePath: null,
+        };
+      });
+
+      return c.json(body);
+    } catch {
+      return c.json({ error: "Failed to list adapters" }, 500);
+    }
+  });
 
   app.get("/api/sessions", async (c) => {
     try {
@@ -470,12 +540,17 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       }
 
       const allMeta: Array<SessionMeta> = [];
+      const adapterErrors: Array<{ adapter: string; error: string }> = [];
 
       for (const adapterType of adapterTypes) {
         let handle: ProviderHandle | undefined;
         try {
           handle = await createSessionProviderForType(adapterType, providerOpts);
-        } catch {
+        } catch (err: unknown) {
+          adapterErrors.push({
+            adapter: adapterType,
+            error: err instanceof Error ? err.message : String(err),
+          });
           continue;
         }
 
@@ -500,12 +575,19 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
               messageCount: null,
             });
           }
-        } catch {
+        } catch (err: unknown) {
+          adapterErrors.push({
+            adapter: adapterType,
+            error: err instanceof Error ? err.message : String(err),
+          });
         } finally {
           await handle.close();
         }
       }
 
+      if (adapterErrors.length > 0) {
+        c.header("X-Adapter-Errors", JSON.stringify(adapterErrors));
+      }
       return c.json(allMeta);
     } catch {
       return c.json({ error: "Failed to list sessions" }, 500);
@@ -545,10 +627,11 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       continue;
     }
 
-    const [manifest, skillAvailable, summaryAvailable] = await Promise.all([
+    const [manifest, skillAvailable, summaryAvailable, progress] = await Promise.all([
       readJsonSafe(join(runDir, "claim-manifest.json")),
       fileExists(join(runDir, "SKILL.md")),
       fileExists(join(runDir, "summary.md")),
+      readProgress(runDir),
     ]);
     if (!manifest && !skillAvailable && !summaryAvailable) {
       continue;
@@ -559,6 +642,8 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       readJsonSafe(join(runDir, "skeptic-report.json")),
       readModelFromTraces(runDir),
     ]);
+
+    const progressStage = deriveProgressStage(progress);
 
     summaries.push({
       name: entry,
@@ -575,6 +660,7 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       }),
       skillAvailable,
       summaryAvailable,
+      ...(progressStage !== undefined ? { progressStage } : {}),
     });
   }
 
@@ -590,6 +676,58 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function deriveProgressStage(
+  progress: { stage: GenerationStage } | null,
+): GenerationStage | undefined {
+  if (!progress) return undefined;
+  if (progress.stage === "done" || progress.stage === "no-claims") return undefined;
+  return progress.stage;
+}
+
+/**
+ * On server boot, walk every run directory and fix orphaned .progress.json files
+ * left behind by a previous process that died mid-generation (issue #73).
+ *
+ * Reconciliation rules for non-terminal stages:
+ * - SKILL.md exists → the generation actually completed before the crash; mark done.
+ * - SKILL.md missing → the run was genuinely interrupted; mark interrupted.
+ *
+ * Terminal stages (done / error / no-claims / interrupted) are left untouched.
+ */
+export async function reconcileOrphanedRuns(runsDirectory: string): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(runsDirectory);
+  } catch {
+    return;
+  }
+
+  await Promise.all(
+    entries.map((entry) => reconcileRunProgress(join(runsDirectory, entry))),
+  );
+}
+
+async function reconcileRunProgress(runDir: string): Promise<void> {
+  try {
+    const dirStat = await stat(runDir);
+    if (!dirStat.isDirectory()) return;
+  } catch {
+    return;
+  }
+
+  const progress = await readProgress(runDir);
+  if (!progress || isTerminalStage(progress.stage)) return;
+
+  const skillExists = await fileExists(join(runDir, "SKILL.md"));
+  const reconciled = skillExists
+    ? markProgressDone(progress)
+    : markProgressInterrupted(progress, "Server restarted before generation completed");
+
+  try {
+    await writeProgress(runDir, reconciled);
+  } catch {}
 }
 
 function getArtifactStatus(input: {

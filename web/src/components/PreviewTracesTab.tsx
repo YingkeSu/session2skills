@@ -1,6 +1,7 @@
 import type { LLMTraceSummary } from "../runs.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { VirtualList } from "./VirtualList.js";
 
 type PreviewTracesTabProps = {
   skillMarkdown: string | null;
@@ -373,14 +374,13 @@ export function PreviewTracesTab({
         {traces.length === 0 ? (
           <p style={{ color: "var(--ink-muted)" }}>{t("preview.noTraces")}</p>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-            }}
-          >
-            {traces.map((trace, idx) => {
+          <VirtualList
+            ariaLabel={t("preview.tracesTitle")}
+            itemHeight={traceItemHeight}
+            overscan={3}
+            viewportHeight="none"
+            items={traces}
+            renderItem={(trace, idx) => {
               const summary = extractTraceSummary(trace);
               return (
                 <details
@@ -477,8 +477,8 @@ export function PreviewTracesTab({
                   </div>
                 </details>
               );
-            })}
-          </div>
+            }}
+          />
         )}
       </section>
     </div>
@@ -565,7 +565,12 @@ const traceCardStyle: React.CSSProperties = {
   padding: "var(--space-3)",
   background: "var(--surface)",
   minWidth: 0,
+  marginBottom: "10px",
 };
+
+// Collapsed trace card ≈ padding + summary line. Used only as the virtualizer's
+// estimate; expanded cards overflow their slot gracefully.
+const traceItemHeight = 56;
 
 const traceMetaStyle: React.CSSProperties = {
   fontSize: "var(--text-xs)",

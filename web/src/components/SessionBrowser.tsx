@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { AdapterError, SessionMeta } from "../runs.js";
+import { VirtualList } from "./VirtualList.js";
 
 export type SessionSelection = { adapter: string; sessionId: string };
 
@@ -241,44 +242,52 @@ export function SessionBrowser({
         )}
       </div>
       <div style={styles.list}>
-        {filteredSessions.map((session) => {
-          const checked = isSelected(selected, session);
-          const badgeColor = sourceBadgeColor(session.sourceType);
-          return (
-            <label key={session.sessionId} style={styles.row}>
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => handleToggle(session)}
-                style={styles.checkbox}
-              />
-              <div style={styles.rowContent}>
-                <div style={styles.rowTitle}>
-                  {session.title ?? "Untitled"}
-                </div>
-                <div style={styles.rowMeta}>
-                  <span
-                    style={{
-                      ...styles.badge,
-                      background: badgeColor,
-                      color: "var(--ink-on-fill)",
-                    }}
-                  >
-                    {session.providerId}
-                  </span>
-                  <span style={styles.time}>
-                    {formatRelativeTime(session.updatedAt)}
-                  </span>
-                  {typeof session.messageCount === "number" && (
-                    <span style={styles.messageCount}>
-                      {session.messageCount} messages
+        <VirtualList
+          ariaLabel="Sessions"
+          itemHeight={sessionItemHeight}
+          overscan={4}
+          viewportHeight="none"
+          items={filteredSessions}
+          style={{ maxHeight: 320 }}
+          renderItem={(session) => {
+            const checked = isSelected(selected, session);
+            const badgeColor = sourceBadgeColor(session.sourceType);
+            return (
+              <label key={session.sessionId} style={styles.row}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => handleToggle(session)}
+                  style={styles.checkbox}
+                />
+                <div style={styles.rowContent}>
+                  <div style={styles.rowTitle}>
+                    {session.title ?? "Untitled"}
+                  </div>
+                  <div style={styles.rowMeta}>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        background: badgeColor,
+                        color: "var(--ink-on-fill)",
+                      }}
+                    >
+                      {session.providerId}
                     </span>
-                  )}
+                    <span style={styles.time}>
+                      {formatRelativeTime(session.updatedAt)}
+                    </span>
+                    {typeof session.messageCount === "number" && (
+                      <span style={styles.messageCount}>
+                        {session.messageCount} messages
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </label>
-          );
-        })}
+              </label>
+            );
+          }}
+        />
       </div>
       <div style={styles.actionBar}>
         <button
@@ -310,6 +319,9 @@ export function SessionBrowser({
     </div>
   );
 }
+
+// Two-line session row (title + meta) ≈ padding + 1.3 line-height each.
+const sessionItemHeight = 58;
 
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -377,7 +389,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   list: {
-    overflowY: "auto",
     padding: "var(--space-1)",
   },
   row: {

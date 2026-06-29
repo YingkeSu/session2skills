@@ -214,6 +214,75 @@ body {
   gap: var(--space-4);
 }
 
+/* Master-detail split: run list (320px) on the left, selected-run detail on
+   the right. Collapses to a single column on narrow viewports. */
+.runs-master-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .runs-master-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.runs-master-pane {
+  min-width: 0;
+}
+
+.runs-detail-pane {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--space-4);
+  position: sticky;
+  top: var(--space-4);
+}
+
+.runs-detail-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-6) var(--space-2);
+  text-align: center;
+}
+
+.runs-detail-selected-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.runs-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.runs-detail-meta-grid dt {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.runs-detail-meta-grid dd {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-weight: 500;
+}
+
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -569,6 +638,16 @@ body {
 
 .run-row.is-failed:hover {
   background: color-mix(in oklch, var(--danger-soft) 70%, var(--surface-2));
+}
+
+/* Selected row in the master-detail layout. */
+.run-row.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.run-row.is-active:hover {
+  background: color-mix(in oklch, var(--accent-soft) 80%, var(--surface-2));
 }
 
 .run-name {

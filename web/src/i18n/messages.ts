@@ -19,6 +19,8 @@ export const messages: Record<Locale, MessageDictionary> = {
     "dashboard.averageSkepticScore": "平均质疑分数",
     "dashboard.runsList": "运行列表",
     "dashboard.runsHelp": "选择一条运行记录查看审计、报告和预览。",
+    "dashboard.runDetail": "运行详情",
+    "dashboard.detailEmpty": "从左侧列表选择一条运行记录，在此处查看详情。",
     "dashboard.runCount": {
       one: "{count} 条运行",
       other: "{count} 条运行",
@@ -240,6 +242,8 @@ export const messages: Record<Locale, MessageDictionary> = {
     "dashboard.averageSkepticScore": "Avg skeptic score",
     "dashboard.runsList": "Runs list",
     "dashboard.runsHelp": "Select a run to inspect audit data, reports, and preview output.",
+    "dashboard.runDetail": "Run detail",
+    "dashboard.detailEmpty": "Select a run from the list to see its detail here.",
     "dashboard.runCount": {
       one: "{count} run",
       other: "{count} runs",

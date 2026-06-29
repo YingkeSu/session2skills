@@ -222,6 +222,16 @@ export function RunsDashboard({
 }): JSX.Element {
   const { t } = useLocale();
   const summary = summarizeRuns(runs);
+  const [previewedRun, setPreviewedRun] = useState<string | null>(null);
+
+  const handleRowActivate = (name: string): void => {
+    setPreviewedRun(name);
+    onSelect(name);
+  };
+
+  const selectedRun = previewedRun
+    ? runs.find((run) => run.name === previewedRun) ?? null
+    : null;
 
   return (
     <main className="runs-dashboard" aria-label={t("dashboard.label")} data-testid="run-dashboard">
@@ -250,75 +260,149 @@ export function RunsDashboard({
         onGenerate={onGenerate}
       />
 
-      <section className="runs-panel" aria-label={t("dashboard.runsList")}>
-        <div className="runs-panel-header">
-          <div>
-            <h2>{t("dashboard.runsList")}</h2>
-            <p>{t("dashboard.runsHelp")}</p>
+      <div className="runs-master-detail">
+        <section
+          className="runs-panel runs-master-pane"
+          aria-label={t("dashboard.runsList")}
+        >
+          <div className="runs-panel-header">
+            <div>
+              <h2>{t("dashboard.runsList")}</h2>
+              <p>{t("dashboard.runsHelp")}</p>
+            </div>
+            <span className="runs-count">
+              {t("dashboard.runCount", { count: runs.length })}
+            </span>
           </div>
-          <span className="runs-count">
-            {t("dashboard.runCount", { count: runs.length })}
-          </span>
-        </div>
 
-        <div className="runs-table-wrap">
-          <table className="runs-table">
-            <thead>
-              <tr>
-                <th>{t("runTable.name")}</th>
-                <th>{t("runTable.model")}</th>
-                <th>{t("runTable.generatedAt")}</th>
-                <th>{t("runTable.artifacts")}</th>
-                <th>{t("runTable.verifier")}</th>
-                <th>{t("runTable.claims")}</th>
-                <th>{t("runTable.skepticScore")}</th>
-                <th>{t("runTable.issues")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <tr
-                  key={run.name}
-                  className={run.verifierPassed ? "run-row" : "run-row is-failed"}
-                  onClick={() => onSelect(run.name)}
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(run.name);
-                    }
-                  }}
-                >
-                  <td>
-                    <div className="run-name">{run.name}</div>
-                  </td>
-                  <td>{run.model}</td>
-                  <td>
-                    <time dateTime={run.generatedAt}>
-                      {formatGeneratedAt(run.generatedAt)}
-                    </time>
-                  </td>
-                  <td>
-                    <ArtifactStatus run={run} />
-                    <ProgressBadge stage={run.progressStage} />
-                  </td>
-                  <td>
-                    <Badge pass={run.verifierPassed} />
-                  </td>
-                  <td>{run.claimCount}</td>
-                  <td>
-                    <ScorePill score={run.skepticScore} />
-                  </td>
-                  <td>
-                    <IssuePill count={run.skepticIssueCount} />
-                  </td>
+          <div className="runs-table-wrap">
+            <table className="runs-table">
+              <thead>
+                <tr>
+                  <th>{t("runTable.name")}</th>
+                  <th>{t("runTable.model")}</th>
+                  <th>{t("runTable.generatedAt")}</th>
+                  <th>{t("runTable.artifacts")}</th>
+                  <th>{t("runTable.verifier")}</th>
+                  <th>{t("runTable.claims")}</th>
+                  <th>{t("runTable.skepticScore")}</th>
+                  <th>{t("runTable.issues")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {runs.map((run) => {
+                  const isActive = selectedRun?.name === run.name;
+                  return (
+                    <tr
+                      key={run.name}
+                      className={
+                        isActive
+                          ? "run-row is-active"
+                          : run.verifierPassed
+                            ? "run-row"
+                            : "run-row is-failed"
+                      }
+                      aria-current={isActive ? "true" : undefined}
+                      onClick={() => handleRowActivate(run.name)}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleRowActivate(run.name);
+                        }
+                      }}
+                    >
+                      <td>
+                        <div className="run-name">{run.name}</div>
+                      </td>
+                      <td>{run.model}</td>
+                      <td>
+                        <time dateTime={run.generatedAt}>
+                          {formatGeneratedAt(run.generatedAt)}
+                        </time>
+                      </td>
+                      <td>
+                        <ArtifactStatus run={run} />
+                        <ProgressBadge stage={run.progressStage} />
+                      </td>
+                      <td>
+                        <Badge pass={run.verifierPassed} />
+                      </td>
+                      <td>{run.claimCount}</td>
+                      <td>
+                        <ScorePill score={run.skepticScore} />
+                      </td>
+                      <td>
+                        <IssuePill count={run.skepticIssueCount} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside
+          className="runs-detail-pane"
+          data-testid="run-detail-pane"
+          aria-label={t("dashboard.runDetail")}
+        >
+          {selectedRun ? (
+            <RunDetailPreview run={selectedRun} />
+          ) : (
+            <div className="runs-detail-empty" data-testid="run-detail-empty">
+              {t("dashboard.detailEmpty")}
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
+  );
+}
+
+function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
+  const { t } = useLocale();
+  return (
+    <div data-testid="run-detail-selected">
+      <h3 className="runs-detail-selected-title">{run.name}</h3>
+      <dl className="runs-detail-meta-grid">
+        <div>
+          <dt>{t("runTable.model")}</dt>
+          <dd>{run.model}</dd>
+        </div>
+        <div>
+          <dt>{t("runTable.generatedAt")}</dt>
+          <dd>
+            <time dateTime={run.generatedAt}>
+              {formatGeneratedAt(run.generatedAt)}
+            </time>
+          </dd>
+        </div>
+        <div>
+          <dt>{t("runTable.verifier")}</dt>
+          <dd>
+            <Badge pass={run.verifierPassed} />
+          </dd>
+        </div>
+        <div>
+          <dt>{t("runTable.claims")}</dt>
+          <dd>{run.claimCount}</dd>
+        </div>
+        <div>
+          <dt>{t("runTable.skepticScore")}</dt>
+          <dd>
+            <ScorePill score={run.skepticScore} />
+          </dd>
+        </div>
+        <div>
+          <dt>{t("runTable.issues")}</dt>
+          <dd>
+            <IssuePill count={run.skepticIssueCount} />
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 

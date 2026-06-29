@@ -8,12 +8,15 @@ type ProviderOption = {
   icon: string;
 };
 
+// The OpenCode session history lives in opencode.db, which the backend serves
+// via the `sqlite` adapter (the only OpenCode source that supports project
+// discovery). The `sdk` adapter is a live @opencode-ai/sdk client with no
+// on-disk projects, so it is intentionally not exposed here.
 const options: ProviderOption[] = [
   { value: "all", label: "all", icon: "🌐" },
-  { value: "sdk", label: "opencode", icon: "🔧" },
+  { value: "sqlite", label: "opencode", icon: "🔧" },
   { value: "codex", label: "codex", icon: "🤖" },
   { value: "claude", label: "claude", icon: "✨" },
-  { value: "sqlite", label: "sqlite", icon: "🗄️" },
 ];
 
 type ProviderPickerProps = {
@@ -76,38 +79,38 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
+    gap: "var(--space-2)",
+    marginBottom: "var(--space-3)",
   },
   button: {
-    border: "1px solid #d0d5dd",
-    borderRadius: 8,
-    padding: "6px 12px",
-    fontSize: 13,
+    border: "1px solid var(--border-strong)",
+    borderRadius: "var(--radius)",
+    padding: "var(--space-2) var(--space-3)",
+    fontSize: "var(--text-sm)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
+    gap: "var(--space-2)",
     background: "transparent",
-    color: "#374151",
-    transition: "background 0.15s ease, border-color 0.15s ease",
+    color: "var(--ink-2)",
+    transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease",
   },
   buttonActive: {
-    background: "#111827",
-    borderColor: "#111827",
-    color: "#f9fafb",
+    background: "var(--accent)",
+    borderColor: "var(--accent)",
+    color: "var(--ink-on-fill)",
   },
   buttonInactive: {
-    background: "#ffffff",
-    borderColor: "#d0d5dd",
-    color: "#374151",
+    background: "var(--surface)",
+    borderColor: "var(--border-strong)",
+    color: "var(--ink-2)",
   },
   buttonDisabled: {
     opacity: 0.4,
     cursor: "not-allowed",
   },
   icon: {
-    fontSize: 14,
+    fontSize: "var(--text-base)",
     lineHeight: 1,
   },
 };

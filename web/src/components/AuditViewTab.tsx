@@ -16,9 +16,9 @@ type AuditViewTabProps = {
 };
 
 const trustColors: Record<string, string> = {
-  verified: "#27ae60",
-  unreferenced: "#f39c12",
-  fabricated: "#c0392b",
+  verified: "var(--success)",
+  unreferenced: "var(--warning)",
+  fabricated: "var(--danger)",
 };
 
 function buildTrustMap(
@@ -81,7 +81,7 @@ export function AuditViewTab({
             {t("audit.claimCount", { count: manifest.claims.length })}
           </span>
         </div>
-        <p style={{ color: "#495057", lineHeight: 1.6, margin: 0 }}>
+        <p style={{ color: "var(--ink-2)", lineHeight: 1.6, margin: 0 }}>
           {manifest.evidenceSummary}
         </p>
       </section>
@@ -93,15 +93,18 @@ export function AuditViewTab({
             {manifest.evidence.map((excerpt) => (
               <details key={excerpt.evidenceID} style={detailsStyle}>
                 <summary style={summaryStyle}>
-                  <strong>{excerpt.evidenceID}</strong>
+                  <strong style={{ overflowWrap: "anywhere", minWidth: 0 }}>
+                    {excerpt.evidenceID}
+                  </strong>
                   <span
                     style={{
-                      marginLeft: "8px",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      background: "#e9ecef",
-                      fontSize: "12px",
-                      color: "#495057",
+                      marginLeft: "var(--space-2)",
+                      padding: "2px var(--space-2)",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--surface-3)",
+                      fontSize: "var(--text-xs)",
+                      color: "var(--ink-2)",
+                      flexShrink: 0,
                     }}
                   >
                     {tEnum("sourceType", excerpt.sourceType)}
@@ -111,7 +114,7 @@ export function AuditViewTab({
                   style={{
                     margin: "8px 0 0",
                     padding: "10px",
-                    background: "#f8f9fa",
+                    background: "var(--surface-2)",
                     borderRadius: "4px",
                     fontSize: "13px",
                     lineHeight: 1.5,
@@ -137,7 +140,7 @@ export function AuditViewTab({
           </span>
         </div>
         {manifest.dimensionsCovered.length === 0 && (
-          <p style={{ color: "#666" }}>{t("audit.noClaims")}</p>
+          <p style={{ color: "var(--ink-muted)" }}>{t("audit.noClaims")}</p>
         )}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "12px" }}
@@ -167,7 +170,7 @@ export function AuditViewTab({
                       <div
                         key={claim.id}
                         style={{
-                          border: "1px solid #e9ecef",
+                          border: "1px solid var(--border-soft)",
                           borderRadius: "4px",
                           padding: "10px",
                         }}
@@ -192,9 +195,9 @@ export function AuditViewTab({
                                 padding: "2px 6px",
                                 borderRadius: "4px",
                                 fontSize: "12px",
-                                color: "#fff",
+                                color: "var(--ink-on-fill)",
                                 background:
-                                  trustColors[trustStatus] ?? "#6c757d",
+                                  trustColors[trustStatus] ?? "var(--cat-gray)",
                               }}
                             >
                               {tEnum("status", trustStatus)}
@@ -206,8 +209,8 @@ export function AuditViewTab({
                                 padding: "2px 6px",
                                 borderRadius: "4px",
                                 fontSize: "12px",
-                                background: "#fff3cd",
-                                color: "#856404",
+                                background: "var(--warning-soft)",
+                                color: "var(--warning-ink)",
                               }}
                             >
                               {t("audit.skepticIssue", { count: issueCount })}
@@ -222,7 +225,7 @@ export function AuditViewTab({
                             gap: "8px",
                             marginTop: "6px",
                             fontSize: "12px",
-                            color: "#495057",
+                            color: "var(--ink-2)",
                           }}
                         >
                           <span>{t("audit.confidence")}</span>
@@ -230,7 +233,7 @@ export function AuditViewTab({
                             style={{
                               flex: 1,
                               height: "6px",
-                              background: "#e9ecef",
+                              background: "var(--surface-3)",
                               borderRadius: "4px",
                               overflow: "hidden",
                             }}
@@ -239,7 +242,7 @@ export function AuditViewTab({
                               style={{
                                 height: "100%",
                                 width: `${Math.round(claim.confidence * 100)}%`,
-                                background: "#0d6efd",
+                                background: "var(--accent)",
                               }}
                               />
                             </div>
@@ -249,7 +252,7 @@ export function AuditViewTab({
                           style={{
                             margin: "6px 0 0",
                             fontSize: "13px",
-                            color: "#212529",
+                            color: "var(--ink)",
                             lineHeight: 1.5,
                           }}
                         >
@@ -301,74 +304,76 @@ export function AuditViewTab({
 }
 
 const sectionStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "14px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
 };
 
 const dimensionStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "12px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-3)",
+  background: "var(--surface)",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "10px",
-  marginBottom: "10px",
+  gap: "var(--space-3)",
+  marginBottom: "var(--space-3)",
   flexWrap: "wrap",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "15px",
+  fontSize: "var(--text-md)",
   fontWeight: 700,
+  color: "var(--ink)",
 };
 
 const dimensionTitleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "13px",
+  fontSize: "var(--text-xs)",
   textTransform: "uppercase",
-  letterSpacing: 0,
-  color: "#495057",
+  letterSpacing: "0.06em",
+  fontWeight: 600,
+  color: "var(--ink-2)",
 };
 
 const metaBadgeStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: "999px",
-  background: "#f1f3f5",
-  color: "#495057",
-  fontSize: "12px",
+  padding: "2px var(--space-2)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--surface-3)",
+  color: "var(--ink-2)",
+  fontSize: "var(--text-xs)",
   whiteSpace: "nowrap",
 };
 
 const confidenceBadgeStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: "999px",
-  background: "#e7f1ff",
-  color: "#084298",
-  fontSize: "12px",
+  padding: "2px var(--space-2)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--accent-soft)",
+  color: "var(--accent-ink)",
+  fontSize: "var(--text-xs)",
   whiteSpace: "nowrap",
 };
 
 const missingEvidenceStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: "999px",
-  background: "#fff3cd",
-  color: "#856404",
-  fontSize: "12px",
+  padding: "2px var(--space-2)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--warning-soft)",
+  color: "var(--warning-ink)",
+  fontSize: "var(--text-xs)",
   whiteSpace: "nowrap",
 };
 
 const detailsStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "4px",
-  padding: "8px 10px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-2) var(--space-3)",
+  background: "var(--surface)",
 };
 
 const summaryStyle: React.CSSProperties = {
@@ -377,4 +382,7 @@ const summaryStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  gap: "var(--space-2)",
+  minWidth: 0,
+  overflowWrap: "anywhere",
 };

@@ -17,17 +17,17 @@ const DIMENSIONS = [
 ] as const;
 
 const GRADE_COLORS: Record<string, string> = {
-  A: "#28a745",
-  B: "#0969da",
-  C: "#d4a017",
-  D: "#db6d28",
-  F: "#cf222e",
+  A: "var(--success)",
+  B: "var(--accent)",
+  C: "var(--warning)",
+  D: "var(--cat-amber)",
+  F: "var(--danger)",
 };
 
 const VERDICT_COLORS: Record<string, string> = {
-  pass: "#28a745",
-  "needs-patch": "#d4a017",
-  reject: "#cf222e",
+  pass: "var(--success)",
+  "needs-patch": "var(--warning)",
+  reject: "var(--danger)",
 };
 
 function formatScore(value: number): string {
@@ -41,9 +41,9 @@ function gradeBadgeStyle(grade: string): React.CSSProperties {
     justifyContent: "center",
     width: "56px",
     height: "56px",
-    borderRadius: "8px",
-    background: GRADE_COLORS[grade] ?? "#6c757d",
-    color: "#fff",
+    borderRadius: "var(--radius)",
+    background: GRADE_COLORS[grade] ?? "var(--cat-gray)",
+    color: "var(--ink-on-fill)",
     fontSize: "28px",
     fontWeight: 700,
     lineHeight: 1,
@@ -56,15 +56,16 @@ function scoreValueStyle(grade: string): React.CSSProperties {
     fontSize: "36px",
     fontWeight: 700,
     lineHeight: 1.1,
-    color: GRADE_COLORS[grade] ?? "#212529",
+    fontVariantNumeric: "tabular-nums",
+    color: GRADE_COLORS[grade] ?? "var(--ink)",
   };
 }
 
 function dimensionBarStyle(widthPercent: number): React.CSSProperties {
   return {
     height: "8px",
-    borderRadius: "4px",
-    background: "#0d6efd",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--accent)",
     flex: "1 1 auto",
     width: `${widthPercent}%`,
     maxWidth: "100%",
@@ -73,9 +74,9 @@ function dimensionBarStyle(widthPercent: number): React.CSSProperties {
 
 function dimensionLabelStyle(): React.CSSProperties {
   return {
-    fontSize: "13px",
+    fontSize: "var(--text-sm)",
     fontWeight: 500,
-    color: "#495057",
+    color: "var(--ink-2)",
     minWidth: "110px",
     flexShrink: 0,
   };
@@ -83,9 +84,10 @@ function dimensionLabelStyle(): React.CSSProperties {
 
 function dimensionValueStyle(): React.CSSProperties {
   return {
-    fontSize: "13px",
+    fontSize: "var(--text-sm)",
     fontWeight: 600,
-    color: "#212529",
+    fontVariantNumeric: "tabular-nums",
+    color: "var(--ink)",
     minWidth: "36px",
     textAlign: "right",
     flexShrink: 0,
@@ -95,26 +97,26 @@ function dimensionValueStyle(): React.CSSProperties {
 function verdictPillStyle(verdict: string): React.CSSProperties {
   return {
     display: "inline-block",
-    padding: "4px 12px",
-    borderRadius: "999px",
-    fontSize: "13px",
+    padding: "var(--space-1) var(--space-3)",
+    borderRadius: "var(--radius-pill)",
+    fontSize: "var(--text-sm)",
     fontWeight: 600,
-    color: "#fff",
-    background: VERDICT_COLORS[verdict] ?? "#6c757d",
+    color: "var(--ink-on-fill)",
+    background: VERDICT_COLORS[verdict] ?? "var(--cat-gray)",
   };
 }
 
 function safetyGateStyle(): React.CSSProperties {
   return {
-    marginTop: "8px",
-    padding: "8px 12px",
-    borderRadius: "4px",
-    background: "#fff5f5",
+    marginTop: "var(--space-2)",
+    padding: "var(--space-2) var(--space-3)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--danger-soft)",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "#cf222e",
-    color: "#cf222e",
-    fontSize: "13px",
+    borderColor: "var(--danger)",
+    color: "var(--danger-ink)",
+    fontSize: "var(--text-sm)",
     fontWeight: 600,
   };
 }
@@ -188,26 +190,27 @@ export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
 }
 
 const placeholderStyle: React.CSSProperties = {
-  border: "1px dashed #ced4da",
-  borderRadius: "6px",
-  padding: "24px",
+  border: "1px dashed var(--border-strong)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-6)",
   textAlign: "center",
-  background: "#f8f9fa",
+  background: "var(--surface-2)",
 };
 
 const placeholderTextStyle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "#6c757d",
+  fontSize: "var(--text-base)",
+  color: "var(--ink-muted)",
 };
 
 const cardStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "16px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-lg)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
+  boxShadow: "var(--shadow-1)",
   display: "flex",
   flexDirection: "column",
-  gap: "14px",
+  gap: "var(--space-4)",
 };
 
 const headerStyle: React.CSSProperties = {

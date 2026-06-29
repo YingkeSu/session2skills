@@ -10,15 +10,15 @@ import type { JSX } from "react";
 
 function scoreBadge(score: number): JSX.Element {
   const color =
-    score >= 0.8 ? "#27ae60" : score >= 0.5 ? "#f39c12" : "#c0392b";
+    score >= 0.8 ? "var(--success)" : score >= 0.5 ? "var(--warning)" : "var(--danger)";
   return (
     <span
       style={{
-        padding: "4px 10px",
-        borderRadius: "999px",
-        fontSize: "13px",
+        padding: "var(--space-1) var(--space-3)",
+        borderRadius: "var(--radius-pill)",
+        fontSize: "var(--text-sm)",
         fontWeight: 600,
-        color: "#fff",
+        color: "var(--ink-on-fill)",
         background: color,
       }}
     >
@@ -28,9 +28,9 @@ function scoreBadge(score: number): JSX.Element {
 }
 
 function severityColor(severity: "high" | "medium" | "low"): string {
-  if (severity === "high") return "#c0392b";
-  if (severity === "medium") return "#f39c12";
-  return "#0d6efd";
+  if (severity === "high") return "var(--danger)";
+  if (severity === "medium") return "var(--warning)";
+  return "var(--accent)";
 }
 
 export function ReportsTab({
@@ -50,7 +50,7 @@ export function ReportsTab({
         </div>
 
         {!hasSkeptic ? (
-          <p style={{ color: "#666" }}>{t("reports.noSkeptic")}</p>
+          <p style={{ color: "var(--ink-muted)" }}>{t("reports.noSkeptic")}</p>
         ) : (
           <>
             <div style={summaryStyle}>
@@ -60,7 +60,7 @@ export function ReportsTab({
               })}
             </div>
             {skepticReport.issues.length === 0 ? (
-              <p style={{ color: "#28a745" }}>{t("reports.noIssues")}</p>
+              <p style={{ color: "var(--success-ink)" }}>{t("reports.noIssues")}</p>
             ) : (
               <div
                 style={{
@@ -98,7 +98,7 @@ export function ReportsTab({
                             borderRadius: "4px",
                             fontSize: "12px",
                             background: severityColor(issue.severity),
-                            color: "#fff",
+                            color: "var(--ink-on-fill)",
                           }}
                         >
                           {tEnum("severity", issue.severity)}
@@ -116,11 +116,11 @@ export function ReportsTab({
                         marginTop: "8px",
                         fontSize: "13px",
                         lineHeight: 1.5,
-                        color: "#212529",
+                        color: "var(--ink)",
                       }}
                     >
                       <p style={{ margin: "0 0 6px" }}>{issue.detail}</p>
-                      <p style={{ margin: 0, color: "#495057" }}>
+                      <p style={{ margin: 0, color: "var(--ink-2)" }}>
                         <strong>{t("reports.suggestion")}</strong> {issue.suggestion}
                       </p>
                     </div>
@@ -142,8 +142,8 @@ export function ReportsTab({
                 borderRadius: "999px",
                 fontSize: "13px",
                 fontWeight: 600,
-                color: "#fff",
-                background: verifierReport.pass ? "#27ae60" : "#c0392b",
+                color: "var(--ink-on-fill)",
+                background: verifierReport.pass ? "var(--success)" : "var(--danger)",
               }}
             >
               {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
@@ -152,7 +152,7 @@ export function ReportsTab({
         </div>
 
         {!hasVerifier ? (
-          <p style={{ color: "#666" }}>{t("reports.noVerifier")}</p>
+          <p style={{ color: "var(--ink-muted)" }}>{t("reports.noVerifier")}</p>
         ) : (
           <>
             <div style={summaryStyle}>
@@ -201,7 +201,7 @@ export function ReportsTab({
                             borderRadius: "4px",
                             fontSize: "12px",
                             background: severityColor(issue.severity),
-                            color: "#fff",
+                            color: "var(--ink-on-fill)",
                           }}
                         >
                           {tEnum("severity", issue.severity)}
@@ -216,7 +216,7 @@ export function ReportsTab({
                         margin: "8px 0 0",
                         fontSize: "13px",
                         lineHeight: 1.5,
-                        color: "#212529",
+                        color: "var(--ink)",
                       }}
                     >
                       {issue.description}
@@ -254,9 +254,9 @@ export function ReportsTab({
                             padding: "2px 6px",
                             borderRadius: "4px",
                             fontSize: "12px",
-                            color: "#fff",
+                            color: "var(--ink-on-fill)",
                             background:
-                              trustColors[item.status] ?? "#6c757d",
+                              trustColors[item.status] ?? "var(--cat-gray)",
                           }}
                         >
                           {tEnum("status", item.status)}
@@ -275,65 +275,71 @@ export function ReportsTab({
 }
 
 const sectionStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "14px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "10px",
-  marginBottom: "10px",
+  gap: "var(--space-3)",
+  marginBottom: "var(--space-3)",
   flexWrap: "wrap",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "15px",
+  fontSize: "var(--text-md)",
   fontWeight: 700,
+  color: "var(--ink)",
 };
 
 const summaryStyle: React.CSSProperties = {
-  fontSize: "13px",
-  color: "#495057",
-  marginBottom: "10px",
+  fontSize: "var(--text-sm)",
+  color: "var(--ink-2)",
+  marginBottom: "var(--space-3)",
   lineHeight: 1.5,
 };
 
 const issueCardStyle: React.CSSProperties = {
-  border: "1px solid #e9ecef",
-  borderRadius: "4px",
-  padding: "10px",
-  background: "#fff",
+  border: "1px solid var(--border-soft)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-3)",
+  background: "var(--surface)",
 };
 
 const metaChipStyle: React.CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: "999px",
-  background: "#f1f3f5",
-  color: "#495057",
-  fontSize: "12px",
+  padding: "2px var(--space-2)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--surface-3)",
+  color: "var(--ink-2)",
+  fontSize: "var(--text-xs)",
   whiteSpace: "nowrap",
 };
 
 const trustColors: Record<string, string> = {
-  verified: "#27ae60",
-  unreferenced: "#f39c12",
-  fabricated: "#c0392b",
+  verified: "var(--success)",
+  unreferenced: "var(--warning)",
+  fabricated: "var(--danger)",
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  borderBottom: "2px solid #ddd",
-  padding: "8px 10px",
+  borderBottom: "2px solid var(--border)",
+  padding: "var(--space-2) var(--space-3)",
+  fontSize: "var(--text-xs)",
+  color: "var(--ink-muted)",
+  background: "var(--surface-2)",
   fontWeight: 600,
 };
 
 const tdStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eee",
-  padding: "8px 10px",
+  borderBottom: "1px solid var(--border-soft)",
+  padding: "var(--space-2) var(--space-3)",
   verticalAlign: "top",
+  fontSize: "var(--text-sm)",
+  color: "var(--ink-2)",
 };

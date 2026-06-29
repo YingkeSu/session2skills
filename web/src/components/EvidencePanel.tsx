@@ -10,9 +10,9 @@ type EvidencePanelProps = {
 };
 
 const sourceTypeColors: Record<string, string> = {
-  message: "#0d6efd",
-  tool: "#198754",
-  step: "#6f42c1",
+  message: "var(--cat-blue)",
+  tool: "var(--cat-teal)",
+  step: "var(--cat-violet)",
 };
 
 export function EvidencePanel({
@@ -29,7 +29,7 @@ export function EvidencePanel({
   );
 
   const displayText = data?.excerpt ?? excerpt;
-  const badgeColor = sourceTypeColors[sourceType] ?? "#6c757d";
+  const badgeColor = sourceTypeColors[sourceType] ?? "var(--cat-gray)";
   const panelId = `evidence-${runName}-${evidenceId}`.replace(/\s+/g, "-");
 
   const handleToggle = () => {
@@ -41,10 +41,10 @@ export function EvidencePanel({
     <div
       data-testid="evidence-panel"
       style={{
-        marginTop: "6px",
-        border: "1px solid #dee2e6",
-        borderRadius: "4px",
-        background: "#fff",
+        marginTop: "var(--space-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--surface)",
         overflow: "hidden",
       }}
     >
@@ -58,31 +58,33 @@ export function EvidencePanel({
         style={{
           width: "100%",
           textAlign: "left",
-          padding: "8px 10px",
+          padding: "var(--space-2) var(--space-3)",
           border: "none",
           background: "transparent",
           cursor: isLoading ? "wait" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "8px",
+          gap: "var(--space-2)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <strong style={{ fontSize: "12px" }}>{evidenceId}</strong>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", minWidth: 0 }}>
+          <strong style={{ fontSize: "var(--text-xs)", color: "var(--ink)", overflowWrap: "anywhere", minWidth: 0 }}>{evidenceId}</strong>
           <span
             style={{
-              padding: "2px 6px",
-              borderRadius: "4px",
+              padding: "2px var(--space-2)",
+              borderRadius: "var(--radius-sm)",
               background: badgeColor,
-              color: "#fff",
+              color: "var(--ink-on-fill)",
               fontSize: "11px",
+              fontWeight: 600,
+              flexShrink: 0,
             }}
           >
             {tEnum("sourceType", sourceType)}
           </span>
         </div>
-        <span style={{ fontSize: "12px", color: "#495057" }}>
+        <span style={{ fontSize: "var(--text-xs)", color: "var(--ink-2)", flexShrink: 0 }}>
           {expanded
             ? t("evidence.hide")
             : isLoading
@@ -91,40 +93,47 @@ export function EvidencePanel({
         </span>
       </button>
 
+      {/* grid-template-rows animates height without layout-thrashing max-height,
+          and has no hard ceiling so long excerpts are never clipped. */}
       <div
         id={panelId}
         style={{
-          maxHeight: expanded ? "600px" : "0px",
+          display: "grid",
+          gridTemplateRows: expanded ? "1fr" : "0fr",
           opacity: expanded ? 1 : 0,
-          transition: "max-height 200ms ease-in-out, opacity 150ms ease-in-out",
-          overflow: "hidden",
+          transition: "grid-template-rows 200ms ease-in-out, opacity 150ms ease-in-out",
         }}
       >
-        <div style={{ padding: "0 10px 10px" }}>
-          {isLoading && (
-            <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#495057" }}>
-              {t("evidence.loading")}
-            </p>
-          )}
-          <pre
-            style={{
-              margin: 0,
-              padding: "10px",
-              background: "#f8f9fa",
-              borderRadius: "4px",
-              fontSize: "13px",
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            {displayText}
-          </pre>
-          {error && (
-            <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#c0392b" }}>
-              {error instanceof Error ? error.message : String(error)}
-            </p>
-          )}
+        <div style={{ overflow: "hidden" }}>
+          <div style={{ padding: "0 var(--space-3) var(--space-3)" }}>
+            {isLoading && (
+              <p style={{ margin: "0 0 var(--space-2)", fontSize: "var(--text-xs)", color: "var(--ink-2)" }}>
+                {t("evidence.loading")}
+              </p>
+            )}
+            <pre
+              style={{
+                margin: 0,
+                padding: "var(--space-3)",
+                background: "var(--surface-2)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border-soft)",
+                fontFamily: "var(--font-mono)",
+                fontSize: "var(--text-sm)",
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                color: "var(--ink)",
+              }}
+            >
+              {displayText}
+            </pre>
+            {error && (
+              <p style={{ margin: "var(--space-2) 0 0", fontSize: "var(--text-xs)", color: "var(--danger)" }}>
+                {error instanceof Error ? error.message : String(error)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

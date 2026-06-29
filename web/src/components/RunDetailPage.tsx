@@ -338,7 +338,7 @@ function ShellState({
     <div
       style={{
         ...shellStateStyle,
-        color: tone === "error" ? "#c0392b" : "#666",
+        color: tone === "error" ? "var(--danger)" : "var(--ink-muted)",
       }}
     >
       {children}
@@ -359,101 +359,105 @@ const EMPTY_MANIFEST = {
 } satisfies NonNullable<RunDetail["claimManifest"]>;
 
 const shellStyle: React.CSSProperties = {
-  fontFamily: "system-ui, sans-serif",
-  padding: "24px",
+  fontFamily: "var(--font-sans)",
+  padding: "var(--space-6)",
   display: "flex",
   flexDirection: "column",
-  gap: "16px",
+  gap: "var(--space-4)",
 };
 
 const headerRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "12px",
+  gap: "var(--space-3)",
 };
 
 const backButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: "4px",
-  border: "1px solid #ced4da",
-  background: "#fff",
+  padding: "var(--space-2) var(--space-3)",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border-strong)",
+  background: "var(--surface)",
+  color: "var(--ink-2)",
   cursor: "pointer",
-  fontSize: "13px",
+  fontSize: "var(--text-sm)",
 };
 
 const headerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: "16px",
+  gap: "var(--space-4)",
   flexWrap: "wrap",
 };
 
 const titleClusterStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "4px",
+  gap: "var(--space-1)",
   minWidth: 0,
 };
 
 const eyebrowStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "12px",
+  fontSize: "var(--text-xs)",
   textTransform: "uppercase",
-  letterSpacing: 0,
-  color: "#6c757d",
+  letterSpacing: "0.06em",
+  fontWeight: 600,
+  color: "var(--ink-muted)",
 };
 
 const titleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "24px",
+  fontSize: "var(--text-2xl)",
   lineHeight: 1.2,
+  letterSpacing: "-0.01em",
   wordBreak: "break-word",
+  color: "var(--ink)",
 };
 
 const statusClusterStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "8px",
+  gap: "var(--space-2)",
   flexWrap: "wrap",
   justifyContent: "flex-end",
 };
 
 const statusMetaStyle: React.CSSProperties = {
-  fontSize: "13px",
-  color: "#495057",
+  fontSize: "var(--text-sm)",
+  color: "var(--ink-2)",
 };
 
 function statusPillStyle(tone: "pass" | "fail"): React.CSSProperties {
   return {
-    padding: "4px 10px",
-    borderRadius: "999px",
-    fontSize: "13px",
+    padding: "var(--space-1) var(--space-3)",
+    borderRadius: "var(--radius-pill)",
+    fontSize: "var(--text-sm)",
     fontWeight: 600,
-    color: "#fff",
-    background: tone === "pass" ? "#27ae60" : "#c0392b",
+    color: "var(--ink-on-fill)",
+    background: tone === "pass" ? "var(--success)" : "var(--danger)",
   };
 }
 
 const tabsStyle: React.CSSProperties = {
   display: "flex",
-  gap: "8px",
-  borderBottom: "1px solid #dee2e6",
+  gap: "var(--space-2)",
+  borderBottom: "1px solid var(--border)",
 };
 
 function tabButtonStyle(selected: boolean): React.CSSProperties {
   return {
     minWidth: "112px",
     minHeight: "40px",
-    padding: "8px 14px",
+    padding: "var(--space-2) var(--space-4)",
     border: "none",
-    borderBottom: selected ? "2px solid #0d6efd" : "2px solid transparent",
+    borderBottom: selected ? "2px solid var(--accent)" : "2px solid transparent",
     background: "transparent",
     cursor: "pointer",
-    fontSize: "14px",
+    fontSize: "var(--text-base)",
     fontWeight: selected ? 600 : 400,
-    color: selected ? "#0d6efd" : "#495057",
+    color: selected ? "var(--accent)" : "var(--ink-2)",
     marginBottom: "-1px",
   };
 }
@@ -463,51 +467,53 @@ const contentStyle: React.CSSProperties = {
 };
 
 const shellStateStyle: React.CSSProperties = {
-  padding: "32px",
+  padding: "var(--space-8)",
   textAlign: "center",
 };
 
 const scoreCardSectionStyle: React.CSSProperties = {
-  marginBottom: "4px",
+  marginBottom: "var(--space-1)",
 };
 
 const evaluateCardStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "14px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
   display: "flex",
   flexDirection: "column",
-  gap: "10px",
+  gap: "var(--space-3)",
 };
 
 const evaluateHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: "12px",
+  gap: "var(--space-3)",
 };
 
 const evaluateTitleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "15px",
+  fontSize: "var(--text-md)",
   fontWeight: 700,
+  color: "var(--ink)",
 };
 
 const evaluateButtonStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: "4px",
-  border: "1px solid #0d6efd",
-  background: "#0d6efd",
-  color: "#fff",
+  padding: "var(--space-2) var(--space-3)",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--accent)",
+  background: "var(--accent)",
+  color: "var(--ink-on-fill)",
   cursor: "pointer",
+  fontWeight: 600,
 };
 
 const evaluateResultStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "4px",
-  fontSize: "13px",
-  color: "#212529",
+  gap: "var(--space-1)",
+  fontSize: "var(--text-sm)",
+  color: "var(--ink)",
 };
 

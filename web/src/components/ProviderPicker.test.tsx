@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { ProviderPicker } from "./ProviderPicker.js";
 import type { AdapterInfo } from "../runs.js";
@@ -29,7 +30,22 @@ describe("ProviderPicker", () => {
     expect(html).toContain("opencode");
     expect(html).toContain("codex");
     expect(html).toContain("claude");
-    expect(html).toContain("sqlite");
+    // "opencode" is the single OpenCode entry (backed by the sqlite adapter);
+    // there must be no standalone "sqlite"-labeled provider button.
+    expect(html).not.toContain("sqlite");
+  });
+
+  it("maps the opencode provider to the sqlite adapter (discovery-capable)", () => {
+    // Regression: "opencode" used to map to the sdk adapter, which has no
+    // project discovery, so the path dropdown never appeared. It must resolve
+    // to "sqlite" (the opencode.db-backed adapter) instead.
+    const handleChange = vi.fn();
+    render(<ProviderPicker value="all" onChange={handleChange} adapters={allAvailable} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /opencode/i }));
+
+    expect(handleChange).toHaveBeenCalledWith("sqlite");
+    expect(handleChange).not.toHaveBeenCalledWith("sdk");
   });
 
   it("dims unavailable adapters when availability info is provided", () => {

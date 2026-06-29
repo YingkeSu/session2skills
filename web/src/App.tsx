@@ -140,7 +140,7 @@ export function App(): JSX.Element {
 
   if (runsErrorMessage) {
     return (
-      <Shell style={{ color: "#c0392b" }} onShowDocs={() => setShowDocs(true)}>
+      <Shell style={{ color: "var(--danger)" }} onShowDocs={() => setShowDocs(true)}>
         {t("app.errorPrefix", { message: runsErrorMessage })}
       </Shell>
     );
@@ -645,7 +645,7 @@ function ProgressStepper({ progress }: { progress: GenerationProgress }): JSX.El
         <p className="generate-message">{t("progress.completed")}</p>
       )}
       {progress.stage === "no-claims" && (
-        <p className="generate-message" style={{ color: "#d4a017" }}>
+        <p className="generate-message" style={{ color: "var(--warning)" }}>
           Completed but no claims extracted from sessions.
         </p>
       )}

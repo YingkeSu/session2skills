@@ -122,7 +122,17 @@ Use this workflow when the user asks Codex to coordinate parallel implementation
 - **Worktree placement**: create sibling worktrees under `/Users/suyingke/Programs/OHO/`, not inside this repository or another repository.
 - **Branch naming**: use `codex/` branches for Codex-managed work, e.g. `codex/skill-store`, `codex/evaluate-command`.
 - **Merge discipline**: OpenCode workers do not decide global completion. Codex reviews each branch, merges one branch at a time into an integration branch, runs verification after each merge, and only then declares the batch complete.
-- **Verification discipline**: run at least `npm run typecheck` after each integration merge. Run `npm run build` and `npm test` before final handoff. Do not run build/e2e flows concurrently when they read or rewrite `dist/`.
+- **Verification discipline**: run at least `npm run typecheck` after each integration merge. Run `npm run build` and `npm run test:unit` before final handoff (`npm test` additionally runs `tests/e2e/`, which needs real opencode+LLM+`.env`). Do not run build/e2e flows concurrently when they read or rewrite `dist/`.
+
+## AUTONOMOUS ISSUE LOOP
+
+Convention for the `/loop`-style autonomous flow (check `gh issue list` → fix each issue in a worktree via a subagent → review → publish). Distinct from the Codex/OpenCode workflow above.
+
+- **Publish through PRs, never a direct `main` push.** A subagent pushes a feature branch (`fix/issue-<n>-…`) and opens a PR with `gh pr create`. The orchestrator does **not** `git merge` locally then `git push origin main` — the Claude Code auto-mode guard denies direct pushes to `main`. Leave an issue OPEN while human-in-the-loop steps remain, and post a status comment.
+- **Verify with `npm run test:unit`, not bare `npm test`.** `npm test` includes `tests/e2e/`, which hangs without real opencode + LLM + `.env` (timeouts 300s/600s) and on orphan `serve` processes holding `:3000`/`:3001`. `test:unit` excludes `tests/e2e/**` and `.claude/**` and runs the ~600-test unit suite in seconds.
+- **Sibling worktrees only — do NOT use `isolation: "worktree"`.** Claude Code's worktree isolation nests under `.claude/worktrees/` *inside* this repo, and `vitest run` then scans those worktree test files (duplicate runs, slower). Create sibling worktrees under `/Users/suyingke/Programs/OHO/` (per the worktree-placement rule above) instead.
+- **Concurrency**: enhancement/dev tasks at concurrency 2, bugs at 3. Do not run two subagents that edit the same shared files (`src/normalize/models.ts`, `src/harness/types.ts`, `web/`) in parallel.
+- **Issue pool**: open issues are all `enhancement`/architecture/idea (no reproducible bugs). The actionable set is the `ready-for-agent` label.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -157,7 +167,8 @@ npm run typecheck      # tsc --noEmit -p tsconfig.json
 npm run typecheck:tests # tsc -p tsconfig.test.json
 npm run dev            # tsx src/cli/main.ts (no build needed)
 npm run start          # node dist/cli/main.js
-npm test               # vitest run (all tests, serial execution)
+npm test               # vitest run (ALL tests incl. e2e — slow; needs real opencode+LLM+.env)
+npm run test:unit      # vitest run excluding tests/e2e/** + .claude/** (fast ~600-test gate; agent/CI verification)
 npm run test:e2e       # vitest run tests/e2e/ (requires build + .env + opencode on PATH)
 npm run test:e2e:web   # vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts
 npm run verify:web     # build:all + ensure-playwright-browser + test:e2e:web

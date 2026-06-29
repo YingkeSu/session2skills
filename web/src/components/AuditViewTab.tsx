@@ -5,6 +5,7 @@ import type {
   VerifierReport,
 } from "../runs.js";
 import { EvidencePanel } from "./EvidencePanel.js";
+import { VirtualList } from "./VirtualList.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 
@@ -89,8 +90,13 @@ export function AuditViewTab({
       {manifest.evidence && manifest.evidence.length > 0 && (
         <section style={sectionStyle}>
           <h3 style={sectionTitleStyle}>{t("audit.evidenceExcerpts")}</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {manifest.evidence.map((excerpt) => (
+          <VirtualList
+            ariaLabel={t("audit.evidenceExcerpts")}
+            itemHeight={evidenceItemHeight}
+            overscan={4}
+            viewportHeight="none"
+            items={manifest.evidence}
+            renderItem={(excerpt) => (
               <details key={excerpt.evidenceID} style={detailsStyle}>
                 <summary style={summaryStyle}>
                   <strong style={{ overflowWrap: "anywhere", minWidth: 0 }}>
@@ -125,8 +131,8 @@ export function AuditViewTab({
                   {excerpt.excerpt}
                 </pre>
               </details>
-            ))}
-          </div>
+            )}
+          />
         </section>
       )}
 
@@ -375,6 +381,10 @@ const detailsStyle: React.CSSProperties = {
   padding: "var(--space-2) var(--space-3)",
   background: "var(--surface)",
 };
+
+// Collapsed evidence <details> ≈ padding + one-line summary. Estimate only;
+// expanded entries overflow their slot without clipping.
+const evidenceItemHeight = 44;
 
 const summaryStyle: React.CSSProperties = {
   cursor: "pointer",

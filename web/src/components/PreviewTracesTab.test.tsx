@@ -144,8 +144,7 @@ describe("PreviewTracesTab", () => {
     expect(await waitForText("80")).toBeTruthy();
   });
 
-  it("renders fenced code literally and caps long previews", async () => {
-    const markdown = [
+  it("renders fenced code literally and caps long previews", async () => {    const markdown = [
       "```html",
       "<div>literal</div>",
       "```",
@@ -161,6 +160,34 @@ describe("PreviewTracesTab", () => {
     expect(await waitForText("Preview truncated after 500 lines.")).toBeTruthy();
     expect(document.body.textContent).toContain("line 497");
     expect(document.body.textContent).not.toContain("line 498");
+  });
+
+  it("virtualizes a large trace list so only a window is mounted", async () => {
+    localStorage.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    const manyTraces = Array.from({ length: 400 }, (_, i) => ({
+      stage: "analyst",
+      model: `model-${i}`,
+      provider: "openai",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    }));
+    createRoot(container).render(
+      <LocaleProvider>
+        <PreviewTracesTab
+          skillMarkdown={null}
+          writerSections={null}
+          traces={manyTraces}
+        />
+      </LocaleProvider>,
+    );
+
+    await waitForText("model-0");
+    const scroller = document.body.querySelector('[data-testid="virtual-list"]');
+    expect(scroller).toBeTruthy();
+    const rendered = scroller!.querySelectorAll("[data-virtual-index]");
+    expect(rendered.length).toBeLessThan(60);
+    expect(document.body.textContent).not.toContain("model-399");
   });
 });
 

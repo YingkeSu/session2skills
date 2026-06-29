@@ -140,6 +140,42 @@ describe("AuditViewTab", () => {
     expect(await screenText("91%")).toBeTruthy();
     expect(await screenText("42%")).toBeTruthy();
   });
+
+  it("virtualizes the evidence excerpt list so a large manifest does not bloat the DOM", async () => {
+    const manyEvidence = Array.from({ length: 500 }, (_, i) => ({
+      evidenceID: `ev-${i}`,
+      sourceType: "message",
+      excerpt: `Excerpt ${i}`,
+    }));
+
+    renderAuditTab(
+      {
+        schemaVersion: "claim-manifest/v1",
+        evidenceSummary: "Summary",
+        dimensionsCovered: [],
+        claims: [],
+        metadata: {
+          generatedAt: "2026-06-18T00:00:00Z",
+          sessionCount: 1,
+          totalEvidenceItems: manyEvidence.length,
+        },
+        evidence: manyEvidence,
+      },
+      null,
+      null,
+    );
+
+    // Wait for the list to mount (createRoot render is async).
+    await screenText("ev-0");
+    const scroller = document.body.querySelector('[data-testid="virtual-list"]');
+    expect(scroller).toBeTruthy();
+
+    const rendered = scroller!.querySelectorAll("[data-virtual-index]");
+    // Far fewer than the full 500 entries are in the DOM.
+    expect(rendered.length).toBeLessThan(50);
+    // The very last evidence item is not rendered before scrolling.
+    expect(document.body.textContent).not.toContain("ev-499");
+  });
 });
 
 async function screenText(text: string): Promise<string | null> {

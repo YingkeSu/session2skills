@@ -10,12 +10,13 @@ export function LanguageToggle(): JSX.Element {
       type="button"
       onClick={() => setLocale(next)}
       style={{
-        padding: "4px 12px",
-        borderRadius: "4px",
-        border: "1px solid #ced4da",
-        background: "#fff",
+        padding: "var(--space-1) var(--space-3)",
+        borderRadius: "var(--radius-sm)",
+        border: "1px solid var(--border-strong)",
+        background: "var(--surface)",
+        color: "var(--ink-2)",
         cursor: "pointer",
-        fontSize: "13px",
+        fontSize: "var(--text-sm)",
         fontWeight: 600,
         lineHeight: 1,
       }}

@@ -21,10 +21,10 @@ type WriterSectionPreview = {
 };
 
 const stageColors: Record<string, string> = {
-  analyst: "#0d6efd",
-  skeptic: "#d63384",
-  writer: "#6610f2",
-  verifier: "#198754",
+  analyst: "var(--cat-blue)",
+  skeptic: "var(--cat-rose)",
+  writer: "var(--cat-violet)",
+  verifier: "var(--cat-teal)",
 };
 
 const MAX_MARKDOWN_LINES = 500;
@@ -194,8 +194,8 @@ function renderMarkdown(md: string): JSX.Element {
           margin: "0 0 10px",
           padding: "10px",
           borderRadius: "4px",
-          background: "#f8f9fa",
-          border: "1px solid #e9ecef",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-soft)",
           overflowX: "auto",
           whiteSpace: "pre-wrap",
         }}
@@ -276,7 +276,7 @@ function renderMarkdown(md: string): JSX.Element {
         style={{
           margin: "0 0 8px",
           lineHeight: 1.6,
-          color: "#212529",
+          color: "var(--ink)",
         }}
       >
         {line}
@@ -296,7 +296,7 @@ function renderMarkdown(md: string): JSX.Element {
         key="markdown-truncated"
         style={{
           margin: "8px 0 0",
-          color: "#666",
+          color: "var(--ink-muted)",
           fontStyle: "italic",
         }}
       >
@@ -320,7 +320,7 @@ export function PreviewTracesTab({
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>{t("preview.skillTitle")}</h3>
         {skillMarkdown == null ? (
-          <p style={{ color: "#666" }}>{t("preview.noSkill")}</p>
+          <p style={{ color: "var(--ink-muted)" }}>{t("preview.noSkill")}</p>
         ) : (
           <div style={markdownBoxStyle}>
             {renderMarkdown(skillMarkdown)}
@@ -371,7 +371,7 @@ export function PreviewTracesTab({
       <section style={sectionStyle}>
         <h3 style={sectionTitleStyle}>{t("preview.tracesTitle")}</h3>
         {traces.length === 0 ? (
-          <p style={{ color: "#666" }}>{t("preview.noTraces")}</p>
+          <p style={{ color: "var(--ink-muted)" }}>{t("preview.noTraces")}</p>
         ) : (
           <div
             style={{
@@ -411,9 +411,9 @@ export function PreviewTracesTab({
                           borderRadius: "999px",
                           fontSize: "12px",
                           fontWeight: 600,
-                          color: "#fff",
+                          color: "var(--ink-on-fill)",
                           background:
-                            stageColors[summary.stage] ?? "#6c757d",
+                            stageColors[summary.stage] ?? "var(--cat-gray)",
                         }}
                       >
                         {tEnum("stage", summary.stage)}
@@ -434,7 +434,7 @@ export function PreviewTracesTab({
                     style={{
                       marginTop: "10px",
                       fontSize: "13px",
-                      color: "#495057",
+                      color: "var(--ink-2)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                       gap: "6px",
@@ -486,87 +486,89 @@ export function PreviewTracesTab({
 }
 
 const sectionStyle: React.CSSProperties = {
-  border: "1px solid #dee2e6",
-  borderRadius: "6px",
-  padding: "14px",
-  background: "#fff",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
   minWidth: 0,
 };
 
 const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 10px",
-  fontSize: "15px",
+  margin: "0 0 var(--space-3)",
+  fontSize: "var(--text-md)",
   fontWeight: 700,
+  color: "var(--ink)",
 };
 
 const markdownBoxStyle: React.CSSProperties = {
-  border: "1px solid #e9ecef",
-  borderRadius: "4px",
-  padding: "14px",
-  background: "#fff",
+  border: "1px solid var(--border-soft)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-4)",
+  background: "var(--surface)",
   lineHeight: 1.6,
   overflowWrap: "anywhere",
+  color: "var(--ink)",
 };
 
 const writerSectionsGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "10px",
+  gap: "var(--space-3)",
 };
 
 const writerSectionCardStyle: React.CSSProperties = {
-  border: "1px solid #e9ecef",
-  borderRadius: "4px",
-  padding: "10px",
-  background: "#fbfcfd",
+  border: "1px solid var(--border-soft)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-3)",
+  background: "var(--surface-2)",
   minWidth: 0,
 };
 
 const writerSectionHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "8px",
+  gap: "var(--space-2)",
   alignItems: "flex-start",
   flexWrap: "wrap",
-  fontSize: "13px",
-  color: "#212529",
+  fontSize: "var(--text-sm)",
+  color: "var(--ink)",
   overflowWrap: "anywhere",
 };
 
 const writerSectionSummaryStyle: React.CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: "13px",
+  margin: "var(--space-2) 0 0",
+  fontSize: "var(--text-sm)",
   lineHeight: 1.45,
-  color: "#495057",
+  color: "var(--ink-2)",
   overflowWrap: "anywhere",
 };
 
 const writerDirectiveListStyle: React.CSSProperties = {
-  margin: "8px 0 0",
+  margin: "var(--space-2) 0 0",
   paddingLeft: "18px",
-  fontSize: "13px",
+  fontSize: "var(--text-sm)",
   lineHeight: 1.5,
-  color: "#212529",
+  color: "var(--ink)",
 };
 
 const writerClaimStyle: React.CSSProperties = {
   display: "inline-block",
-  marginLeft: "6px",
-  color: "#6c757d",
-  fontSize: "12px",
+  marginLeft: "var(--space-2)",
+  color: "var(--ink-muted)",
+  fontSize: "var(--text-xs)",
   overflowWrap: "anywhere",
 };
 
 const traceCardStyle: React.CSSProperties = {
-  border: "1px solid #e9ecef",
-  borderRadius: "4px",
-  padding: "10px",
-  background: "#fff",
+  border: "1px solid var(--border-soft)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-3)",
+  background: "var(--surface)",
   minWidth: 0,
 };
 
 const traceMetaStyle: React.CSSProperties = {
-  fontSize: "12px",
-  color: "#666",
+  fontSize: "var(--text-xs)",
+  color: "var(--ink-muted)",
   overflowWrap: "anywhere",
 };

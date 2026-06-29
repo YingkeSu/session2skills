@@ -1,0 +1,81 @@
+name: Release
+
+# Changesets-driven release pipeline.
+#
+# Flow:
+#   1. A maintainer merges a "Version Packages" PR (produced by the changeset
+#      bot) into main. That PR contains the actual version bumps + CHANGELOG.
+#   2. This workflow runs on push to main. The changesets/action detects that
+#      there are pending releases (`npx changeset publish` would publish) and
+#      publishes to the npm public registry.
+#
+# Authentication uses **npm Trusted Publishing (OIDC)** — there is NO hardcoded
+# `NPM_TOKEN`. The `id-token: write` permission lets the job mint an OIDC token
+# that npm verifies against the linked publishing configuration. The npm-side
+# linkage + the protected `Release` environment are configured by a human (see
+# RELEASE.md).
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: false
+
+# OIDC Trusted Publishing requires `id-token: write`. `contents: write` lets the
+# action create release tags/commits; `pull-requests: write` lets it maintain the
+# "Version Packages" PR.
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release to npm
+    runs-on: ubuntu-latest
+    # The protected `Release` environment holds the Trusted Publishing linkage
+    # and any required reviewers. Protect it in GitHub settings (see RELEASE.md).
+    environment: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # `publish` runs only when there are pending version bumps on main.
+          # npm provenance + public visibility are conveyed to the underlying
+          # `npm publish` call via the equivalent of `--provenance --access
+          # public`, set here through npm's config env vars below and through
+          # `publishConfig.provenance: true` in package.json.
+          publish: npx changeset publish
+        env:
+          # Equivalent to `npm publish --provenance`: signs an in-toto/SLSA
+          # provenance attestation that npm verifies against this workflow's
+          # OIDC identity.
+          NPM_CONFIG_PROVENANCE: "true"
+          # Equivalent to `npm publish --access public` (scoped/public visibility).
+          NPM_CONFIG_ACCESS: "public"
+          # Trusted Publishing: `setup-node` + the npm CLI negotiate the auth
+          # token from the workflow's OIDC identity. `secrets.NPM_TOKEN` holds
+          # the automation token bound to this repo by npm Trusted Publishing
+          # (never a long-lived human publish token).
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -199,7 +199,10 @@ export type HarnessBudget = {
 export const DEFAULT_HARNESS_BUDGET: HarnessBudget = {
   timeoutMs: 120_000,
   temperature: 0.3,
-  maxOutputTokens: 8192,
+  // Reasoning models (e.g. Step 3.7 Flash) emit a large hidden reasoning stream
+  // that counts against the output budget; 8k starves them and the visible JSON
+  // never appears. 16k leaves headroom for thinking + structured output.
+  maxOutputTokens: 16_384,
 };
 
 export type HarnessResult = {

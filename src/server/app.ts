@@ -81,6 +81,21 @@ function isAllowedOrigin(origin: string | undefined): boolean {
   }
 }
 
+const EVIDENCE_FILTER_MODES = [
+  "off",
+  "structural",
+  "structural+density",
+  "structural+density+fuzzy",
+  "all",
+] as const;
+
+type EvidenceFilterMode = (typeof EVIDENCE_FILTER_MODES)[number];
+
+function isEvidenceFilterMode(value: unknown): value is EvidenceFilterMode {
+  return typeof value === "string"
+    && (EVIDENCE_FILTER_MODES as ReadonlyArray<string>).includes(value);
+}
+
 export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
   const app = new Hono();
   const generateRun = options.generateRun ?? generateSkillRun;
@@ -314,6 +329,10 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
           tokenBudget?: number;
           maxChars?: number;
           maxItems?: number;
+          filterMode?: string;
+          minHashThreshold?: number;
+          minTextDensity?: number;
+          llmClassifierEnabled?: boolean;
         };
         sessionSelections?: Array<{ adapter: string; sessionId: string }>;
       }>>();
@@ -335,6 +354,16 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         tokenBudget: typeof body.evidenceConfig.tokenBudget === "number" ? body.evidenceConfig.tokenBudget : undefined,
         maxChars: typeof body.evidenceConfig.maxChars === "number" ? body.evidenceConfig.maxChars : undefined,
         maxItems: typeof body.evidenceConfig.maxItems === "number" ? body.evidenceConfig.maxItems : undefined,
+        filterMode: isEvidenceFilterMode(body.evidenceConfig.filterMode)
+          ? body.evidenceConfig.filterMode
+          : undefined,
+        minHashThreshold: typeof body.evidenceConfig.minHashThreshold === "number"
+          ? body.evidenceConfig.minHashThreshold
+          : undefined,
+        minTextDensity: typeof body.evidenceConfig.minTextDensity === "number"
+          ? body.evidenceConfig.minTextDensity
+          : undefined,
+        llmClassifierEnabled: body.evidenceConfig.llmClassifierEnabled === true,
       } : undefined;
       const sessionSelections = Array.isArray(body.sessionSelections)
         ? body.sessionSelections.map((s) => ({

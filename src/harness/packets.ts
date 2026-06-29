@@ -9,12 +9,36 @@ export type EvidenceConfig = {
   tokenBudget?: number;
   maxChars?: number;
   maxItems?: number;
+  /**
+   * Noise-filter cascade mode (issue #58). Levels:
+   *   "off"                          — no filtering
+   *   "structural"                   — strip injected skill bodies
+   *   "structural+density"           — + low-density / repetition gate
+   *   "structural+density+fuzzy"     — + MinHash+LSH near-duplicate dedup
+   *   "all"                          — alias for the full cascade (fuzzy on)
+   */
+  filterMode?:
+    | "off"
+    | "structural"
+    | "structural+density"
+    | "structural+density+fuzzy"
+    | "all";
+  /** Jaccard similarity at/above which two blocks are near-duplicates (default 0.75). */
+  minHashThreshold?: number;
+  /** Minimum word count for the density gate (default 5). */
+  minTextDensity?: number;
+  /** Level-4 LLM classifier knob — reserved for a future slice (default false). */
+  llmClassifierEnabled?: boolean;
 };
 
 export const DEFAULT_EVIDENCE_CONFIG: Required<EvidenceConfig> = {
   tokenBudget: 160000,
   maxChars: 5000,
   maxItems: 3000,
+  filterMode: "off",
+  minHashThreshold: 0.75,
+  minTextDensity: 5,
+  llmClassifierEnabled: false,
 };
 
 // ---------------------------------------------------------------------------

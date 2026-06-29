@@ -11,6 +11,12 @@ import {
   makeExcerpt,
   estimateTokens,
 } from "../shared/evidence.js";
+import {
+  shingles,
+  minHashSignature,
+  computeJaccard,
+  lshBuckets,
+} from "./minhash.js";
 
 export { makeEvidenceID, makeExcerpt, estimateTokens } from "../shared/evidence.js";
 
@@ -184,16 +190,36 @@ export function isDirectUserEvidence(item: EvidenceItem): boolean {
   );
 }
 
+export type EvidenceFilterMode =
+  | "off"
+  | "structural"
+  | "structural+density"
+  | "structural+density+fuzzy"
+  | "all";
+
 export type EvidenceNoiseFilterConfig = {
-  filterMode?: "off" | "structural" | "structural+density";
+  filterMode?: EvidenceFilterMode;
   minTextDensity?: number;
   maxNgramRepetition?: number;
   minLexicalDiversity?: number;
+  /** Jaccard similarity at/above which two blocks count as near-duplicates. */
+  minHashThreshold?: number;
+  /** Word-gram size for MinHash shingling (default 5). */
+  shingleSize?: number;
+  /** Number of MinHash permutations (default 128). */
+  minHashPermutations?: number;
+  /** LSH band count (default 32). Must satisfy bands * rows == permutations. */
+  lshBands?: number;
 };
 
 export type EvidenceFilterRemovedItem = {
   evidenceID: string;
-  reason: "structural" | "low-density" | "high-repetition" | "low-diversity";
+  reason:
+    | "structural"
+    | "low-density"
+    | "high-repetition"
+    | "low-diversity"
+    | "fuzzy-duplicate";
 };
 
 export type EvidenceFilterReport = {
@@ -201,6 +227,7 @@ export type EvidenceFilterReport = {
   outputCount: number;
   removedByStructural: number;
   removedByDensity: number;
+  removedByFuzzy: number;
   removedItems: Array<EvidenceFilterRemovedItem>;
 };
 
@@ -284,6 +311,7 @@ export function filterEvidenceNoise(
         outputCount: evidence.length,
         removedByStructural: 0,
         removedByDensity: 0,
+        removedByFuzzy: 0,
         removedItems: [],
       },
     };
@@ -292,7 +320,12 @@ export function filterEvidenceNoise(
   const minTextDensity = config?.minTextDensity ?? 5;
   const maxNgramRepetition = config?.maxNgramRepetition ?? 0.5;
   const minLexicalDiversity = config?.minLexicalDiversity ?? 0.2;
-  const applyDensity = mode === "structural+density";
+  const applyDensity =
+    mode === "structural+density" ||
+    mode === "structural+density+fuzzy" ||
+    mode === "all";
+  const applyFuzzy =
+    mode === "structural+density+fuzzy" || mode === "all";
 
   const kept: Array<EvidenceItem> = [];
   const removedItems: Array<EvidenceFilterRemovedItem> = [];
@@ -323,14 +356,131 @@ export function filterEvidenceNoise(
     kept.push(item);
   }
 
+  if (!applyFuzzy || kept.length <= 1) {
+    return {
+      items: kept,
+      report: {
+        inputCount: evidence.length,
+        outputCount: kept.length,
+        removedByStructural,
+        removedByDensity,
+        removedByFuzzy: 0,
+        removedItems,
+      },
+    };
+  }
+
+  const fuzzyResult = dedupNearDuplicates(kept, {
+    threshold: config?.minHashThreshold ?? 0.75,
+    shingleSize: config?.shingleSize ?? 5,
+    permutations: config?.minHashPermutations ?? 128,
+    bands: config?.lshBands ?? 32,
+  });
+  for (const id of fuzzyResult.removedIds) {
+    removedItems.push({ evidenceID: id, reason: "fuzzy-duplicate" });
+  }
+
   return {
-    items: kept,
+    items: fuzzyResult.items,
     report: {
       inputCount: evidence.length,
-      outputCount: kept.length,
+      outputCount: fuzzyResult.items.length,
       removedByStructural,
       removedByDensity,
+      removedByFuzzy: fuzzyResult.removedIds.length,
       removedItems,
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Fuzzy near-duplicate dedup (MinHash + LSH)
+// ---------------------------------------------------------------------------
+
+type FuzzyDedupOptions = {
+  threshold: number;
+  shingleSize: number;
+  permutations: number;
+  bands: number;
+};
+
+type FuzzyDedupResult = {
+  items: Array<EvidenceItem>;
+  removedIds: Array<string>;
+};
+
+/**
+ * Collapse near-duplicate evidence blocks via MinHash + LSH banding.
+ *
+ * Each surviving item is shingled and given a MinHash signature. LSH banding
+ * produces candidate pairs cheaply; for each candidate pair we compute the
+ * exact Jaccard of the underlying shingle sets and, if it is at/above
+ * `threshold`, treat the later item as a duplicate. The first occurrence in
+ * input order is always kept (transitive clusters collapse to one item).
+ *
+ * Pure and deterministic for a fixed input + options.
+ */
+function dedupNearDuplicates(
+  items: ReadonlyArray<EvidenceItem>,
+  options: FuzzyDedupOptions,
+): FuzzyDedupResult {
+  const { threshold, shingleSize, permutations, bands } = options;
+  const rows = Math.max(1, Math.floor(permutations / bands));
+
+  // Precompute shingle sets + signatures for every item.
+  const shingleSets = new Map<string, Set<string>>();
+  const signatures = new Map<string, Array<number>>();
+  for (const item of items) {
+    const sh = shingles(item.summaryText, shingleSize);
+    shingleSets.set(item.evidenceID, sh);
+    signatures.set(item.evidenceID, minHashSignature(sh, permutations, LSH_SEED));
+  }
+
+  // Build candidate pairs via LSH banding. A band key shared by two items
+  // makes them a candidate pair. Pairs are stored as ordered input indices
+  // (first < second) so we can always keep the earliest occurrence.
+  const candidatePairs = new Set<string>();
+  const bandOwners = new Map<string, number>();
+  items.forEach((item, idx) => {
+    const sig = signatures.get(item.evidenceID)!;
+    for (const key of lshBuckets(sig, bands, rows)) {
+      const prevIdx = bandOwners.get(key);
+      if (prevIdx !== undefined && prevIdx !== idx) {
+        candidatePairs.add(`${prevIdx}\0${idx}`);
+      } else {
+        bandOwners.set(key, idx);
+      }
+    }
+  });
+
+  // Resolve each candidate pair against the exact Jaccard threshold and
+  // mark the later-occurring item of each near-duplicate pair as removed.
+  // Iterating pairs in input-index order means the earliest occurrence is
+  // always the survivor of any transitive clique.
+  const orderedPairs = [...candidatePairs]
+    .map((p) => p.split("\0").map(Number) as [number, number])
+    .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const removedIds = new Set<string>();
+  for (const [aIdx, bIdx] of orderedPairs) {
+    const aId = items[aIdx].evidenceID;
+    const bId = items[bIdx].evidenceID;
+    // If the survivor of this pair was already removed by an earlier clique,
+    // skip — it cannot anchor a new removal.
+    if (removedIds.has(aId)) continue;
+
+    const jaccard = computeJaccard(
+      shingleSets.get(aId)!,
+      shingleSets.get(bId)!,
+    );
+    if (jaccard >= threshold) {
+      // Keep the earlier-occurring item; drop the later one.
+      removedIds.add(bId);
+    }
+  }
+
+  const keptItems = items.filter((item) => !removedIds.has(item.evidenceID));
+  return { items: keptItems, removedIds: [...removedIds] };
+}
+
+/** Fixed LSH seed so the filter is a pure, deterministic function of input. */
+const LSH_SEED = 0x5eed;

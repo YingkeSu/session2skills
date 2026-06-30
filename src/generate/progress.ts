@@ -1,5 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
+import type { HarnessStageName } from "../harness/run-harness.js";
 
 export type GenerationStage =
   | "analyst"
@@ -9,7 +11,28 @@ export type GenerationStage =
   | "done"
   | "error"
   | "no-claims"
-  | "interrupted";
+  | "interrupted"
+  | "resumable";
+
+/**
+ * Per-stage artifact filename written by the harness. Used to compute
+ * resume checkpoints and to validate that a completed stage's output is
+ * still on disk before resuming from it.
+ */
+export const STAGE_ARTIFACT_FILE: Record<HarnessStageName, string> = {
+  analyst: "claim-manifest.json",
+  skeptic: "skeptic-report.json",
+  writer: "SKILL.md",
+  verifier: "verifier-report.json",
+};
+
+/** Ordered harness stages, used to compute the stage following a resume point. */
+export const HARNESS_STAGE_ORDER: ReadonlyArray<HarnessStageName> = [
+  "analyst",
+  "skeptic",
+  "writer",
+  "verifier",
+];
 
 export type ProgressFile = {
   stage: GenerationStage;
@@ -17,6 +40,14 @@ export type ProgressFile = {
   startedAt: string;
   updatedAt: string;
   error?: string;
+  /** PID of the forked worker currently driving this generation, if any. */
+  pid?: number;
+  /**
+   * SHA-256 hash of each completed stage's primary artifact, recorded when the
+   * stage finishes. On resume, a mismatch (or missing file) means the cached
+   * output is no longer trustworthy.
+   */
+  completedStageCheckpoints?: Partial<Record<HarnessStageName, string>>;
 };
 
 const PROGRESS_FILENAME = ".progress.json";
@@ -26,6 +57,7 @@ const TERMINAL_STAGES: ReadonlySet<GenerationStage> = new Set([
   "error",
   "no-claims",
   "interrupted",
+  "resumable",
 ]);
 
 export function isTerminalStage(stage: GenerationStage): boolean {
@@ -117,4 +149,34 @@ export function markProgressInterrupted(
     updatedAt: new Date().toISOString(),
     error: reason,
   };
+}
+
+export function markProgressResumable(
+  current: ProgressFile,
+  reason: string,
+): ProgressFile {
+  return {
+    ...current,
+    stage: "resumable",
+    updatedAt: new Date().toISOString(),
+    error: reason,
+  };
+}
+
+/** Compute a stable SHA-256 hash for a stage artifact's bytes. */
+export function hashArtifact(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+/**
+ * Return the harness stage a resume should restart from, given the stages that
+ * have already completed. The resume point is the stage immediately after the
+ * last completed one (or the first stage if none completed). Returns `null`
+ * when every stage is already complete (nothing to resume).
+ */
+export function resumeFromStage(
+  completedStages: ReadonlyArray<HarnessStageName>,
+): HarnessStageName | null {
+  if (completedStages.length >= HARNESS_STAGE_ORDER.length) return null;
+  return HARNESS_STAGE_ORDER[completedStages.length]!;
 }

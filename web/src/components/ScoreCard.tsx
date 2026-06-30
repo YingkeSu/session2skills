@@ -16,7 +16,15 @@ const DIMENSIONS = [
   { key: "evidenceRichness", label: "Evidence Richness" },
 ] as const;
 
-const GRADE_COLORS: Record<string, string> = {
+const GRADE_BADGE: Record<string, string> = {
+  A: "s2s-badge s2s-badge-block s2s-badge-success",
+  B: "s2s-badge s2s-badge-block s2s-badge-accent",
+  C: "s2s-badge s2s-badge-block s2s-badge-warning",
+  D: "s2s-badge s2s-badge-block s2s-badge-amber",
+  F: "s2s-badge s2s-badge-block s2s-badge-danger",
+};
+
+const GRADE_INK: Record<string, string> = {
   A: "var(--success)",
   B: "var(--accent)",
   C: "var(--warning)",
@@ -24,108 +32,89 @@ const GRADE_COLORS: Record<string, string> = {
   F: "var(--danger)",
 };
 
-const VERDICT_COLORS: Record<string, string> = {
-  pass: "var(--success)",
-  "needs-patch": "var(--warning)",
-  reject: "var(--danger)",
+const VERDICT_BADGE: Record<string, string> = {
+  pass: "s2s-badge s2s-badge-success",
+  "needs-patch": "s2s-badge s2s-badge-warning",
+  reject: "s2s-badge s2s-badge-danger",
 };
 
 function formatScore(value: number): string {
   return value.toFixed(2);
 }
 
-function gradeBadgeStyle(grade: string): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "56px",
-    height: "56px",
-    borderRadius: "var(--radius)",
-    background: GRADE_COLORS[grade] ?? "var(--cat-gray)",
-    color: "var(--ink-on-fill)",
-    fontSize: "28px",
-    fontWeight: 700,
-    lineHeight: 1,
-    flexShrink: 0,
-  };
+function gradeBadgeClassName(grade: string): string {
+  return GRADE_BADGE[grade] ?? "s2s-badge s2s-badge-block s2s-badge-muted";
 }
+
+const gradeBadgeStyle: React.CSSProperties = {
+  width: "56px",
+  height: "56px",
+  fontSize: "28px",
+  flexShrink: 0,
+};
 
 function scoreValueStyle(grade: string): React.CSSProperties {
   return {
     fontSize: "36px",
-    fontWeight: 700,
+    fontWeight: "var(--font-weight-max)",
     lineHeight: 1.1,
     fontVariantNumeric: "tabular-nums",
-    color: GRADE_COLORS[grade] ?? "var(--ink)",
+    color: GRADE_INK[grade] ?? "var(--ink)",
   };
 }
 
-function dimensionBarStyle(widthPercent: number): React.CSSProperties {
-  return {
-    height: "8px",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--accent)",
-    flex: "1 1 auto",
-    width: `${widthPercent}%`,
-    maxWidth: "100%",
-  };
+const dimensionBarStyle = (widthPercent: number): React.CSSProperties => ({
+  height: "var(--space-2)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--accent)",
+  flex: "1 1 auto",
+  width: `${widthPercent}%`,
+  maxWidth: "100%",
+});
+
+const dimensionLabelStyle: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  fontWeight: 500,
+  color: "var(--ink-2)",
+  minWidth: "110px",
+  flexShrink: 0,
+};
+
+const dimensionValueStyle: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  fontWeight: 600,
+  fontVariantNumeric: "tabular-nums",
+  color: "var(--ink)",
+  minWidth: "36px",
+  textAlign: "right",
+  flexShrink: 0,
+};
+
+function verdictBadgeClassName(verdict: string): string {
+  return VERDICT_BADGE[verdict] ?? "s2s-badge s2s-badge-muted";
 }
 
-function dimensionLabelStyle(): React.CSSProperties {
-  return {
-    fontSize: "var(--text-sm)",
-    fontWeight: 500,
-    color: "var(--ink-2)",
-    minWidth: "110px",
-    flexShrink: 0,
-  };
-}
+const verdictPillStyle: React.CSSProperties = {
+  fontSize: "var(--text-sm)",
+  fontWeight: "var(--font-weight-strong)",
+};
 
-function dimensionValueStyle(): React.CSSProperties {
-  return {
-    fontSize: "var(--text-sm)",
-    fontWeight: 600,
-    fontVariantNumeric: "tabular-nums",
-    color: "var(--ink)",
-    minWidth: "36px",
-    textAlign: "right",
-    flexShrink: 0,
-  };
-}
-
-function verdictPillStyle(verdict: string): React.CSSProperties {
-  return {
-    display: "inline-block",
-    padding: "var(--space-1) var(--space-3)",
-    borderRadius: "var(--radius-pill)",
-    fontSize: "var(--text-sm)",
-    fontWeight: 600,
-    color: "var(--ink-on-fill)",
-    background: VERDICT_COLORS[verdict] ?? "var(--cat-gray)",
-  };
-}
-
-function safetyGateStyle(): React.CSSProperties {
-  return {
-    marginTop: "var(--space-2)",
-    padding: "var(--space-2) var(--space-3)",
-    borderRadius: "var(--radius-sm)",
-    background: "var(--danger-soft)",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--danger)",
-    color: "var(--danger-ink)",
-    fontSize: "var(--text-sm)",
-    fontWeight: 600,
-  };
-}
+const safetyGateStyle: React.CSSProperties = {
+  marginTop: "var(--space-2)",
+  padding: "var(--space-2) var(--space-3)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger)",
+  color: "var(--danger-ink)",
+  fontSize: "var(--text-sm)",
+  fontWeight: 600,
+};
 
 export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
   if (!evaluation) {
     return (
-      <div style={placeholderStyle}>
-        <span style={placeholderTextStyle}>Not evaluated yet</span>
+      <div className="s2s-card score-card-placeholder">
+        <span className="score-card-placeholder-text">Not evaluated yet</span>
       </div>
     );
   }
@@ -136,51 +125,51 @@ export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
   const showSafetyGate = grade === "F" && verdict === "reject";
 
   return (
-    <div style={cardStyle}>
-      <div style={headerStyle}>
-        <div style={scoreClusterStyle}>
+    <div className="s2s-card score-card">
+      <div className="score-card-header">
+        <div className="score-card-cluster">
           <span data-testid="composite-score" style={scoreValueStyle(grade)}>
             {formatScore(composite)}
           </span>
           <span
             data-testid="grade-badge"
-            style={gradeBadgeStyle(grade)}
+            className={gradeBadgeClassName(grade)}
+            style={gradeBadgeStyle}
             aria-label={`Grade ${grade}`}
           >
             {grade}
           </span>
         </div>
-        <div style={metaClusterStyle}>
+        <div className="score-card-meta">
           <span
             data-testid="verdict-pill"
-            style={verdictPillStyle(verdict)}
+            className={verdictBadgeClassName(verdict)}
+            style={verdictPillStyle}
           >
             {verdict}
           </span>
           <div
             data-testid="safety-gate"
-            style={{
-              ...safetyGateStyle(),
-              display: showSafetyGate ? "block" : "none",
-            }}
+            className="score-card-safety-gate"
+            style={{ ...safetyGateStyle, display: showSafetyGate ? "block" : "none" }}
           >
             Safety gate failed
           </div>
         </div>
       </div>
-      <div style={dimensionsStyle}>
+      <div className="score-card-dimensions">
         {DIMENSIONS.map(({ key, label }) => {
           const raw = evaluation.scores[key];
           const value = typeof raw === "number" ? raw : 0;
           const widthPercent = Math.round(value * 100);
           return (
-            <div key={key} style={dimensionRowStyle}>
-              <span style={dimensionLabelStyle()}>{label}</span>
+            <div key={key} className="score-card-dimension">
+              <span style={dimensionLabelStyle}>{label}</span>
               <div
                 data-testid={`dim-bar-${key}`}
                 style={dimensionBarStyle(widthPercent)}
               />
-              <span style={dimensionValueStyle()}>{formatScore(value)}</span>
+              <span style={dimensionValueStyle}>{formatScore(value)}</span>
             </div>
           );
         })}
@@ -188,60 +177,3 @@ export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
     </div>
   );
 }
-
-const placeholderStyle: React.CSSProperties = {
-  border: "1px dashed var(--border-strong)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-6)",
-  textAlign: "center",
-  background: "var(--surface-2)",
-};
-
-const placeholderTextStyle: React.CSSProperties = {
-  fontSize: "var(--text-base)",
-  color: "var(--ink-muted)",
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-lg)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-  boxShadow: "var(--shadow-1)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-4)",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: "16px",
-  flexWrap: "wrap",
-};
-
-const scoreClusterStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const metaClusterStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
-  gap: "6px",
-};
-
-const dimensionsStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-};
-
-const dimensionRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-};

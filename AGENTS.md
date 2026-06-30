@@ -185,3 +185,17 @@ npm run verify:web     # build:all + ensure-playwright-browser + test:e2e:web
 - The default harness budget is `{ timeoutMs: 120_000, temperature: 0.3, maxOutputTokens: 8192 }` (defined in `src/harness/types.ts`)
 - Each harness stage retries up to 2 times on LLM failure (`*_MAX_RETRIES = 2`)
 - Web UI access: `http://localhost:<port>` and `http://100.98.177.122:<port>` (binds `0.0.0.0` by default)
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in this repo, tracked via the `gh` CLI. External PRs are **not** a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles mapped to default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). `ready-for-agent` and `wontfix` already exist in this repo. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

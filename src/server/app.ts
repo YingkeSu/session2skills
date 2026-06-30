@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { fork } from "node:child_process";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -28,17 +28,57 @@ import {
   createInitialProgress,
   advanceProgress,
   markProgressDone,
-  markProgressError,
-  markProgressNoClaims,
   markProgressInterrupted,
+  markProgressResumable,
   isTerminalStage,
+  hashArtifact,
+  resumeFromStage,
+  STAGE_ARTIFACT_FILE,
   type GenerationStage,
+  type ProgressFile,
 } from "../generate/progress.js";
 import type { HarnessStageName } from "../harness/run-harness.js";
+import type { WorkerInput } from "../worker/generate-worker.js";
 
 // dist/server/app.js → ../../web/dist
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDist = join(__dirname, "../../web/dist");
+// dist/server/app.js → ../worker/generate-worker.js
+const defaultWorkerPath = join(__dirname, "../worker/generate-worker.js");
+
+/**
+ * Default worker spawner: forks the compiled worker entry point as a detached
+ * process so it survives the HTTP server shutting down. The worker reads its
+ * input from stdin (inherited env carries the SESSION2SKILLS_* provider vars).
+ */
+function defaultSpawnGenerateWorker(): SpawnGenerateWorker {
+  return ({ workerInput }) => {
+    const child = fork(defaultWorkerPath, [], {
+      stdio: ["pipe", "inherit", "inherit"],
+      detached: true,
+    });
+    child.stdin?.end(JSON.stringify(workerInput), "utf8");
+    child.unref();
+    return child.pid as number;
+  };
+}
+
+/**
+ * Returns true when a process with the given PID is still running. A signal-0
+ * probe succeeds only for live, killable processes. ESRCH means dead; EPERM
+ * (owned by another user) is treated as alive to avoid false reconciliation.
+ */
+export function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: unknown) {
+    const code = (error as { code?: string }).code;
+    if (code === "ESRCH") return false;
+    // EPERM: the process exists but we can't signal it — assume alive.
+    return code === "EPERM";
+  }
+}
 
 function getApiToken(): string | null {
   return process.env["SESSION2SKILLS_API_TOKEN"] ?? null;
@@ -58,10 +98,57 @@ export type SessionSelectionInput = {
   sessionId: string;
 };
 
+/**
+ * Spawn a detached generation worker. Returns the worker's PID so the server
+ * can record it in `.progress.json` and check liveness on reboot. Overridable
+ * in tests to avoid actually forking a Node process.
+ */
+export type SpawnGenerateWorker = (input: {
+  workerInput: WorkerInput;
+}) => number;
+
 export type CreateServerOptions = {
   projectDirectory: string;
+  /** In-process generator used by the synchronous POST /api/runs path. */
   generateRun?: ServerGenerateRunner;
+  /** Spawner for the async POST /api/runs?async=true + resume paths. */
+  spawnGenerateWorker?: SpawnGenerateWorker;
 };
+
+/** Shared shape of generation-option fields accepted by POST /api/runs and resume. */
+type GenerateRequestBody = Partial<{
+  name: string;
+  recent: number;
+  workspace: string;
+  tone: TonePreset;
+  force: boolean;
+  template: string;
+  skillType: string;
+  async: boolean;
+  directory: string;
+  evidenceConfig?: {
+    tokenBudget?: number;
+    maxChars?: number;
+    maxItems?: number;
+    filterMode?: string;
+    minHashThreshold?: number;
+    minTextDensity?: number;
+    llmClassifierEnabled?: boolean;
+  };
+  sessionSelections?: Array<{ adapter: string; sessionId: string }>;
+}>;
+
+async function readResumeBody(c: { req: { json: () => Promise<unknown> } }): Promise<GenerateRequestBody> {
+  try {
+    const parsed = await c.req.json();
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as GenerateRequestBody;
+    }
+  } catch {
+    // empty / invalid body is fine for resume — all fields are optional
+  }
+  return {};
+}
 
 function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
@@ -99,6 +186,7 @@ function isEvidenceFilterMode(value: unknown): value is EvidenceFilterMode {
 export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
   const app = new Hono();
   const generateRun = options.generateRun ?? generateSkillRun;
+  const spawnGenerateWorker = options.spawnGenerateWorker ?? defaultSpawnGenerateWorker();
   const apiToken = getApiToken();
 
   void reconcileOrphanedRuns(runsDirectory);
@@ -124,6 +212,16 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
   });
 
   app.use("/api/runs/:name/evaluate", async (c, next) => {
+    if (c.req.method === "POST" && apiToken) {
+      const token = extractBearerToken(c.req.header("Authorization"));
+      if (token !== apiToken) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+    }
+    await next();
+  });
+
+  app.use("/api/runs/:name/resume", async (c, next) => {
     if (c.req.method === "POST" && apiToken) {
       const token = extractBearerToken(c.req.header("Authorization"));
       if (token !== apiToken) {
@@ -313,34 +411,131 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
     }
   });
 
+  app.post("/api/runs/:name/resume", async (c) => {
+    const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    const progress = await readProgress(runDir);
+    if (!progress) {
+      return c.json({ error: "No progress file to resume from" }, 409);
+    }
+
+    // A worker is already driving this run — refuse to spawn a second one.
+    if (progress.pid !== undefined && isPidAlive(progress.pid)) {
+      return c.json({ error: `Generation already running (pid ${progress.pid})` }, 409);
+    }
+
+    if (isTerminalStage(progress.stage) && progress.stage !== "resumable" && progress.stage !== "interrupted") {
+      return c.json({ error: `Run is in terminal stage '${progress.stage}' and cannot be resumed` }, 409);
+    }
+
+    const completedHarnessStages = pickCompletedHarnessStages(progress);
+    const resumeStage = resumeFromStage(completedHarnessStages);
+    if (resumeStage === null) {
+      return c.json({ error: "Run has no remaining stages to resume" }, 409);
+    }
+
+    const validation = await validateResumeCheckpoints(runDir, progress);
+    if (!validation.ok) {
+      return c.json({ error: `Resume checkpoints invalid: ${validation.reason}` }, 409);
+    }
+
+    const body = await readResumeBody(c);
+
+    const recent = coercePositiveInteger(body.recent, 10);
+    const tone = coerceTonePreset(body.tone, "balanced");
+    const force = body.force === true;
+    const workspace = typeof body.workspace === "string" && body.workspace.length > 0
+      ? body.workspace
+      : undefined;
+    const template = typeof body.template === "string" && body.template.length > 0
+      ? parseTemplate(body.template)
+      : undefined;
+    const skillType = typeof body.skillType === "string" && body.skillType.length > 0
+      ? parseSkillType(body.skillType)
+      : undefined;
+    const evidenceConfig: EvidenceConfig | undefined = body.evidenceConfig && typeof body.evidenceConfig === "object" ? {
+      tokenBudget: typeof body.evidenceConfig.tokenBudget === "number" ? body.evidenceConfig.tokenBudget : undefined,
+      maxChars: typeof body.evidenceConfig.maxChars === "number" ? body.evidenceConfig.maxChars : undefined,
+      maxItems: typeof body.evidenceConfig.maxItems === "number" ? body.evidenceConfig.maxItems : undefined,
+      filterMode: isEvidenceFilterMode(body.evidenceConfig.filterMode)
+        ? body.evidenceConfig.filterMode
+        : undefined,
+      minHashThreshold: typeof body.evidenceConfig.minHashThreshold === "number"
+        ? body.evidenceConfig.minHashThreshold
+        : undefined,
+      minTextDensity: typeof body.evidenceConfig.minTextDensity === "number"
+        ? body.evidenceConfig.minTextDensity
+        : undefined,
+      llmClassifierEnabled: body.evidenceConfig.llmClassifierEnabled === true,
+    } : undefined;
+    const sessionSelections = Array.isArray(body.sessionSelections)
+      ? body.sessionSelections.map((s) => ({
+        adapter: s.adapter as AdapterType,
+        sessionId: s.sessionId,
+      }))
+      : undefined;
+
+    let projectDirectory = options.projectDirectory;
+    if (typeof body.directory === "string" && body.directory.length > 0 && body.directory !== ".") {
+      try {
+        projectDirectory = validateProjectDirectory(resolve(body.directory));
+      } catch (error) {
+        if (error instanceof CliUsageError) {
+          return c.json({ error: error.message }, 400);
+        }
+        throw error;
+      }
+    }
+
+    const workerInput: WorkerInput = {
+      projectDirectory,
+      outputDirectory: runDir,
+      recent,
+      force,
+      tone,
+      ...(workspace !== undefined ? { workspace } : {}),
+      ...(template !== undefined ? { template } : {}),
+      ...(skillType !== undefined ? { skillType } : {}),
+      ...(evidenceConfig !== undefined ? { evidenceConfig } : {}),
+      ...(sessionSelections !== undefined ? { sessionSelections } : {}),
+    };
+
+    const lastCompleted = completedHarnessStages[completedHarnessStages.length - 1];
+    const resumed: ProgressFile = lastCompleted
+      ? advanceProgress(progress, lastCompleted, resumeStage)
+      : { ...progress, stage: resumeStage, updatedAt: new Date().toISOString() };
+    await writeProgress(runDir, resumed);
+
+    const pid = spawnGenerateWorker({ workerInput });
+    const withPid: ProgressFile = { ...resumed, pid };
+    await writeProgress(runDir, withPid);
+
+    return c.json({ name, status: "running", pid, resumeFrom: resumeStage }, 202);
+  });
+
   app.post("/api/runs", async (c) => {
     try {
-      const body = await c.req.json<Partial<{
-        name: string;
-        recent: number;
-        workspace: string;
-        tone: TonePreset;
-        force: boolean;
-        template: string;
-        skillType: string;
-        async: boolean;
-        directory: string;
-        evidenceConfig?: {
-          tokenBudget?: number;
-          maxChars?: number;
-          maxItems?: number;
-          filterMode?: string;
-          minHashThreshold?: number;
-          minTextDensity?: number;
-          llmClassifierEnabled?: boolean;
-        };
-        sessionSelections?: Array<{ adapter: string; sessionId: string }>;
-      }>>();
+      const body = await c.req.json<GenerateRequestBody>();
 
       const recent = coercePositiveInteger(body.recent, 10);
       const tone = coerceTonePreset(body.tone, "balanced");
       const force = body.force === true;
-      const isAsync = body.async === true;
+      const isAsync = body.async === true || c.req.query("async") === "true";
       const workspace = typeof body.workspace === "string" && body.workspace.length > 0
         ? body.workspace
         : undefined;
@@ -391,61 +586,24 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         const initialProgress = createInitialProgress();
         await writeProgress(outputDirectory, initialProgress);
 
-        const stageMapping: Record<HarnessStageName, GenerationStage> = {
-          analyst: "analyst",
-          skeptic: "skeptic",
-          writer: "writer",
-          verifier: "verifier",
+        const workerInput: WorkerInput = {
+          projectDirectory,
+          outputDirectory,
+          recent,
+          force,
+          tone,
+          ...(workspace !== undefined ? { workspace } : {}),
+          ...(template !== undefined ? { template } : {}),
+          ...(skillType !== undefined ? { skillType } : {}),
+          ...(evidenceConfig !== undefined ? { evidenceConfig } : {}),
+          ...(sessionSelections !== undefined ? { sessionSelections } : {}),
         };
 
-        void (async () => {
-          let currentProgress = initialProgress;
-          try {
-            await generateRun({
-              projectDirectory,
-              outputDirectory,
-              workspace,
-              recent,
-              tone,
-              force,
-              template,
-              skillType,
-              evidenceConfig,
-              sessionSelections,
-              onStageComplete: (stage: HarnessStageName) => {
-                const nextMap: Record<HarnessStageName, GenerationStage> = {
-                  analyst: "skeptic",
-                  skeptic: "writer",
-                  writer: "verifier",
-                  verifier: "done",
-                };
-                currentProgress = advanceProgress(currentProgress, stageMapping[stage], nextMap[stage]);
-                void writeProgress(outputDirectory, currentProgress);
-              },
-            });
-            try {
-              const manifestRaw = await readFile(join(outputDirectory, "claim-manifest.json"), "utf8");
-              const parsed: unknown = JSON.parse(manifestRaw);
-              const claimCount = typeof parsed === "object" && parsed !== null && "claims" in parsed && Array.isArray((parsed as { claims: unknown[] }).claims)
-                ? (parsed as { claims: unknown[] }).claims.length
-                : -1;
-              currentProgress = claimCount === 0
-                ? markProgressNoClaims(currentProgress)
-                : markProgressDone(currentProgress);
-            } catch {
-              currentProgress = markProgressDone(currentProgress);
-            }
-            await writeProgress(outputDirectory, currentProgress);
-          } catch (error: unknown) {
-            currentProgress = markProgressError(
-              currentProgress,
-              error instanceof Error ? error.message : String(error),
-            );
-            await writeProgress(outputDirectory, currentProgress);
-          }
-        })();
+        const pid = spawnGenerateWorker({ workerInput });
+        const withPid: ProgressFile = { ...initialProgress, pid };
+        await writeProgress(outputDirectory, withPid);
 
-        return c.json({ name, status: "running" }, 202);
+        return c.json({ name, status: "running", pid }, 202);
       }
 
       await generateRun({
@@ -749,14 +907,91 @@ async function reconcileRunProgress(runDir: string): Promise<void> {
   const progress = await readProgress(runDir);
   if (!progress || isTerminalStage(progress.stage)) return;
 
+  // A detached worker is still alive — leave it alone so it can finish across
+  // the server restart (issue #75 Option A: process-level recovery).
+  if (progress.pid !== undefined && isPidAlive(progress.pid)) {
+    return;
+  }
+
   const skillExists = await fileExists(join(runDir, "SKILL.md"));
-  const reconciled = skillExists
-    ? markProgressDone(progress)
+  if (skillExists) {
+    try {
+      await writeProgress(runDir, markProgressDone(progress));
+    } catch {}
+    return;
+  }
+
+  // SKILL.md missing: decide between resumable and interrupted.
+  // Resumable requires at least one completed stage whose checkpoint both
+  // exists on disk and matches its recorded hash — that proves an earlier
+  // stage genuinely finished and its output is recoverable. Runs with no
+  // checkpoints (legacy progress files, or stages that never recorded one)
+  // fall back to interrupted, preserving the #73 behavior.
+  const hasCheckpoints =
+    progress.completedStageCheckpoints !== undefined
+    && Object.keys(progress.completedStageCheckpoints).length > 0;
+  const validation = hasCheckpoints
+    ? await validateResumeCheckpoints(runDir, progress)
+    : { ok: false, reason: "no stage checkpoints recorded" };
+  const reconciled = validation.ok
+    ? markProgressResumable(progress, "Generation interrupted but checkpoints are intact")
     : markProgressInterrupted(progress, "Server restarted before generation completed");
 
   try {
     await writeProgress(runDir, reconciled);
   } catch {}
+}
+
+/**
+ * Map a progress file's `completedStages` (stored as GenerationStage values)
+ * back onto the harness stage ordering, so {@link resumeFromStage} can compute
+ * the next stage. Only the four harness stages are considered.
+ */
+function pickCompletedHarnessStages(progress: ProgressFile): Array<HarnessStageName> {
+  const generationToHarness: Record<string, HarnessStageName> = {
+    analyst: "analyst",
+    skeptic: "skeptic",
+    writer: "writer",
+    verifier: "verifier",
+  };
+  const completed = new Set(progress.completedStages);
+  const result: Array<HarnessStageName> = [];
+  for (const stage of ["analyst", "skeptic", "writer", "verifier"] as const) {
+    if (completed.has(stage)) {
+      result.push(generationToHarness[stage]!);
+    }
+  }
+  return result;
+}
+
+/**
+ * Verify every recorded stage checkpoint still matches the artifact on disk.
+ * A checkpoint is only meaningful when both the hash and the file exist; an
+ * absent checkpoint record is treated as valid (older progress files, or runs
+ * that never recorded one, fall back to the broader resumable/interrupted
+ * decision made by the caller).
+ */
+async function validateResumeCheckpoints(
+  runDir: string,
+  progress: ProgressFile,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const checkpoints = progress.completedStageCheckpoints;
+  if (!checkpoints) return { ok: true };
+
+  for (const stage of Object.keys(checkpoints) as Array<HarnessStageName>) {
+    const expected = checkpoints[stage];
+    if (typeof expected !== "string") continue;
+    const artifactPath = join(runDir, STAGE_ARTIFACT_FILE[stage]);
+    try {
+      const content = await readFile(artifactPath, "utf8");
+      if (hashArtifact(content) !== expected) {
+        return { ok: false, reason: `${stage} artifact checksum mismatch` };
+      }
+    } catch {
+      return { ok: false, reason: `${stage} artifact missing (${STAGE_ARTIFACT_FILE[stage]})` };
+    }
+  }
+  return { ok: true };
 }
 
 function getArtifactStatus(input: {

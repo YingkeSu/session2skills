@@ -18,7 +18,12 @@ vi.mock("../../src/persist/generated-artifacts.js", () => ({
 }));
 
 vi.mock("../../src/evidence-store/index.js", () => ({
-  EvidenceStore: vi.fn().mockImplementation(() => ({ close: vi.fn() })),
+  // vitest 4 requires constructor mocks to use a `function`/`class` body rather
+  // than an arrow factory, otherwise `new EvidenceStore(...)` throws
+  // "... is not a constructor".
+  EvidenceStore: vi.fn().mockImplementation(function () {
+    return { close: vi.fn() };
+  }),
 }));
 
 vi.mock("../../src/evidence-store/persist.js", () => ({

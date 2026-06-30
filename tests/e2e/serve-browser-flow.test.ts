@@ -55,7 +55,10 @@ async function runBrowserFlow(page: Page, baseUrl: string): Promise<void> {
   await page.getByTestId("preview-tab").click();
   await page.getByRole("heading", { name: "SKILL.md 预览" }).waitFor();
   await page.getByText("Alpha Skill").waitFor();
-  await page.getByText("撰写").waitFor();
+  // Scope to the preview panel: the always-visible DAG strip (#32) also renders
+  // a "撰写" (writer) stage node in the header, which would otherwise make this
+  // text selector ambiguous under Playwright strict mode.
+  await page.locator("#run-detail-panel-preview").getByText("撰写").waitFor();
 
   await page.getByRole("button", { name: "EN" }).click();
   await page.getByRole("tab", { name: "Audit View" }).click();

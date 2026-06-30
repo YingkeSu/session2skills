@@ -5,6 +5,7 @@ import { useLocale } from "../i18n/LocaleContext.js";
 import { type RunDetail, type SkillEvaluation } from "../runs.js";
 import { useEvaluateMutation, useRunDetailQuery } from "../hooks/useQueries.js";
 import { AuditViewTab } from "./AuditViewTab.js";
+import { HarnessDagStrip } from "./HarnessDagStrip.js";
 import { PreviewTracesTab } from "./PreviewTracesTab.js";
 import { ReportsTab } from "./ReportsTab.js";
 import { ScoreCard } from "./ScoreCard.js";
@@ -280,6 +281,11 @@ export function DetailShell({
           <ScoreCard evaluation={scoreCardEvaluation} />
         </section>
       )}
+
+      <HarnessDagStrip
+        detail={detail}
+        onStageSelect={() => onTabChange("preview")}
+      />
 
       <nav aria-label={t("app.title")} role="tablist" style={tabsStyle}>
         {tabs.map((tab) => {

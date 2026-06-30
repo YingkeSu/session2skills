@@ -11,7 +11,7 @@ export function DocsPage({ onBack }: DocsPageProps): JSX.Element {
   return (
     <div className="docs-page">
       <div className="docs-header">
-        <button type="button" onClick={onBack} className="docs-back-button">
+        <button type="button" onClick={onBack} className="s2s-btn docs-back-button">
           {t("docs.back")}
         </button>
         <h1>{t("docs.title")}</h1>

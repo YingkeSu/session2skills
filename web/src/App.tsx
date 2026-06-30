@@ -547,7 +547,7 @@ function GenerateRunPanel({
           </label>
           <button
             type="button"
-            className="generate-advanced-toggle"
+            className="s2s-btn s2s-btn-ghost generate-advanced-toggle"
             onClick={() => setShowSessionSelection(!showSessionSelection)}
             aria-expanded={showSessionSelection}
             style={{ gridColumn: "1 / -1", justifySelf: "start" }}
@@ -627,7 +627,7 @@ function GenerateRunPanel({
           </label>
           <button
             type="button"
-            className="generate-advanced-toggle"
+            className="s2s-btn s2s-btn-ghost generate-advanced-toggle"
             onClick={() => setShowAdvanced(!showAdvanced)}
             aria-expanded={showAdvanced}
           >
@@ -886,7 +886,7 @@ function Shell({
             <button
               type="button"
               onClick={onShowDocs}
-              className="docs-button"
+              className="s2s-btn docs-button"
             >
               {t("docs.button")}
             </button>

@@ -11,6 +11,9 @@ generated-skills/
 # Local agent/orchestration state
 .omo/
 .sisyphus/
+.claude/
+.codex/
+.impeccable/
 .opencode/*.bak*
 .opencode/*.backup
 .opencode/*.migrations.json

@@ -1,19 +1,20 @@
 import { type ReactNode } from "react";
 import type { SkillEvaluation } from "../runs.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 
 export type ScoreCardProps = {
   evaluation: SkillEvaluation | null;
 };
 
 const DIMENSIONS = [
-  { key: "grounding", label: "Grounding" },
-  { key: "actionability", label: "Actionability" },
-  { key: "specificity", label: "Specificity" },
-  { key: "safety", label: "Safety" },
-  { key: "concision", label: "Concision" },
-  { key: "discoverability", label: "Discoverability" },
-  { key: "skepticQuality", label: "Skeptic Quality" },
-  { key: "evidenceRichness", label: "Evidence Richness" },
+  "grounding",
+  "actionability",
+  "specificity",
+  "safety",
+  "concision",
+  "discoverability",
+  "skepticQuality",
+  "evidenceRichness",
 ] as const;
 
 const GRADE_BADGE: Record<string, string> = {
@@ -111,10 +112,11 @@ const safetyGateStyle: React.CSSProperties = {
 };
 
 export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
+  const { t } = useLocale();
   if (!evaluation) {
     return (
       <div className="s2s-card score-card-placeholder">
-        <span className="score-card-placeholder-text">Not evaluated yet</span>
+        <span className="score-card-placeholder-text">{t("scorecard.notEvaluated")}</span>
       </div>
     );
   }
@@ -153,18 +155,18 @@ export function ScoreCard({ evaluation }: ScoreCardProps): ReactNode {
             className="score-card-safety-gate"
             style={{ ...safetyGateStyle, display: showSafetyGate ? "block" : "none" }}
           >
-            Safety gate failed
+            {t("scorecard.safetyGate")}
           </div>
         </div>
       </div>
       <div className="score-card-dimensions">
-        {DIMENSIONS.map(({ key, label }) => {
+        {DIMENSIONS.map((key) => {
           const raw = evaluation.scores[key];
           const value = typeof raw === "number" ? raw : 0;
           const widthPercent = Math.round(value * 100);
           return (
             <div key={key} className="score-card-dimension">
-              <span style={dimensionLabelStyle}>{label}</span>
+              <span style={dimensionLabelStyle}>{t(`scorecard.dimension.${key}`)}</span>
               <div
                 data-testid={`dim-bar-${key}`}
                 style={dimensionBarStyle(widthPercent)}

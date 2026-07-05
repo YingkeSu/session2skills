@@ -114,7 +114,7 @@ session2skills generate \
 | `--llm-model <model>` | Model identifier |
 | `--llm-model-version <ver>` | Optional model version label |
 | `--llm-api-key-env <name>` | Env var holding the API key (preferred for shared/scripted use) |
-| `--llm-api-key <key>` | Inline API key for local use only (prefer `--llm-api-key-env`) |
+| `--llm-api-key <key>` | Inline API key for local use only; it may appear in shell history or process lists, so prefer `--llm-api-key-env` |
 | `--llm-path <path>` | Path appended to the base URL for chat completions |
 | `--prefer-json-object <boolean>` | Force `json_object` (`true`) or disable it (`false`); defaults on for DeepSeek/ZhipuAI |
 
@@ -127,6 +127,10 @@ provider id, base URL, and model.
 edit the base URL, enter a model, optionally set a provider id for custom
 endpoints, and optionally enter an API key. Empty fields are omitted from the
 request, and the API key is never written to progress files or run artifacts.
+
+If an async worker is interrupted and later resumed, pass `llmConfig` again in
+the resume request when that run used per-run provider settings. The original
+per-run API key is intentionally not stored in `.progress.json`.
 
 > DeepSeek and ZhipuAI default to `{ type: "json_object" }` structured output
 > (they do not support `json_schema`). Use `--prefer-json-object false` to

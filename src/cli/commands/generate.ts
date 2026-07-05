@@ -76,7 +76,7 @@ export function registerGenerateCommand(program: Command): void {
     .option("--llm-model <model>", "Model id (defaults to env)")
     .option("--llm-model-version <version>", "Optional model version label")
     .option("--llm-api-key-env <name>", "Env var holding the LLM API key (preferred over --llm-api-key)")
-    .option("--llm-api-key <key>", "LLM API key for local use (prefer --llm-api-key-env)")
+    .option("--llm-api-key <key>", "LLM API key for local use; may appear in process lists (prefer --llm-api-key-env)")
     .option("--llm-path <path>", "Path appended to the base URL for chat completions")
     .option(
       "--prefer-json-object <boolean>",

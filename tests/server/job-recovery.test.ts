@@ -643,4 +643,43 @@ describe("llmConfig forwarding", () => {
       model: "llama3",
     });
   });
+
+  test("POST /api/runs/:name/resume omits llmConfig when not supplied", async () => {
+    const runDir = join(runsDir, "resume-no-llm");
+    await mkdir(runDir, { recursive: true });
+    const manifestJson = JSON.stringify(validManifest());
+    await writeFile(join(runDir, "claim-manifest.json"), manifestJson);
+    await writeProgressFile(
+      runDir,
+      markProgressResumable(
+        {
+          stage: "interrupted",
+          completedStages: ["analyst"],
+          startedAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:02.000Z",
+          completedStageCheckpoints: { analyst: hashArtifact(manifestJson) },
+        },
+        "interrupted earlier",
+      ),
+    );
+
+    const spawned: WorkerInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      spawnGenerateWorker: ({ workerInput }) => {
+        spawned.push(workerInput);
+        return 7778;
+      },
+    });
+
+    const res = await app.request("/api/runs/resume-no-llm/resume", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(202);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.llmConfig).toBeUndefined();
+  });
 });

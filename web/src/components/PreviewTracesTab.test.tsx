@@ -107,7 +107,8 @@ describe("PreviewTracesTab", () => {
     expect(await waitForText("<img src=x onerror=alert(1)>")).toBeTruthy();
     expect(await waitForText("<script>alert(1)</script>")).toBeTruthy();
     expect(await waitForText("Plain <strong>bold</strong>")).toBeTruthy();
-    const markdownBox = document.body.querySelector("section > div");
+    const markdownBox = document.body.querySelector(".s2s-prose");
+    expect(markdownBox).toBeTruthy();
     expect(markdownBox?.querySelector("img")).toBeNull();
     expect(markdownBox?.querySelector("script")).toBeNull();
     expect(markdownBox?.querySelector("strong")).toBeNull();

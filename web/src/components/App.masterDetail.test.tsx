@@ -60,30 +60,60 @@ function renderDashboard(runs: RunSummary[]): void {
 }
 
 describe("RunsDashboard master-detail layout", () => {
-  it("renders a master list and an empty detail placeholder before any selection", () => {
+  it("renders the master list and selects the first run by default", () => {
     renderDashboard([makeRun({ name: "alpha" })]);
 
     expect(screen.getByTestId("run-dashboard")).toBeTruthy();
-    expect(screen.getByText("alpha")).toBeTruthy();
+    // alpha appears as a keyboard-activatable button in the run rail.
+    expect(
+      screen.getByRole("button", { name: /alpha/ }),
+    ).toBeTruthy();
     expect(screen.getByTestId("run-detail-pane")).toBeTruthy();
-    expect(screen.getByTestId("run-detail-empty")).toBeTruthy();
+    // A run is selected by default — the detail pane shows it, not the empty
+    // placeholder.
+    expect(screen.getByTestId("run-detail-selected")).toBeTruthy();
+    expect(screen.getByTestId("run-detail-selected").textContent).toContain(
+      "alpha",
+    );
+    expect(screen.queryByTestId("run-detail-empty")).toBeNull();
   });
 
-  it("shows the selected run's detail when a row is chosen, and swaps on a new selection", () => {
+  it("moves the selection when a different run row is chosen", () => {
     renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
 
-    expect(screen.queryByTestId("run-detail-selected")).toBeNull();
+    // Default selection is the first run.
+    expect(screen.getByTestId("run-detail-selected").textContent).toContain(
+      "alpha",
+    );
 
-    fireEvent.click(screen.getByText("alpha"));
-    const detail = screen.getByTestId("run-detail-selected");
-    expect(detail.textContent).toContain("alpha");
-
-    fireEvent.click(screen.getByText("beta"));
+    fireEvent.click(screen.getByRole("button", { name: /beta/ }));
     expect(screen.getByTestId("run-detail-selected").textContent).toContain(
       "beta",
     );
     expect(
       screen.getByTestId("run-detail-selected").textContent,
     ).not.toContain("alpha");
+  });
+
+  it("marks the selected run as current and moves the marker on selection", () => {
+    renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
+
+    const alphaButton = screen.getByRole("button", { name: /alpha/ });
+    const betaButton = screen.getByRole("button", { name: /beta/ });
+
+    // Default-selected run carries the current marker.
+    expect(alphaButton.getAttribute("aria-current")).toBe("true");
+    expect(betaButton.getAttribute("aria-current")).toBeNull();
+
+    fireEvent.click(betaButton);
+    expect(betaButton.getAttribute("aria-current")).toBe("true");
+    expect(alphaButton.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("renders each run as a keyboard-activatable button", () => {
+    renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
+
+    const alphaButton = screen.getByRole("button", { name: /alpha/ });
+    expect(alphaButton.tagName).toBe("BUTTON");
   });
 });

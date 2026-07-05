@@ -237,9 +237,13 @@ export function RunsDashboard({
     onSelect(name);
   };
 
+  // A run is always selected when the list is non-empty: the explicit
+  // preview wins, otherwise the first run is the default selection so the
+  // cockpit opens with a concrete run in focus instead of an empty pane.
   const selectedRun = previewedRun
-    ? runs.find((run) => run.name === previewedRun) ?? null
-    : null;
+    ? runs.find((run) => run.name === previewedRun) ?? runs[0] ?? null
+    : runs[0] ?? null;
+  const activeName = selectedRun?.name ?? null;
 
   return (
     <main className="runs-dashboard" aria-label={t("dashboard.label")} data-testid="run-dashboard">
@@ -285,71 +289,81 @@ export function RunsDashboard({
             </span>
           </div>
 
-          <div className="runs-table-wrap">
-            <table className="runs-table">
-              <thead>
-                <tr>
-                  <th>{t("runTable.name")}</th>
-                  <th>{t("runTable.model")}</th>
-                  <th>{t("runTable.generatedAt")}</th>
-                  <th>{t("runTable.artifacts")}</th>
-                  <th>{t("runTable.verifier")}</th>
-                  <th>{t("runTable.claims")}</th>
-                  <th>{t("runTable.skepticScore")}</th>
-                  <th>{t("runTable.issues")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => {
-                  const isActive = selectedRun?.name === run.name;
-                  return (
-                    <tr
-                      key={run.name}
+          <div className="run-list-wrap">
+            <ul className="run-list" aria-label={t("dashboard.runsList")}>
+              {runs.map((run) => {
+                const isActive = activeName === run.name;
+                return (
+                  <li key={run.name} className="run-list-row-item">
+                    <button
+                      type="button"
                       className={
                         isActive
-                          ? "run-row is-active"
+                          ? "run-item is-active"
                           : run.verifierPassed
-                            ? "run-row"
-                            : "run-row is-failed"
+                            ? "run-item"
+                            : "run-item is-failed"
                       }
                       aria-current={isActive ? "true" : undefined}
                       onClick={() => handleRowActivate(run.name)}
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          handleRowActivate(run.name);
-                        }
-                      }}
                     >
-                      <td>
-                        <div className="run-name">{run.name}</div>
-                      </td>
-                      <td>{run.model}</td>
-                      <td>
-                        <time dateTime={run.generatedAt}>
-                          {formatGeneratedAt(run.generatedAt)}
-                        </time>
-                      </td>
-                      <td>
-                        <ArtifactStatus run={run} />
-                        <ProgressBadge stage={run.progressStage} />
-                      </td>
-                      <td>
-                        <Badge pass={run.verifierPassed} />
-                      </td>
-                      <td>{run.claimCount}</td>
-                      <td>
-                        <ScorePill score={run.skepticScore} />
-                      </td>
-                      <td>
-                        <IssuePill count={run.skepticIssueCount} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <span
+                        className={`run-item-rail tone-${runQualityTone(run)}`}
+                        aria-hidden="true"
+                      />
+                      <span className="run-item-body">
+                        <span className="run-item-head">
+                          <span className="run-item-name" title={run.name}>
+                            {run.name}
+                          </span>
+                          <Badge pass={run.verifierPassed} />
+                          <ScorePill
+                            score={run.skepticScore}
+                            label={`${t("runTable.skepticScore")} ${run.skepticScore.toFixed(2)}`}
+                          />
+                        </span>
+                        <span className="run-item-meta">
+                          <span className="run-item-context">
+                            <span className="run-item-model" title={run.model}>
+                              {run.model}
+                            </span>
+                            <span className="run-item-sep" aria-hidden="true">
+                              ·
+                            </span>
+                            <time
+                              dateTime={run.generatedAt}
+                              className="run-item-time"
+                            >
+                              {formatGeneratedAtShort(run.generatedAt)}
+                            </time>
+                          </span>
+                          <span className="run-item-stats">
+                            <IssuePill
+                              count={run.skepticIssueCount}
+                              label={`${run.skepticIssueCount} ${t("runTable.issues")}`}
+                            />
+                            <span
+                              className={`artifact-pill artifact-${run.artifactStatus ?? "complete"}`}
+                            >
+                              {t(`artifact.${run.artifactStatus ?? "complete"}`)}
+                            </span>
+                            <span className="run-item-claims">
+                              <span className="run-item-claims-num">
+                                {run.claimCount}
+                              </span>
+                              <span className="run-item-claims-label">
+                                {t("runTable.claims")}
+                              </span>
+                            </span>
+                            <ProgressBadge stage={run.progressStage} />
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </section>
 
@@ -412,6 +426,9 @@ function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
           </dd>
         </div>
       </dl>
+      <div className="runs-detail-artifacts">
+        <ArtifactStatus run={run} />
+      </div>
     </div>
   );
 }
@@ -824,17 +841,35 @@ function MetricCard({
   );
 }
 
-function ScorePill({ score }: { score: number }): JSX.Element {
+function ScorePill({
+  score,
+  label,
+}: {
+  score: number;
+  label?: string;
+}): JSX.Element {
   return (
-    <span className={`score-pill score-${scoreTone(score)}`}>
+    <span
+      className={`score-pill score-${scoreTone(score)}`}
+      aria-label={label}
+    >
       {score.toFixed(2)}
     </span>
   );
 }
 
-function IssuePill({ count }: { count: number }): JSX.Element {
+function IssuePill({
+  count,
+  label,
+}: {
+  count: number;
+  label?: string;
+}): JSX.Element {
   return (
-    <span className={count > 0 ? "issue-pill has-issues" : "issue-pill"}>
+    <span
+      className={count > 0 ? "issue-pill has-issues" : "issue-pill"}
+      aria-label={label}
+    >
       {count}
     </span>
   );
@@ -863,6 +898,27 @@ function scoreTone(score: number): "good" | "warning" | "danger" {
   if (score >= 0.8) return "good";
   if (score >= 0.6) return "warning";
   return "danger";
+}
+
+// Overall quality tone for the run rail: a verifier failure dominates,
+// otherwise the skeptic score band decides. Drives the rail bar color so a
+// column of runs reads green / amber / red at a glance.
+function runQualityTone(run: RunSummary): "good" | "warning" | "danger" {
+  if (!run.verifierPassed) return "danger";
+  return scoreTone(run.skepticScore);
+}
+
+// Compact timestamp for the rail (the full locale string is too wide for a
+// 360px column); the detail pane still uses the full formatGeneratedAt.
+function formatGeneratedAtShort(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatGeneratedAt(value: string): string {

@@ -97,10 +97,12 @@ describe("RunsDashboard", () => {
 
     expect(html).toContain("生成技能");
     expect(html).toContain("最近会话");
+    // Each run surfaces its artifact status as a compact pill in the rail.
     expect(html).toContain("完整");
     expect(html).toContain("旧版");
+    // The default-selected run's full artifact detail (skill/summary) appears
+    // in the preview pane.
     expect(html).toContain("SKILL.md");
-    expect(html).toContain("无 summary");
   });
 
   it("submits generation settings to the runs API", async () => {

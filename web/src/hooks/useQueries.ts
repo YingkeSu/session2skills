@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, QueryClient } from "@tanstack/re
 import {
   createRun,
   createRunAsync,
+  deleteRun,
   evaluateRun,
   fetchAdapters,
   fetchEvidenceDetail,
@@ -11,11 +12,13 @@ import {
   fetchRunDetail,
   fetchRuns,
   fetchSessions,
+  updateRunMeta,
   type AdapterInfo,
   type AsyncRunResponse,
   type DiscoveredProject,
   type EvidenceDetail,
   type GenerationProgress,
+  type RunMetaPatch,
   type SkillEvaluation,
   type SessionsResult,
 } from "../runs.js";
@@ -32,10 +35,13 @@ export function createQueryClient(): QueryClient {
   });
 }
 
-export function useRunsQuery() {
+export function useRunsQuery(includeArchived = false) {
+  // The includeArchived flag is part of the query key so toggling the
+  // archive-visibility switch refetches from the right endpoint and caches
+  // both views independently.
   return useQuery({
-    queryKey: ["runs"],
-    queryFn: fetchRuns,
+    queryKey: ["runs", { includeArchived }],
+    queryFn: () => fetchRuns(includeArchived),
   });
 }
 
@@ -105,6 +111,29 @@ export function useEvaluateMutation() {
     mutationFn: evaluateRun,
     onSuccess: (_data: SkillEvaluation, variables: string) => {
       void queryClient.invalidateQueries({ queryKey: ["runs", variables] });
+    },
+  });
+}
+
+export function useUpdateRunMetaMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; patch: RunMetaPatch }) =>
+      updateRunMeta(vars.name, vars.patch),
+    // Invalidate the whole runs family so both the archive-on and archive-off
+    // cached lists (and the detail query) refetch the updated meta.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["runs"] });
+    },
+  });
+}
+
+export function useDeleteRunMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => deleteRun(name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["runs"] });
     },
   });
 }

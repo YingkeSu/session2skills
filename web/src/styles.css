@@ -224,6 +224,22 @@ body {
   color: var(--ink);
 }
 
+/* Danger — destructive actions (delete run). Soft tint on hover keeps it
+   readable without shouting next to the primary action. */
+.s2s-btn-danger {
+  border-color: var(--danger);
+  background: var(--surface);
+  color: var(--danger-ink);
+}
+.s2s-btn-danger:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+.s2s-btn-danger:disabled {
+  opacity: 0.65;
+}
+
 /* Badge — saturated fill + white text for status / grade / verdict.
    Pair with a semantic color modifier (see below). */
 .s2s-badge {
@@ -857,6 +873,51 @@ body {
   border-top: 1px solid var(--border-soft);
 }
 
+/* Per-run management block in the preview pane: inline group editor on top,
+   archive/delete actions below. Mirrors the panel's hairline rhythm. */
+.runs-detail-management {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.runs-management-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.runs-management-group-label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.runs-management-group-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.runs-group-input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.runs-management-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1161,6 +1222,60 @@ body {
   color: var(--accent-ink);
   font-size: var(--text-xs);
   font-weight: 600;
+}
+
+/* Management toolbar — a compact filter row pinned under the runs-panel
+   header. Holds the group filter and the archive-visibility toggle. Stays
+   dense and operational; no marketing chrome. */
+.runs-management-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+
+.runs-toolbar-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.runs-toolbar-field span {
+  white-space: nowrap;
+}
+
+/* Auto-width select inside the toolbar (override .s2s-select width:100%). */
+.runs-filter-select {
+  width: auto;
+  min-width: 150px;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.runs-toolbar-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+/* Compact inline chips in the run rail. */
+.run-item-group,
+.run-item-archived {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Run list — a compact desktop rail. Each run is a real <button> (keyboard

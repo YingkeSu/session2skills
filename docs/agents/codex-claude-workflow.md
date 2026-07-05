@@ -107,6 +107,7 @@ LOG_DIR=/Users/suyingke/Programs/OHO/session2skills-ui-dashboard/.session2skills
 mkdir -p "$LOG_DIR"
 cd /Users/suyingke/Programs/OHO/session2skills-ui-dashboard
 claude --print \
+  --verbose \
   --output-format stream-json \
   --permission-mode auto \
   --name "s2s-ui-dashboard" \
@@ -160,4 +161,3 @@ Avoid this workflow when:
 - Multiple workers would heavily edit the same shared files.
 - The repository has unresolved Git state.
 - The change requires rapid visual iteration with a human after every slice.
-

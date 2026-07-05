@@ -6,7 +6,7 @@ import {
   type RunSummary,
 } from "./runs.js";
 import type { SessionSelection } from "./components/SessionBrowser.js";
-import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery } from "./hooks/useQueries.js";
+import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery, useUpdateRunMetaMutation, useDeleteRunMutation } from "./hooks/useQueries.js";
 import { DocsPage } from "./components/DocsPage.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { ProviderPicker } from "./components/ProviderPicker.js";
@@ -40,9 +40,33 @@ type GenerateState =
   | { status: "success"; runName: string }
   | { status: "error"; message: string };
 
+/**
+ * Select value for the "runs with no group" filter option. A sentinel string
+ * keeps the `<select>` value uniformly a string while still distinguishing
+ * "ungrouped" from "all groups" (the empty string).
+ */
+const UNGROUPED_FILTER = "__none__";
+
+/**
+ * Per-run management handlers wired in `App` (which owns the react-query
+ * mutations) and forwarded into `RunsDashboard` → `RunDetailPreview`. Kept as
+ * plain callbacks so `RunsDashboard` can render without a QueryClient (the
+ * static-markup tests mount it standalone).
+ */
+type RunManagement = {
+  onUpdateGroup: (name: string, group: string | null) => void | Promise<void>;
+  onToggleArchived: (name: string, archived: boolean) => void | Promise<void>;
+  onDelete: (name: string) => void | Promise<void>;
+  metaPending: boolean;
+  deletePending: boolean;
+};
+
 export function App(): JSX.Element {
   const { t } = useLocale();
-  const { data: runs, isLoading, error: runsError } = useRunsQuery();
+  // Archive visibility is App-level state because it changes which endpoint
+  // variant the runs query hits (includeArchived=true), not just client filter.
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const { data: runs, isLoading, error: runsError } = useRunsQuery(includeArchived);
   const [selectedRun, setSelectedRun] = useState<string | null>(() =>
     getInitialSelectedRun(),
   );
@@ -53,6 +77,8 @@ export function App(): JSX.Element {
   const [runningRunName, setRunningRunName] = useState<string | null>(null);
 
   const generateMutation = useGenerateMutation();
+  const updateMetaMutation = useUpdateRunMetaMutation();
+  const deleteRunMutation = useDeleteRunMutation();
   const { data: progress } = useGenerationProgress(
     runningRunName,
     runningRunName !== null,
@@ -135,6 +161,44 @@ export function App(): JSX.Element {
     }
   };
 
+  const handleUpdateGroup = async (
+    name: string,
+    group: string | null,
+  ): Promise<void> => {
+    await updateMetaMutation.mutateAsync({ name, patch: { group } });
+  };
+
+  const handleToggleArchived = async (
+    name: string,
+    archived: boolean,
+  ): Promise<void> => {
+    await updateMetaMutation.mutateAsync({ name, patch: { archived } });
+  };
+
+  const handleDeleteRun = async (name: string): Promise<void> => {
+    // window.confirm gate per spec; guard for non-browser (ssr/static) renders.
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        t("management.deleteConfirm", { name }),
+      );
+      if (!confirmed) return;
+    }
+    await deleteRunMutation.mutateAsync(name);
+    // If the deep-linked run was removed, drop the URL selection so the list
+    // view is the landing surface again instead of a stale detail page.
+    if (selectedRun === name) {
+      closeRun();
+    }
+  };
+
+  const runManagement: RunManagement = {
+    onUpdateGroup: handleUpdateGroup,
+    onToggleArchived: handleToggleArchived,
+    onDelete: handleDeleteRun,
+    metaPending: updateMetaMutation.isPending,
+    deletePending: deleteRunMutation.isPending,
+  };
+
   if (showDocs) {
     return (
       <DocsPage onBack={() => setShowDocs(false)} />
@@ -166,10 +230,6 @@ export function App(): JSX.Element {
 
   const readyRuns = runs ?? [];
 
-  if (readyRuns.length === 0) {
-    return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.noRuns")}</Shell>;
-  }
-
   return (
     <Shell
       onShowDocs={() => setShowDocs(true)}
@@ -183,6 +243,9 @@ export function App(): JSX.Element {
         showGeneratePanel={showGeneratePanel}
         onGenerate={handleGenerate}
         onSelect={(name) => setSelectedRun(name)}
+        includeArchived={includeArchived}
+        onIncludeArchivedChange={setIncludeArchived}
+        management={runManagement}
       />
     </Shell>
   );
@@ -237,6 +300,9 @@ export function RunsDashboard({
   showGeneratePanel = false,
   onGenerate = () => undefined,
   onSelect,
+  includeArchived = false,
+  onIncludeArchivedChange,
+  management,
 }: {
   runs: RunSummary[];
   generateState?: GenerateState;
@@ -244,10 +310,20 @@ export function RunsDashboard({
   showGeneratePanel?: boolean;
   onGenerate?: (request: GenerateRunRequest) => void | Promise<void>;
   onSelect: (name: string) => void;
+  includeArchived?: boolean;
+  onIncludeArchivedChange?: (includeArchived: boolean) => void;
+  management?: RunManagement;
 }): JSX.Element {
   const { t } = useLocale();
   const summary = summarizeRuns(runs);
   const [previewedRun, setPreviewedRun] = useState<string | null>(null);
+  // Group filter is client-side only: it narrows the visible rows without
+  // touching the query. "" = all groups, UNGROUPED_FILTER = no group.
+  const [groupFilter, setGroupFilter] = useState<string>("");
+
+  const groups = deriveGroups(runs);
+  const hasUngrouped = runs.some((run) => !run.group);
+  const visibleRuns = filterRunsByGroup(runs, groupFilter);
 
   const handleRowActivate = (name: string): void => {
     setPreviewedRun(name);
@@ -302,13 +378,52 @@ export function RunsDashboard({
               <p>{t("dashboard.runsHelp")}</p>
             </div>
             <span className="runs-count">
-              {t("dashboard.runCount", { count: runs.length })}
+              {t("dashboard.runCount", { count: visibleRuns.length })}
             </span>
+          </div>
+
+          <div
+            className="runs-management-toolbar"
+            role="group"
+            aria-label={t("management.toolbarLabel")}
+            data-testid="runs-management-toolbar"
+          >
+            <label className="runs-toolbar-field">
+              <span>{t("management.groupFilter")}</span>
+              <select
+                className="s2s-select runs-filter-select"
+                value={groupFilter}
+                onChange={(event) => setGroupFilter(event.currentTarget.value)}
+              >
+                <option value="">{t("management.groupAll")}</option>
+                {hasUngrouped && (
+                  <option value={UNGROUPED_FILTER}>
+                    {t("management.ungrouped")}
+                  </option>
+                )}
+                {groups.map((group) => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="runs-toolbar-check">
+              <input
+                type="checkbox"
+                className="s2s-checkbox"
+                checked={includeArchived}
+                onChange={(event) =>
+                  onIncludeArchivedChange?.(event.currentTarget.checked)
+                }
+              />
+              <span>{t("management.showArchived")}</span>
+            </label>
           </div>
 
           <div className="run-list-wrap">
             <ul className="run-list" aria-label={t("dashboard.runsList")}>
-              {runs.map((run) => {
+              {visibleRuns.map((run) => {
                 const isActive = activeName === run.name;
                 return (
                   <li key={run.name} className="run-list-row-item">
@@ -355,6 +470,22 @@ export function RunsDashboard({
                             </time>
                           </span>
                           <span className="run-item-stats">
+                            {run.group ? (
+                              <span
+                                className="s2s-chip s2s-chip-muted run-item-group"
+                                title={run.group}
+                              >
+                                {run.group}
+                              </span>
+                            ) : null}
+                            {run.archived ? (
+                              <span
+                                className="s2s-chip s2s-chip-warning run-item-archived"
+                                title={t("management.archived")}
+                              >
+                                {t("management.archived")}
+                              </span>
+                            ) : null}
                             <IssuePill
                               count={run.skepticIssueCount}
                               label={`${run.skepticIssueCount} ${t("runTable.issues")}`}
@@ -390,7 +521,7 @@ export function RunsDashboard({
           aria-label={t("dashboard.runDetail")}
         >
           {selectedRun ? (
-            <RunDetailPreview run={selectedRun} />
+            <RunDetailPreview run={selectedRun} management={management} />
           ) : (
             <div className="runs-detail-empty" data-testid="run-detail-empty">
               {t("dashboard.detailEmpty")}
@@ -402,8 +533,42 @@ export function RunsDashboard({
   );
 }
 
-function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
+function RunDetailPreview({
+  run,
+  management,
+}: {
+  run: RunSummary;
+  management?: RunManagement;
+}): JSX.Element {
   const { t } = useLocale();
+  const [groupDraft, setGroupDraft] = useState<string>(run.group ?? "");
+
+  // Re-seed the inline group editor whenever the focused run (or its stored
+  // group) changes — e.g. after a meta patch refetches the list, or when the
+  // user selects a different row.
+  useEffect(() => {
+    setGroupDraft(run.group ?? "");
+  }, [run.name, run.group]);
+
+  const canManage = Boolean(management);
+  const metaPending = management?.metaPending ?? false;
+  const deletePending = management?.deletePending ?? false;
+  // Save is enabled only when the trimmed draft differs from the current
+  // group; clearing a non-empty group is the Clear button's job.
+  const groupChanged = groupDraft.trim() !== (run.group ?? "");
+
+  const submitGroup = (): void => {
+    const next = groupDraft.trim();
+    // Empty draft becomes null so the backend clears the label rather than
+    // storing an empty string.
+    void management?.onUpdateGroup(run.name, next.length > 0 ? next : null);
+  };
+
+  const clearGroup = (): void => {
+    setGroupDraft("");
+    void management?.onUpdateGroup(run.name, null);
+  };
+
   return (
     <div data-testid="run-detail-selected">
       <h3 className="runs-detail-selected-title">{run.name}</h3>
@@ -442,10 +607,101 @@ function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
             <IssuePill count={run.skepticIssueCount} />
           </dd>
         </div>
+        <div>
+          <dt>{t("management.group")}</dt>
+          <dd>
+            {run.group ? (
+              <span className="s2s-chip s2s-chip-muted">{run.group}</span>
+            ) : (
+              <span className="overview-muted">{t("management.noGroup")}</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{t("management.archived")}</dt>
+          <dd>
+            {run.archived ? (
+              <span className="s2s-chip s2s-chip-warning">
+                {run.archivedAt
+                  ? t("management.archivedAt", {
+                      date: formatGeneratedAt(run.archivedAt),
+                    })
+                  : t("management.archived")}
+              </span>
+            ) : (
+              <span className="overview-muted">—</span>
+            )}
+          </dd>
+        </div>
       </dl>
       <div className="runs-detail-artifacts">
         <ArtifactStatus run={run} />
       </div>
+      {canManage && (
+        <div className="runs-detail-management" data-testid="run-management">
+          <div className="runs-management-group">
+            <label
+              className="runs-management-group-label"
+              htmlFor="run-group-edit"
+            >
+              <span>{t("management.group")}</span>
+            </label>
+            <div className="runs-management-group-row">
+              <input
+                id="run-group-edit"
+                className="s2s-input runs-group-input"
+                autoComplete="off"
+                value={groupDraft}
+                onChange={(event) =>
+                  setGroupDraft(event.currentTarget.value)
+                }
+                placeholder={t("management.groupPlaceholder")}
+                disabled={metaPending}
+              />
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-primary"
+                onClick={submitGroup}
+                disabled={metaPending || !groupChanged}
+              >
+                {metaPending ? t("management.saving") : t("management.saveGroup")}
+              </button>
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-ghost"
+                onClick={clearGroup}
+                disabled={metaPending || !run.group}
+              >
+                {t("management.clearGroup")}
+              </button>
+            </div>
+          </div>
+          <div className="runs-management-actions">
+            <button
+              type="button"
+              className="s2s-btn s2s-btn-ghost"
+              onClick={() =>
+                void management?.onToggleArchived(run.name, !run.archived)
+              }
+              disabled={metaPending}
+            >
+              {run.archived
+                ? t("management.unarchive")
+                : t("management.archive")}
+            </button>
+            <button
+              type="button"
+              className="s2s-btn s2s-btn-danger"
+              onClick={() => void management?.onDelete(run.name)}
+              disabled={deletePending}
+            >
+              {deletePending
+                ? t("management.deletePending")
+                : t("management.delete")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1006,6 +1262,35 @@ function summarizeRuns(runs: RunSummary[]): {
     totalIssues,
     averageSkepticScore: runs.length === 0 ? 0 : scoreTotal / runs.length,
   };
+}
+
+// Distinct group labels in first-seen order, for the group-filter select.
+// Empty/whitespace groups are treated as ungrouped and excluded here.
+function deriveGroups(runs: RunSummary[]): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const run of runs) {
+    const group = run.group?.trim();
+    if (!group) continue;
+    if (seen.has(group)) continue;
+    seen.add(group);
+    ordered.push(group);
+  }
+  return ordered;
+}
+
+// Client-side row filter driven by the group-filter select. "" shows every
+// run; UNGROUPED_FILTER narrows to runs with no group; any other value
+// matches that exact group label.
+function filterRunsByGroup(
+  runs: RunSummary[],
+  groupFilter: string,
+): RunSummary[] {
+  if (!groupFilter) return runs;
+  if (groupFilter === UNGROUPED_FILTER) {
+    return runs.filter((run) => !run.group);
+  }
+  return runs.filter((run) => run.group === groupFilter);
 }
 
 function scoreTone(score: number): "good" | "warning" | "danger" {

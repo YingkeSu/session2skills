@@ -41,6 +41,52 @@ const runs: RunSummary[] = [
   },
 ];
 
+// Runs carrying skill-management metadata (group / archived) for the
+// management toolbar + inline-edit coverage.
+const managedRuns: RunSummary[] = [
+  {
+    name: "grouped-run",
+    model: "gpt-5",
+    generatedAt: "2026-05-20T10:00:00Z",
+    verifierPassed: true,
+    claimCount: 5,
+    skepticScore: 0.9,
+    skepticIssueCount: 0,
+    artifactStatus: "complete",
+    skillAvailable: true,
+    summaryAvailable: true,
+    group: "frontend",
+    archived: false,
+  },
+  {
+    name: "archived-run",
+    model: "gpt-5",
+    generatedAt: "2026-05-22T10:00:00Z",
+    verifierPassed: false,
+    claimCount: 3,
+    skepticScore: 0.4,
+    skepticIssueCount: 2,
+    artifactStatus: "legacy",
+    skillAvailable: true,
+    summaryAvailable: false,
+    group: "backend",
+    archived: true,
+    archivedAt: "2026-05-23T10:00:00Z",
+  },
+  {
+    name: "ungrouped-run",
+    model: "gpt-5",
+    generatedAt: "2026-05-24T10:00:00Z",
+    verifierPassed: true,
+    claimCount: 2,
+    skepticScore: 0.8,
+    skepticIssueCount: 0,
+    artifactStatus: "complete",
+    skillAvailable: true,
+    summaryAvailable: true,
+  },
+];
+
 const storage = new Map<string, string>();
 
 Object.defineProperty(globalThis, "localStorage", {
@@ -283,6 +329,157 @@ describe("RunsDashboard", () => {
   });
 });
 
+describe("skill management", () => {
+  it("keeps management controls available when the default runs list is empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse([])),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("Show archived");
+    expect(document.body.textContent).toContain("New Run");
+    expect(document.body.textContent).toContain("0 runs");
+  });
+
+  it("renders the management toolbar and compact group/archived status", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <RunsDashboard
+          runs={managedRuns}
+          onSelect={() => undefined}
+          management={{
+            onUpdateGroup: () => undefined,
+            onToggleArchived: () => undefined,
+            onDelete: () => undefined,
+            metaPending: false,
+            deletePending: false,
+          }}
+        />
+      </LocaleProvider>,
+    );
+
+    // Toolbar: group filter + archive visibility toggle.
+    expect(html).toContain("全部分组");
+    expect(html).toContain("未分组");
+    expect(html).toContain("显示已归档");
+    // Compact status chips in the rail.
+    expect(html).toContain("frontend");
+    expect(html).toContain("backend");
+    expect(html).toContain("已归档");
+    // Inline group edit + per-run actions for the default-selected run.
+    expect(html).toContain("保存分组");
+    expect(html).toContain("归档");
+    expect(html).toContain("删除");
+    expect(html).toContain('data-testid="run-management"');
+  });
+
+  it("saves inline group edits via PATCH /api/runs/:name/meta", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        requests.push({ url, init });
+
+        if (
+          url === "/api/runs/grouped-run/meta" &&
+          init?.method === "PATCH"
+        ) {
+          return jsonResponse({ ...managedRuns[0], group: "frontend-renamed" });
+        }
+        return jsonResponse(managedRuns);
+      }),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("Save group");
+    await React.act(async () => {
+      setInputValue(inputById("run-group-edit"), "frontend-renamed");
+    });
+    await React.act(async () => {
+      buttonByText("Save group").click();
+    });
+    await waitUntil(() =>
+      requests.some(
+        (r) => r.url === "/api/runs/grouped-run/meta" && r.init?.method === "PATCH",
+      ),
+    );
+
+    const patch = requests.find(
+      (r) => r.url === "/api/runs/grouped-run/meta" && r.init?.method === "PATCH",
+    );
+    expect(patch?.init?.body).toBe(JSON.stringify({ group: "frontend-renamed" }));
+  });
+
+  it("deletes the selected run after window.confirm", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        requests.push({ url, init });
+
+        if (url === "/api/runs/grouped-run" && init?.method === "DELETE") {
+          return jsonResponse({ deleted: true, name: "grouped-run" });
+        }
+        return jsonResponse(managedRuns);
+      }),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("Delete");
+    await React.act(async () => {
+      buttonByText("Delete").click();
+    });
+    await waitUntil(() =>
+      requests.some(
+        (r) => r.url === "/api/runs/grouped-run" && r.init?.method === "DELETE",
+      ),
+    );
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("grouped-run"));
+    confirmSpy.mockRestore();
+  });
+});
+
 describe("run URL state", () => {
   it("reads the selected run from either query or hash URL state", () => {
     expect(
@@ -336,6 +533,25 @@ function inputByLabel(label: string): HTMLInputElement {
     throw new Error(`Input not found: ${label}`);
   }
   return input;
+}
+
+function inputById(id: string): HTMLInputElement {
+  const el = document.getElementById(id);
+  if (!(el instanceof HTMLInputElement)) {
+    throw new Error(`Input not found: ${id}`);
+  }
+  return el;
+}
+
+async function waitUntil(
+  condition: () => boolean,
+  { tries = 50, step = 10 } = {},
+): Promise<void> {
+  for (let i = 0; i < tries; i += 1) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, step));
+  }
+  throw new Error("Condition was never met");
 }
 
 function selectByLabel(label: string): HTMLSelectElement {

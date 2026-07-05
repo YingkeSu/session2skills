@@ -3,8 +3,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync } from "node:fs";
-import { access, readFile, readdir, stat, mkdir } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { access, readFile, readdir, stat, mkdir, writeFile, rm } from "node:fs/promises";
+import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateSkill } from "../generate/evaluate-skill.js";
 import { generateSkillRun, type GenerateSkillRunInput, type EvidenceConfig } from "../generate/service.js";
@@ -46,6 +46,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDist = join(__dirname, "../../web/dist");
 // dist/server/app.js → ../worker/generate-worker.js
 const defaultWorkerPath = join(__dirname, "../worker/generate-worker.js");
+
+/**
+ * Per-run management metadata. Stored as `.skill-meta.json` inside the run
+ * directory. Drives grouping, archive visibility, and is never written into
+ * `SKILL.md` or any generated harness artifact.
+ */
+const SKILL_META_FILENAME = ".skill-meta.json";
+const SKILL_META_SCHEMA_VERSION = "skill-run-meta/v1";
+
+type SkillRunMeta = {
+  schemaVersion: string;
+  group: string | null;
+  archived: boolean;
+  archivedAt: string | null;
+  updatedAt: string;
+};
 
 /**
  * Default worker spawner: forks the compiled worker entry point as a detached
@@ -90,6 +106,55 @@ function extractBearerToken(authHeader: string | undefined): string | null {
     return null;
   }
   return authHeader.slice(7);
+}
+
+/**
+ * Fresh management metadata for a run that has never been managed. `updatedAt`
+ * is empty (mirrors the `generatedAt: ""` convention for legacy runs); it is
+ * stamped with a real timestamp on the first PATCH.
+ */
+function defaultSkillMeta(): SkillRunMeta {
+  return {
+    schemaVersion: SKILL_META_SCHEMA_VERSION,
+    group: null,
+    archived: false,
+    archivedAt: null,
+    updatedAt: "",
+  };
+}
+
+/**
+ * Read `.skill-meta.json` for a run. A missing or malformed file is treated as
+ * "unarchived, group null" (per the shared contract) by falling back to the
+ * default meta. Fields are normalized to their canonical types regardless of
+ * what is on disk so downstream code never has to re-validate.
+ */
+async function readSkillMeta(runDir: string): Promise<SkillRunMeta> {
+  try {
+    const raw = await readFile(join(runDir, SKILL_META_FILENAME), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return defaultSkillMeta();
+    }
+    const obj = parsed as Record<string, unknown>;
+    return {
+      schemaVersion: SKILL_META_SCHEMA_VERSION,
+      group: typeof obj["group"] === "string" ? obj["group"] : null,
+      archived: obj["archived"] === true,
+      archivedAt: typeof obj["archivedAt"] === "string" ? obj["archivedAt"] : null,
+      updatedAt: typeof obj["updatedAt"] === "string" ? obj["updatedAt"] : "",
+    };
+  } catch {
+    return defaultSkillMeta();
+  }
+}
+
+async function writeSkillMeta(runDir: string, meta: SkillRunMeta): Promise<void> {
+  await writeFile(
+    join(runDir, SKILL_META_FILENAME),
+    `${JSON.stringify(meta, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 export type ServerGenerateRunner = (input: GenerateSkillRunInput) => Promise<unknown>;
@@ -273,9 +338,30 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
     await next();
   });
 
+  app.use("/api/runs/:name", async (c, next) => {
+    if (c.req.method === "DELETE" && apiToken) {
+      const token = extractBearerToken(c.req.header("Authorization"));
+      if (token !== apiToken) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+    }
+    await next();
+  });
+
+  app.use("/api/runs/:name/meta", async (c, next) => {
+    if (c.req.method === "PATCH" && apiToken) {
+      const token = extractBearerToken(c.req.header("Authorization"));
+      if (token !== apiToken) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+    }
+    await next();
+  });
+
   app.get("/api/runs", async (c) => {
     try {
-      const runs = await scanRuns(runsDirectory);
+      const includeArchived = c.req.query("includeArchived") === "true";
+      const runs = await scanRuns(runsDirectory, { includeArchived });
       return c.json(runs);
     } catch {
       return c.json({ error: "Failed to scan runs" }, 500);
@@ -424,6 +510,103 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       return c.json(item);
     } catch {
       return c.json({ error: "Failed to read evidence" }, 500);
+    }
+  });
+
+  app.patch("/api/runs/:name/meta", async (c) => {
+    const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
+    const runDir = join(runsDirectory, name);
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Request body must be valid JSON" }, 400);
+    }
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      return c.json({ error: "Request body must be a JSON object" }, 400);
+    }
+    const patch = body as Record<string, unknown>;
+
+    let meta = await readSkillMeta(runDir);
+
+    if ("group" in patch) {
+      const group = patch["group"];
+      if (group !== null && typeof group !== "string") {
+        return c.json({ error: "group must be a string or null" }, 400);
+      }
+      const trimmed = typeof group === "string" ? group.trim() : "";
+      meta = { ...meta, group: trimmed.length > 0 ? trimmed : null };
+    }
+
+    if ("archived" in patch) {
+      const archived = patch["archived"];
+      if (typeof archived !== "boolean") {
+        return c.json({ error: "archived must be a boolean" }, 400);
+      }
+      if (archived && !meta.archived) {
+        meta = { ...meta, archived: true, archivedAt: new Date().toISOString() };
+      } else if (!archived && meta.archived) {
+        meta = { ...meta, archived: false, archivedAt: null };
+      }
+    }
+
+    meta = { ...meta, updatedAt: new Date().toISOString() };
+    await writeSkillMeta(runDir, meta);
+
+    const runs = await scanRuns(runsDirectory, { includeArchived: true });
+    const updated = runs.find((summary) => summary.name === name);
+    if (!updated) {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+    return c.json(updated);
+  });
+
+  app.delete("/api/runs/:name", async (c) => {
+    const name = c.req.param("name");
+
+    if (!isValidRunName(name)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
+    const runDir = join(runsDirectory, name);
+
+    // Defense-in-depth: isValidRunName already blocks traversal, but confirm the
+    // resolved target is a strict descendant of runsDirectory before deleting.
+    const targetDir = resolve(runDir);
+    const baseDir = resolve(runsDirectory);
+    if (targetDir === baseDir || !targetDir.startsWith(`${baseDir}${sep}`)) {
+      return c.json({ error: "Invalid run name" }, 400);
+    }
+
+    try {
+      const dirStat = await stat(runDir);
+      if (!dirStat.isDirectory()) {
+        return c.json({ error: `Run not found: ${name}` }, 404);
+      }
+    } catch {
+      return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    try {
+      await rm(runDir, { recursive: true, force: true });
+      return c.json({ deleted: true, name });
+    } catch {
+      return c.json({ error: `Failed to delete run: ${name}` }, 500);
     }
   });
 
@@ -839,8 +1022,14 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
 /**
  * Summarize every generated skill directory inside `runsDirectory`.
  * A subdirectory is counted when it has at least one recognized artifact.
+ *
+ * Archived runs are excluded unless `options.includeArchived` is true.
  */
-export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
+export async function scanRuns(
+  runsDirectory: string,
+  options: { includeArchived?: boolean } = {},
+): Promise<RunSummary[]> {
+  const includeArchived = options.includeArchived === true;
   let entries: string[];
   try {
     entries = await readdir(runsDirectory);
@@ -861,13 +1050,17 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       continue;
     }
 
-    const [manifest, skillAvailable, summaryAvailable, progress] = await Promise.all([
+    const [manifest, skillAvailable, summaryAvailable, progress, meta] = await Promise.all([
       readJsonSafe(join(runDir, "claim-manifest.json")),
       fileExists(join(runDir, "SKILL.md")),
       fileExists(join(runDir, "summary.md")),
       readProgress(runDir),
+      readSkillMeta(runDir),
     ]);
     if (!manifest && !skillAvailable && !summaryAvailable) {
+      continue;
+    }
+    if (meta.archived && !includeArchived) {
       continue;
     }
 
@@ -894,6 +1087,10 @@ export async function scanRuns(runsDirectory: string): Promise<RunSummary[]> {
       }),
       skillAvailable,
       summaryAvailable,
+      group: meta.group,
+      archived: meta.archived,
+      archivedAt: meta.archivedAt,
+      updatedAt: meta.updatedAt,
       ...(progressStage !== undefined ? { progressStage } : {}),
     });
   }

@@ -71,6 +71,10 @@ Additional rules:
 
 ## Dispatch Procedure
 
+Do not launch implementation workers until the user explicitly starts an
+implementation wave. Preparing the workflow, task packets, worktrees, and
+verification gates is separate from starting worker execution.
+
 1. Verify repository state:
 
 ```bash
@@ -117,6 +121,25 @@ claude --print \
 
 For long-running workers, wrap the command in `nohup ... &` only after the task
 packet and log directory exist.
+
+## Polling Discipline
+
+Avoid continuous polling. It wastes tokens and collapses useful context.
+
+Recommended collection pattern:
+
+- Launch the full approved wave.
+- Record process IDs and log paths.
+- Wait a coarse interval before checking, such as 5-10 minutes for implementation
+  workers.
+- Prefer one bounded status read:
+  - process still running or exited
+  - `git status --short`
+  - completion or blocked report exists
+  - last 20-40 non-thinking log lines
+- Do not stream full event logs into Codex context.
+- If a worker shows no file changes and no meaningful tool activity after a
+  coarse interval, stop it and narrow the task packet before retrying.
 
 ## Integration
 

@@ -83,6 +83,8 @@ export const messages: Record<Locale, MessageDictionary> = {
     "evidence.show": "展开",
     "evidence.hide": "收起",
     "evidence.loading": "加载中…",
+    "evidence.copy": "复制",
+    "evidence.copied": "已复制",
 
     "preview.skillTitle": "SKILL.md 预览",
     "preview.noSkill": "此运行没有可用的 SKILL.md。",
@@ -314,6 +316,8 @@ export const messages: Record<Locale, MessageDictionary> = {
     "evidence.show": "Show",
     "evidence.hide": "Hide",
     "evidence.loading": "Loading…",
+    "evidence.copy": "Copy",
+    "evidence.copied": "Copied",
 
     "preview.skillTitle": "SKILL.md Preview",
     "preview.noSkill": "No SKILL.md available for this run.",

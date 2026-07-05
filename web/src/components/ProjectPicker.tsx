@@ -35,19 +35,19 @@ export function ProjectPicker({
     return (
       <input
         id="generate-directory"
+        className="s2s-input"
         aria-label={t("generate.directory")}
         autoComplete="off"
         value={directory}
         onChange={(event) => onDirectoryChange(event.currentTarget.value)}
         placeholder={t("generate.directoryPlaceholder")}
-        style={styles.input}
       />
     );
   }
 
   if (projectsLoading) {
     return (
-      <div style={styles.hint} aria-live="polite">
+      <div className="s2s-field-hint" aria-live="polite">
         {t("generate.directoryDetectedLoading")}
       </div>
     );
@@ -56,6 +56,7 @@ export function ProjectPicker({
   return (
     <select
       id="generate-directory"
+      className="s2s-select"
       aria-label={t("generate.directory")}
       value={matched ? matched.projectPath : "__manual__"}
       onChange={(event) => {
@@ -66,7 +67,6 @@ export function ProjectPicker({
           onDirectoryChange(next);
         }
       }}
-      style={styles.select}
     >
       {!matched && (
         <option value="__manual__">{t("generate.directoryManual")}</option>
@@ -88,30 +88,3 @@ function labelFor(
   const sessions = t("generate.directorySessionCount", { count: project.sessionCount });
   return `${name}  (${sessions})`;
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  input: {
-    width: "100%",
-    padding: "var(--space-2) var(--space-3)",
-    border: "1px solid var(--border-strong)",
-    borderRadius: "var(--radius)",
-    fontSize: "var(--text-sm)",
-  },
-  select: {
-    width: "100%",
-    padding: "var(--space-2) var(--space-3)",
-    border: "1px solid var(--border-strong)",
-    borderRadius: "var(--radius)",
-    fontSize: "var(--text-sm)",
-    background: "var(--surface)",
-  },
-  hint: {
-    width: "100%",
-    padding: "var(--space-2) var(--space-3)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius)",
-    fontSize: "var(--text-sm)",
-    color: "var(--ink-muted)",
-    background: "var(--surface-2)",
-  },
-};

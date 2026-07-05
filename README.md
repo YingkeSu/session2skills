@@ -65,6 +65,12 @@ npm run build
 
 ### 3. Configure LLM Environment Variables
 
+The harness talks to any **OpenAI-compatible** chat-completions endpoint.
+Environment variables are the default; per-run overrides are available from the
+CLI and Web UI (see below). Instead of pointing at a vendor directly, you can
+point at an OpenAI-compatible gateway such as [LiteLLM](https://docs.litellm.ai/docs/providers/openai_compatible)
+or [OpenRouter](https://openrouter.ai/) and route to many models behind one URL.
+
 ```bash
 # Required
 export SESSION2SKILLS_LLM_BASE_URL="https://api.example.com/v1"
@@ -73,6 +79,7 @@ export SESSION2SKILLS_LLM_MODEL="gpt-4o"
 # Optional
 export SESSION2SKILLS_LLM_API_KEY="sk-..."
 export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
+export SESSION2SKILLS_LLM_MODEL_VERSION="2024-08-06"
 ```
 
 | Variable | Required | Description |
@@ -83,6 +90,47 @@ export SESSION2SKILLS_LLM_PROVIDER="openai-compatible"
 | `SESSION2SKILLS_LLM_PROVIDER` | ❌ | Provider label, defaults to `openai-compatible` |
 | `SESSION2SKILLS_LLM_MODEL_VERSION` | ❌ | Optional version label |
 | `SESSION2SKILLS_API_TOKEN` | ❌ | Bearer token for `POST /api/runs` endpoint (optional auth) |
+
+#### Per-run provider/model override
+
+A single run can target a different provider/model than the env defaults,
+without editing environment variables. This is useful for comparing models or
+routing one run through a gateway.
+
+**CLI** — `generate` options (any subset overrides the env defaults):
+
+```bash
+session2skills generate \
+  --llm-provider openai \
+  --llm-base-url "https://api.openai.com/v1" \
+  --llm-model "gpt-4o" \
+  --llm-api-key-env OPENAI_API_KEY
+```
+
+| Option | Description |
+|--------|-------------|
+| `--llm-provider <id>` | Provider id (e.g. `openai`, `deepseek`, `openrouter`, `ollama`, `litellm`, or any custom id) |
+| `--llm-base-url <url>` | OpenAI-compatible base URL |
+| `--llm-model <model>` | Model identifier |
+| `--llm-model-version <ver>` | Optional model version label |
+| `--llm-api-key-env <name>` | Env var holding the API key (preferred for shared/scripted use) |
+| `--llm-api-key <key>` | Inline API key for local use only (prefer `--llm-api-key-env`) |
+| `--llm-path <path>` | Path appended to the base URL for chat completions |
+| `--prefer-json-object <boolean>` | Force `json_object` (`true`) or disable it (`false`); defaults on for DeepSeek/ZhipuAI |
+
+Built-in provider presets (provider id + default base URL) are available for
+`openai-compatible`/custom, `openai`, `openrouter`, `deepseek`, `zhipuai`,
+`ollama`, and `litellm`. They only seed defaults — you can always type any
+provider id, base URL, and model.
+
+**Web UI** — the generate panel has an **LLM Provider** section: pick a preset,
+edit the base URL, enter a model, optionally set a provider id for custom
+endpoints, and optionally enter an API key. Empty fields are omitted from the
+request, and the API key is never written to progress files or run artifacts.
+
+> DeepSeek and ZhipuAI default to `{ type: "json_object" }` structured output
+> (they do not support `json_schema`). Use `--prefer-json-object false` to
+> override.
 
 ### 4. Configure Session Source Adapter
 

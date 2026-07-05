@@ -1,11 +1,11 @@
 import { renderSummary } from "./render-summary.js";
-import { LlmProviderRegistry, OpenAiCompatibleProvider, createPromptRegistry } from "../llm/index.js";
+import { createPromptRegistry } from "../llm/index.js";
 import type { ResolvedLlmProvider } from "../llm/provider.js";
+import { resolveLlmProvider, type LlmRunConfig } from "../llm/selection.js";
 import type { PromptRegistry } from "../llm/prompts/registry.js";
 import { allPrompts } from "../llm/prompts/index.js";
 import { writeGeneratedArtifacts } from "../persist/generated-artifacts.js";
 import type { TonePreset } from "../shared/cli.js";
-import { CliUsageError, HYBRID_LLM_ENV_REQUIRED } from "../shared/errors.js";
 import { analyzeWithHarness } from "../harness/run-harness.js";
 import { buildEvidenceIndex } from "../harness/evidence-index.js";
 import { enrichManifestWithEvidence } from "../harness/enrich-evidence.js";
@@ -19,8 +19,6 @@ import { SKILL_TYPE_DIMENSIONS, SKILL_TYPE_FOCUS, type SkillType } from "./skill
 import type { EvidenceConfig } from "../harness/packets.js";
 import type { HarnessStageName } from "../harness/run-harness.js";
 
-const HYBRID_LLM_PROVIDER = "openai-compatible";
-
 export type GenerateSkillRunInput = {
   projectDirectory: string;
   outputDirectory: string;
@@ -31,6 +29,11 @@ export type GenerateSkillRunInput = {
   template?: TemplateName;
   skillType?: SkillType;
   llmProvider?: ResolvedLlmProvider;
+  /**
+   * Per-run LLM selection that overrides the `SESSION2SKILLS_LLM_*` env vars.
+   * Only consulted when {@link llmProvider} is not supplied.
+   */
+  llmConfig?: LlmRunConfig;
   promptRegistry?: PromptRegistry;
   evidenceConfig?: EvidenceConfig;
   sessionSelections?: Array<SessionSelection>;
@@ -95,7 +98,7 @@ export async function generateSkillRun(
     evidenceStore.close();
   }
 
-  const resolved = input.llmProvider ?? resolveHybridLlmProvider();
+  const resolved = input.llmProvider ?? resolveLlmProvider(input.llmConfig);
   const registry = input.promptRegistry ?? buildPromptRegistry();
 
   const templateMarkdown = input.template
@@ -176,31 +179,15 @@ export async function generateSkillRun(
   };
 }
 
-export function resolveHybridLlmProvider(): ResolvedLlmProvider {
-  const baseUrl = process.env.SESSION2SKILLS_LLM_BASE_URL;
-  const model = process.env.SESSION2SKILLS_LLM_MODEL;
-
-  if (!baseUrl || !model) {
-    throw new CliUsageError(
-      HYBRID_LLM_ENV_REQUIRED,
-    );
-  }
-
-  const providerName = process.env.SESSION2SKILLS_LLM_PROVIDER ?? HYBRID_LLM_PROVIDER;
-  const preferJsonObject = providerName === "deepseek" || providerName === "zhipuai";
-
-  const provider = new OpenAiCompatibleProvider({
-    provider: providerName,
-    baseUrl,
-    apiKey: process.env.SESSION2SKILLS_LLM_API_KEY,
-    defaultModel: {
-      model,
-      version: process.env.SESSION2SKILLS_LLM_MODEL_VERSION,
-    },
-    preferJsonObject,
-  });
-
-  return new LlmProviderRegistry([{ provider }]).resolve(provider.provider);
+/**
+ * Resolve the LLM provider from env / per-run config.
+ *
+ * Resolution lives in {@link resolveLlmProvider} (`src/llm/selection.ts`); this
+ * thin wrapper is kept for backwards compatibility with callers that imported
+ * the historical "hybrid" name.
+ */
+export function resolveHybridLlmProvider(config?: LlmRunConfig): ResolvedLlmProvider {
+  return resolveLlmProvider(config);
 }
 
 export type { EvidenceConfig } from "../harness/packets.js";

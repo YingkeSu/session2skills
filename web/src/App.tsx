@@ -16,6 +16,23 @@ import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
 import "./styles.css";
 
+/**
+ * Built-in OpenAI-compatible provider presets for the generate panel. Mirrors
+ * the backend `LLM_PROVIDER_PRESETS` in `src/llm/selection.ts`. The first entry
+ * (empty id) means "use the server's env-configured default". Presets only seed
+ * provider id + base URL; the model and API key are always user-supplied.
+ */
+const LLM_PRESETS = [
+  { id: "", label: "Server default", provider: "", baseUrl: "" },
+  { id: "openai", label: "OpenAI", provider: "openai", baseUrl: "https://api.openai.com/v1" },
+  { id: "openrouter", label: "OpenRouter", provider: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
+  { id: "deepseek", label: "DeepSeek", provider: "deepseek", baseUrl: "https://api.deepseek.com/v1" },
+  { id: "zhipuai", label: "ZhipuAI (GLM)", provider: "zhipuai", baseUrl: "https://open.bigmodel.cn/api/paas/v4" },
+  { id: "ollama", label: "Ollama", provider: "ollama", baseUrl: "http://localhost:11434/v1" },
+  { id: "litellm", label: "LiteLLM", provider: "litellm", baseUrl: "http://localhost:4000/v1" },
+  { id: "openai-compatible", label: "OpenAI-compatible (custom)", provider: "openai-compatible", baseUrl: "" },
+] as const;
+
 type GenerateState =
   | { status: "idle" }
   | { status: "pending" }
@@ -515,12 +532,33 @@ function GenerateRunPanel({
   const [evidenceMaxItems, setEvidenceMaxItems] = useState("3000");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSessionSelection, setShowSessionSelection] = useState(false);
+  const [showLlm, setShowLlm] = useState(false);
+  const [llmPreset, setLlmPreset] = useState<string>("");
+  const [llmProvider, setLlmProvider] = useState<string>("");
+  const [llmBaseUrl, setLlmBaseUrl] = useState<string>("");
+  const [llmModel, setLlmModel] = useState<string>("");
+  const [llmApiKey, setLlmApiKey] = useState<string>("");
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<SessionSelection[]>([]);
   const [directory, setDirectory] = useState(".");
   const pending = generateState.status === "pending" || generateState.status === "running";
+
+  const handleLlmPresetChange = (presetId: string): void => {
+    setLlmPreset(presetId);
+    const preset = LLM_PRESETS.find((p) => p.id === presetId);
+    setLlmProvider(preset?.provider ?? "");
+    setLlmBaseUrl(preset?.baseUrl ?? "");
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    const llmConfig: GenerateRunRequest["llmConfig"] = {};
+    if (llmProvider.trim()) llmConfig.provider = llmProvider.trim();
+    if (llmBaseUrl.trim()) llmConfig.baseUrl = llmBaseUrl.trim();
+    if (llmModel.trim()) llmConfig.model = llmModel.trim();
+    if (llmApiKey) llmConfig.apiKey = llmApiKey;
+    const hasLlmConfig = Object.keys(llmConfig).length > 0;
+
     const request: GenerateRunRequest = {
       name: name.trim() || undefined,
       ...(directory && directory !== "." ? { directory } : {}),
@@ -536,6 +574,7 @@ function GenerateRunPanel({
         maxChars: Number.parseInt(evidenceMaxChars, 10) || 5000,
         maxItems: Number.parseInt(evidenceMaxItems, 10) || 3000,
       },
+      ...(hasLlmConfig ? { llmConfig } : {}),
     };
     void onGenerate(request);
   };
@@ -652,6 +691,81 @@ function GenerateRunPanel({
             />
             <span>{t("generate.force")}</span>
           </label>
+          <button
+            type="button"
+            className="s2s-btn s2s-btn-ghost generate-advanced-toggle"
+            onClick={() => setShowLlm(!showLlm)}
+            aria-expanded={showLlm}
+            aria-controls="generate-llm-fields"
+          >
+            {showLlm ? "▾" : "▸"} {t("generate.llm")}
+          </button>
+          {showLlm && (
+            <div id="generate-llm-fields" style={{ display: "contents" }}>
+              <p className="generate-help" style={{ gridColumn: "1 / -1" }}>
+                {t("generate.llm.help")}
+              </p>
+              <label htmlFor="generate-llm-preset">
+                <span>{t("generate.llm.preset")}</span>
+                <select
+                  id="generate-llm-preset"
+                  aria-label={t("generate.llm.preset")}
+                  value={llmPreset}
+                  onChange={(event) => handleLlmPresetChange(event.currentTarget.value)}
+                >
+                  {LLM_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.id === "" ? t("generate.llm.preset.default") : preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="generate-llm-base-url">
+                <span>{t("generate.llm.baseUrl")}</span>
+                <input
+                  id="generate-llm-base-url"
+                  aria-label={t("generate.llm.baseUrl")}
+                  autoComplete="off"
+                  value={llmBaseUrl}
+                  onChange={(event) => setLlmBaseUrl(event.currentTarget.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </label>
+              <label htmlFor="generate-llm-model">
+                <span>{t("generate.llm.model")}</span>
+                <input
+                  id="generate-llm-model"
+                  aria-label={t("generate.llm.model")}
+                  autoComplete="off"
+                  value={llmModel}
+                  onChange={(event) => setLlmModel(event.currentTarget.value)}
+                  placeholder="gpt-4o"
+                />
+              </label>
+              <label htmlFor="generate-llm-provider">
+                <span>{t("generate.llm.provider")}</span>
+                <input
+                  id="generate-llm-provider"
+                  aria-label={t("generate.llm.provider")}
+                  autoComplete="off"
+                  value={llmProvider}
+                  onChange={(event) => setLlmProvider(event.currentTarget.value)}
+                  placeholder="openai-compatible"
+                />
+              </label>
+              <label htmlFor="generate-llm-api-key">
+                <span>{t("generate.llm.apiKey")}</span>
+                <input
+                  id="generate-llm-api-key"
+                  aria-label={t("generate.llm.apiKey")}
+                  type="password"
+                  autoComplete="off"
+                  value={llmApiKey}
+                  onChange={(event) => setLlmApiKey(event.currentTarget.value)}
+                />
+              </label>
+            </div>
+          )}
           <button
             type="button"
             className="s2s-btn s2s-btn-ghost generate-advanced-toggle"

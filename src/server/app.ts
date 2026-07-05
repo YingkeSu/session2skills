@@ -10,6 +10,7 @@ import { evaluateSkill } from "../generate/evaluate-skill.js";
 import { generateSkillRun, type GenerateSkillRunInput, type EvidenceConfig } from "../generate/service.js";
 import { parseTemplate, type TemplateName } from "../generate/templates.js";
 import { parseSkillType, type SkillType } from "../generate/skill-types.js";
+import type { LlmRunConfig } from "../llm/selection.js";
 import { coercePositiveInteger, coerceTonePreset, type TonePreset } from "../shared/cli.js";
 import { CliUsageError, toErrorMessage } from "../shared/errors.js";
 import { isValidRunName, normalizeRunName, validateProjectDirectory } from "../shared/paths.js";
@@ -136,6 +137,7 @@ type GenerateRequestBody = Partial<{
     llmClassifierEnabled?: boolean;
   };
   sessionSelections?: Array<{ adapter: string; sessionId: string }>;
+  llmConfig?: unknown;
 }>;
 
 async function readResumeBody(c: { req: { json: () => Promise<unknown> } }): Promise<GenerateRequestBody> {
@@ -181,6 +183,46 @@ type EvidenceFilterMode = (typeof EVIDENCE_FILTER_MODES)[number];
 function isEvidenceFilterMode(value: unknown): value is EvidenceFilterMode {
   return typeof value === "string"
     && (EVIDENCE_FILTER_MODES as ReadonlyArray<string>).includes(value);
+}
+
+/**
+ * Coerce an untyped request-body `llmConfig` into a typed {@link LlmRunConfig},
+ * dropping empty/invalid fields. Returns `undefined` when nothing usable is
+ * supplied so existing requests keep using the server's env defaults. The API
+ * key (if provided) is forwarded to the worker but never persisted to progress
+ * files or run artifacts.
+ */
+function coerceLlmRunConfig(raw: unknown): LlmRunConfig | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  const obj = raw as Record<string, unknown>;
+  const config: LlmRunConfig = {};
+  if (typeof obj["provider"] === "string" && obj["provider"].trim()) {
+    config.provider = obj["provider"].trim();
+  }
+  if (typeof obj["baseUrl"] === "string" && obj["baseUrl"].trim()) {
+    config.baseUrl = obj["baseUrl"].trim();
+  }
+  if (typeof obj["model"] === "string" && obj["model"].trim()) {
+    config.model = obj["model"].trim();
+  }
+  if (typeof obj["modelVersion"] === "string" && obj["modelVersion"].trim()) {
+    config.modelVersion = obj["modelVersion"].trim();
+  }
+  if (typeof obj["apiKey"] === "string" && obj["apiKey"].length > 0) {
+    config.apiKey = obj["apiKey"];
+  }
+  if (typeof obj["apiKeyEnv"] === "string" && obj["apiKeyEnv"].trim()) {
+    config.apiKeyEnv = obj["apiKeyEnv"].trim();
+  }
+  if (typeof obj["path"] === "string" && obj["path"].trim()) {
+    config.path = obj["path"].trim();
+  }
+  if (typeof obj["preferJsonObject"] === "boolean") {
+    config.preferJsonObject = obj["preferJsonObject"];
+  }
+  return Object.keys(config).length > 0 ? config : undefined;
 }
 
 export function createServer(runsDirectory: string, options: CreateServerOptions): Hono {
@@ -489,6 +531,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         sessionId: s.sessionId,
       }))
       : undefined;
+    const llmConfig = coerceLlmRunConfig(body.llmConfig);
 
     let projectDirectory = options.projectDirectory;
     if (typeof body.directory === "string" && body.directory.length > 0 && body.directory !== ".") {
@@ -513,6 +556,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       ...(skillType !== undefined ? { skillType } : {}),
       ...(evidenceConfig !== undefined ? { evidenceConfig } : {}),
       ...(sessionSelections !== undefined ? { sessionSelections } : {}),
+      ...(llmConfig !== undefined ? { llmConfig } : {}),
     };
 
     const lastCompleted = completedHarnessStages[completedHarnessStages.length - 1];
@@ -566,6 +610,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
             sessionId: s.sessionId,
           }))
         : undefined;
+      const llmConfig = coerceLlmRunConfig(body.llmConfig);
       const name = normalizeRunName(body.name);
       const outputDirectory = join(runsDirectory, name);
 
@@ -597,6 +642,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
           ...(skillType !== undefined ? { skillType } : {}),
           ...(evidenceConfig !== undefined ? { evidenceConfig } : {}),
           ...(sessionSelections !== undefined ? { sessionSelections } : {}),
+          ...(llmConfig !== undefined ? { llmConfig } : {}),
         };
 
         const pid = spawnGenerateWorker({ workerInput });
@@ -617,6 +663,7 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
         skillType,
         evidenceConfig,
         sessionSelections,
+        ...(llmConfig !== undefined ? { llmConfig } : {}),
       });
 
       const summaries = await scanRuns(runsDirectory);

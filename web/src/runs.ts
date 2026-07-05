@@ -38,6 +38,26 @@ export type GenerateRunRequest = {
     maxChars?: number;
     maxItems?: number;
   };
+  /**
+   * Per-run LLM provider/model override. Mirrors the backend LlmRunConfig.
+   * Sensitive empty fields (e.g. an unset API key) are omitted by the caller.
+   */
+  llmConfig?: LlmRunConfig;
+};
+
+/**
+ * Serializable LLM selection forwarded to the server. Mirrors the backend
+ * `LlmRunConfig` contract in `src/llm/selection.ts`.
+ */
+export type LlmRunConfig = {
+  provider?: string;
+  baseUrl?: string;
+  model?: string;
+  modelVersion?: string;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  path?: string;
+  preferJsonObject?: boolean;
 };
 
 export type DiscoveredProject = {

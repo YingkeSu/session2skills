@@ -171,6 +171,15 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.skillType.debugging": "调试",
     "generate.skillType.review": "审查",
 
+    "generate.llm": "LLM 提供商",
+    "generate.llm.help": "覆盖服务器的默认提供商/模型。留空则使用服务器环境变量。",
+    "generate.llm.preset": "预设",
+    "generate.llm.preset.default": "服务器默认",
+    "generate.llm.baseUrl": "基础 URL",
+    "generate.llm.model": "模型",
+    "generate.llm.provider": "提供商标识",
+    "generate.llm.apiKey": "API 密钥（可选）",
+
     "progress.analyst": "分析",
     "progress.skeptic": "质疑",
     "progress.writer": "撰写",
@@ -441,6 +450,15 @@ export const messages: Record<Locale, MessageDictionary> = {
     "generate.skillType.code-style": "Code Style",
     "generate.skillType.debugging": "Debugging",
     "generate.skillType.review": "Review",
+
+    "generate.llm": "LLM Provider",
+    "generate.llm.help": "Override the server's default provider/model. Leave blank to use server env vars.",
+    "generate.llm.preset": "Preset",
+    "generate.llm.preset.default": "Server default",
+    "generate.llm.baseUrl": "Base URL",
+    "generate.llm.model": "Model",
+    "generate.llm.provider": "Provider id",
+    "generate.llm.apiKey": "API key (optional)",
 
     "progress.analyst": "Analyst",
     "progress.skeptic": "Skeptic",

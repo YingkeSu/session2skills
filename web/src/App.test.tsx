@@ -192,6 +192,95 @@ describe("RunsDashboard", () => {
     );
     vi.useRealTimers();
   });
+
+  it("forwards llmConfig when the provider section is filled", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    let progressCallCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        requests.push({ url, init });
+
+        if (url === "/api/runs" && init?.method === "POST") {
+          return jsonResponse({ name: "llm-run", status: "running" });
+        }
+
+        if (url === "/api/runs/llm-run/progress") {
+          progressCallCount += 1;
+          if (progressCallCount <= 1) {
+            return jsonResponse({
+              stage: "analyst",
+              completedStages: [],
+              startedAt: "2026-07-06T09:00:00.000Z",
+              updatedAt: "2026-07-06T09:00:01.000Z",
+            });
+          }
+          return jsonResponse({
+            stage: "done",
+            completedStages: ["analyst", "skeptic", "writer", "verifier"],
+            startedAt: "2026-07-06T09:00:00.000Z",
+            updatedAt: "2026-07-06T09:00:05.000Z",
+          });
+        }
+
+        return jsonResponse(runs);
+      }),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("New Run");
+    await React.act(async () => {
+      buttonByText("New Run").click();
+    });
+    await screenText("Generate Skill");
+
+    // Open the collapsible LLM provider section.
+    await React.act(async () => {
+      buttonByTextIncludes("LLM Provider").click();
+    });
+
+    await React.act(async () => {
+      setSelectValue(selectByLabel("Preset"), "openai");
+      setInputValue(inputByLabel("Model"), "gpt-4o");
+      setInputValue(inputByLabel("API key (optional)"), "sk-test");
+      setInputValue(inputByLabel("Run name"), "llm-run");
+      buttonByText("Generate").click();
+    });
+
+    await React.act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    await screenText("Generated llm-run");
+    const postRequest = requests.find(
+      (request) => request.url === "/api/runs" && request.init?.method === "POST",
+    );
+    expect(postRequest?.init?.body).toBeTruthy();
+    const body = JSON.parse(String(postRequest?.init?.body)) as {
+      llmConfig?: Record<string, string>;
+    };
+    expect(body.llmConfig).toEqual({
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      apiKey: "sk-test",
+    });
+    vi.useRealTimers();
+  });
 });
 
 describe("run URL state", () => {
@@ -264,6 +353,15 @@ function buttonByText(text: string): HTMLButtonElement {
   const button = buttons.find((candidate) => candidate.textContent === text);
   if (!button) {
     throw new Error(`Button not found: ${text}`);
+  }
+  return button;
+}
+
+function buttonByTextIncludes(text: string): HTMLButtonElement {
+  const buttons = Array.from(document.querySelectorAll("button"));
+  const button = buttons.find((candidate) => (candidate.textContent ?? "").includes(text));
+  if (!button) {
+    throw new Error(`Button not found containing: ${text}`);
   }
   return button;
 }

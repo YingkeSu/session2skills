@@ -201,6 +201,43 @@ describe("generateSkillRun", () => {
       }),
     );
   });
+
+  it("resolves the provider from llmConfig when llmProvider is not injected", async () => {
+    vi.mocked(loadSessions).mockResolvedValue({
+      normalizedSessions: [makeTestSession("s1")],
+      warnings: [],
+      skippedSessions: 0,
+    });
+    vi.mocked(analyzeWithHarness).mockResolvedValue(makeHarnessResult());
+
+    const result = await generateSkillRun({
+      projectDirectory: "/test",
+      outputDirectory: "/out",
+      recent: 5,
+      force: false,
+      tone: "balanced",
+      llmConfig: {
+        provider: "openai",
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-test",
+        apiKey: "k",
+      },
+    });
+
+    expect(result).not.toBeNull();
+    // analyzeWithHarness receives the ResolvedLlmProvider as `provider`; its
+    // own `.provider` is the OpenAiCompatibleProvider, whose `.provider` is the
+    // id string. Assert the resolved id + model came from llmConfig, not env.
+    expect(analyzeWithHarness).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "balanced",
+        provider: expect.objectContaining({
+          provider: expect.objectContaining({ provider: "openai" }),
+          model: expect.objectContaining({ model: "gpt-test" }),
+        }),
+      }),
+    );
+  });
 });
 
 describe("resolveHybridLlmProvider", () => {

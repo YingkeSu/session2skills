@@ -21,6 +21,11 @@ export type RunSummary = {
   skillAvailable?: boolean;
   summaryAvailable?: boolean;
   progressStage?: GenerationStage;
+  /** Skill-run management fields, sourced from `.skill-meta.json`. */
+  group?: string | null;
+  archived?: boolean;
+  archivedAt?: string | null;
+  updatedAt?: string;
 };
 
 export type GenerateRunRequest = {

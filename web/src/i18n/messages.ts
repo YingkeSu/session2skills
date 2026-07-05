@@ -7,6 +7,9 @@ export type MessageDictionary = Record<string, MessageValue>;
 export const messages: Record<Locale, MessageDictionary> = {
   zh: {
     "app.title": "测试运行记录",
+    "app.kicker": "session2skills cockpit",
+    "app.subtitle": "审计、预览并生成证据驱动的 agent 技能。",
+    "app.newRun": "新建运行",
     "app.loading": "正在加载运行记录…",
     "app.errorPrefix": "错误: {message}",
     "app.noRuns": "未找到测试运行记录",
@@ -235,6 +238,9 @@ export const messages: Record<Locale, MessageDictionary> = {
   },
   en: {
     "app.title": "Harness Runs",
+    "app.kicker": "session2skills cockpit",
+    "app.subtitle": "Review, preview, and generate evidence-grounded agent skills.",
+    "app.newRun": "New Run",
     "app.loading": "Loading runs…",
     "app.errorPrefix": "Error: {message}",
     "app.noRuns": "No harness runs found",

@@ -88,6 +88,7 @@ describe("RunsDashboard", () => {
         <RunsDashboard
           runs={runs}
           generateState={{ status: "idle" }}
+          showGeneratePanel={true}
           onGenerate={() => undefined}
           onSelect={() => undefined}
         />
@@ -154,6 +155,10 @@ describe("RunsDashboard", () => {
       );
     });
 
+    await screenText("New Run");
+    await React.act(async () => {
+      buttonByText("New Run").click();
+    });
     await screenText("Generate Skill");
     await React.act(async () => {
       setInputValue(inputByLabel("Run name"), "new-web-skill");

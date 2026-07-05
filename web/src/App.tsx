@@ -30,6 +30,7 @@ export function App(): JSX.Element {
     getInitialSelectedRun(),
   );
   const [showDocs, setShowDocs] = useState(false);
+  const [showGeneratePanel, setShowGeneratePanel] = useState(false);
   const [generateSuccessName, setGenerateSuccessName] = useState<string | null>(null);
   const [generateErrorMessage, setGenerateErrorMessage] = useState<string | null>(null);
   const [runningRunName, setRunningRunName] = useState<string | null>(null);
@@ -153,11 +154,16 @@ export function App(): JSX.Element {
   }
 
   return (
-    <Shell onShowDocs={() => setShowDocs(true)}>
+    <Shell
+      onShowDocs={() => setShowDocs(true)}
+      onNewRun={() => setShowGeneratePanel((visible) => !visible)}
+      newRunActive={showGeneratePanel}
+    >
       <RunsDashboard
         runs={readyRuns}
         generateState={generateState}
         progress={progress}
+        showGeneratePanel={showGeneratePanel}
         onGenerate={handleGenerate}
         onSelect={(name) => setSelectedRun(name)}
       />
@@ -211,12 +217,14 @@ export function RunsDashboard({
   runs,
   generateState = { status: "idle" },
   progress,
+  showGeneratePanel = false,
   onGenerate = () => undefined,
   onSelect,
 }: {
   runs: RunSummary[];
   generateState?: GenerateState;
   progress?: GenerationProgress | null;
+  showGeneratePanel?: boolean;
   onGenerate?: (request: GenerateRunRequest) => void | Promise<void>;
   onSelect: (name: string) => void;
 }): JSX.Element {
@@ -254,11 +262,13 @@ export function RunsDashboard({
         />
       </section>
 
-      <GenerateRunPanel
-        generateState={generateState}
-        progress={progress}
-        onGenerate={onGenerate}
-      />
+      {showGeneratePanel && (
+        <GenerateRunPanel
+          generateState={generateState}
+          progress={progress}
+          onGenerate={onGenerate}
+        />
+      )}
 
       <div className="runs-master-detail">
         <section
@@ -871,17 +881,35 @@ function Shell({
   children,
   style,
   onShowDocs,
+  onNewRun,
+  newRunActive = false,
 }: {
   children: React.ReactNode;
   style?: React.CSSProperties;
   onShowDocs?: () => void;
+  onNewRun?: () => void;
+  newRunActive?: boolean;
 }): JSX.Element {
   const { t } = useLocale();
   return (
     <div className="app-shell" style={style}>
       <div className="app-header">
-        <h1>{t("app.title")}</h1>
+        <div className="app-brand">
+          <div className="app-kicker">{t("app.kicker")}</div>
+          <h1>{t("app.title")}</h1>
+          <p>{t("app.subtitle")}</p>
+        </div>
         <div className="app-header-actions">
+          {onNewRun && (
+            <button
+              type="button"
+              onClick={onNewRun}
+              className="s2s-btn s2s-btn-primary app-new-run"
+              aria-pressed={newRunActive}
+            >
+              {t("app.newRun")}
+            </button>
+          )}
           {onShowDocs && (
             <button
               type="button"

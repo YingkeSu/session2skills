@@ -103,4 +103,31 @@ describe("VirtualList", () => {
     expect(scroller.textContent).toContain("c");
     expect(scroller.querySelectorAll("[data-virtual-index]").length).toBe(3);
   });
+
+  it("stacks every row without fixed-height slots when viewportHeight is none", () => {
+    render(
+      <VirtualList
+        ariaLabel="expandable rows"
+        itemHeight={40}
+        viewportHeight="none"
+        items={["first", "second", "third"]}
+        renderItem={(text, index) => (
+          <details open={index === 0}>
+            <summary>{text}</summary>
+            <p>{text} expanded content that is taller than the estimate.</p>
+          </details>
+        )}
+      />,
+    );
+
+    const scroller = screen.getByTestId("virtual-list");
+    const rendered = scroller.querySelectorAll<HTMLElement>("[data-virtual-index]");
+    expect(rendered).toHaveLength(3);
+    expect(scroller.style.minHeight).toBe("");
+    expect(scroller.style.overflowY).toBe("visible");
+    expect(rendered[0]!.style.height).toBe("");
+    expect(rendered[0]!.style.minHeight).toBe("40px");
+    expect(scroller.textContent).toContain("second");
+    expect(scroller.textContent).toContain("third");
+  });
 });

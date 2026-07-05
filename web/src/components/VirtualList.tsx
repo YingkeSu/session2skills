@@ -45,12 +45,29 @@ export function VirtualList<T>({
 }: VirtualListProps<T>): JSX.Element {
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const measuredRef = useRef<HTMLElement | null>(null);
+  const isStacked = viewportHeight === "none";
 
   const window = useVirtualList(items, {
     container,
     itemHeight,
     overscan,
   });
+
+  const minHeight =
+    typeof viewportHeight === "number"
+      ? `${viewportHeight}px`
+      : isStacked
+        ? undefined
+        : viewportHeight;
+
+  const renderedItems = isStacked
+    ? items.map((item, index) => ({ item, index }))
+    : items
+        .slice(window.startIndex, window.endIndex + 1)
+        .map((item, relativeIndex) => ({
+          item,
+          index: window.startIndex + relativeIndex,
+        }));
 
   return (
     <div
@@ -63,15 +80,23 @@ export function VirtualList<T>({
       aria-label={ariaLabel}
       data-testid="virtual-list"
       style={{
-        overflowY: "auto",
+        overflowY: isStacked ? "visible" : "auto",
         position: "relative",
-        minHeight:
-          typeof viewportHeight === "number"
-            ? `${viewportHeight}px`
-            : viewportHeight,
+        minHeight,
         ...style,
       }}
     >
+      {isStacked ? (
+        renderedItems.map(({ item, index }) => (
+          <div
+            key={index}
+            data-virtual-index={index}
+            style={{ minHeight: `${itemHeight}px` }}
+          >
+            {renderItem(item, index)}
+          </div>
+        ))
+      ) : (
       <div
         style={{
           height: `${window.totalHeight}px`,
@@ -87,22 +112,18 @@ export function VirtualList<T>({
             transform: `translateY(${window.offsetY}px)`,
           }}
         >
-          {items
-            .slice(window.startIndex, window.endIndex + 1)
-            .map((item, relativeIndex) => {
-              const index = window.startIndex + relativeIndex;
-              return (
-                <div
-                  key={index}
-                  data-virtual-index={index}
-                  style={{ height: `${itemHeight}px` }}
-                >
-                  {renderItem(item, index)}
-                </div>
-              );
-            })}
+          {renderedItems.map(({ item, index }) => (
+            <div
+              key={index}
+              data-virtual-index={index}
+              style={{ minHeight: `${itemHeight}px` }}
+            >
+              {renderItem(item, index)}
+            </div>
+          ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

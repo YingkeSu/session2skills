@@ -141,7 +141,7 @@ describe("AuditViewTab", () => {
     expect(await screenText("42%")).toBeTruthy();
   });
 
-  it("virtualizes the evidence excerpt list so a large manifest does not bloat the DOM", async () => {
+  it("stacks the evidence excerpt list so expanded rows can grow without overlap", async () => {
     const manyEvidence = Array.from({ length: 500 }, (_, i) => ({
       evidenceID: `ev-${i}`,
       sourceType: "message",
@@ -171,10 +171,12 @@ describe("AuditViewTab", () => {
     expect(scroller).toBeTruthy();
 
     const rendered = scroller!.querySelectorAll("[data-virtual-index]");
-    // Far fewer than the full 500 entries are in the DOM.
-    expect(rendered.length).toBeLessThan(50);
-    // The very last evidence item is not rendered before scrolling.
-    expect(document.body.textContent).not.toContain("ev-499");
+    expect(rendered).toHaveLength(500);
+    expect((scroller as HTMLElement).style.minHeight).toBe("");
+    expect((scroller as HTMLElement).style.overflowY).toBe("visible");
+    expect((rendered[0] as HTMLElement).style.height).toBe("");
+    expect((rendered[0] as HTMLElement).style.minHeight).toBe("44px");
+    expect(document.body.textContent).toContain("ev-499");
   });
 });
 

@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleContext.js";
-import { DetailShell, RunDetailPageView } from "./RunDetailPage.js";
+import { DetailShell, OverviewPanel, RunDetailPageView } from "./RunDetailPage.js";
 import type { RunDetail } from "../runs.js";
-import { useState } from "react";
 
 describe("DetailShell", () => {
   it("renders a stable ready shell with run identity, report status, and tabs", () => {
@@ -16,7 +15,7 @@ describe("DetailShell", () => {
         <DetailShell
           runName="2026-06-analyst-run"
           detail={readyDetail}
-          activeTab="audit"
+          activeTab="overview"
           onBack={() => undefined}
           onTabChange={() => undefined}
         >
@@ -31,9 +30,10 @@ describe("DetailShell", () => {
     expect(html).toContain('role="tab"');
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain('aria-selected="false"');
-    expect(html).toContain("审计视图");
+    expect(html).toContain("概览");
     expect(html).toContain("报告");
     expect(html).toContain("预览与追踪");
+    expect(html).toContain("声明与证据");
   });
 
   it("applies roving tabindex so only the active tab is focusable", () => {
@@ -55,15 +55,44 @@ describe("DetailShell", () => {
     const reportsMatch = html.match(/data-testid="reports-tab"[^>]*tabindex="0"/);
     expect(reportsMatch).not.toBeNull();
 
-    const auditMatch = html.match(/data-testid="audit-tab"[^>]*tabindex="-1"/);
-    expect(auditMatch).not.toBeNull();
+    const overviewMatch = html.match(/data-testid="overview-tab"[^>]*tabindex="-1"/);
+    expect(overviewMatch).not.toBeNull();
 
     const previewMatch = html.match(/data-testid="preview-tab"[^>]*tabindex="-1"/);
     expect(previewMatch).not.toBeNull();
+
+    const claimsMatch = html.match(/data-testid="claims-tab"[^>]*tabindex="-1"/);
+    expect(claimsMatch).not.toBeNull();
   });
 });
 
 describe("RunDetailPageView", () => {
+  it("renders the overview panel by default and leads with the quality verdict", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <RunDetailPageView
+          runName="2026-06-analyst-run"
+          status="ready"
+          error=""
+          detail={readyDetail}
+          activeTab="overview"
+          onBack={() => undefined}
+          onTabChange={() => undefined}
+          evaluationState={{ status: "idle" }}
+          onEvaluate={() => undefined}
+        />
+      </LocaleProvider>,
+    );
+
+    // Overview-first: verdict + skeptic score + metric tiles above raw evidence.
+    expect(html).toContain('data-testid="overview-verdict"');
+    expect(html).toContain('data-testid="overview-skeptic-score"');
+    expect(html).toContain('data-testid="overview-metric-claims"');
+    expect(html).toContain("技能评估");
+    // Evaluate action lives inside the overview.
+    expect(html).toContain('data-testid="evaluate-button"');
+  });
+
   it("renders deterministic skill evaluation verdict and gates", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider>
@@ -72,7 +101,7 @@ describe("RunDetailPageView", () => {
           status="ready"
           error=""
           detail={readyDetail}
-          activeTab="reports"
+          activeTab="overview"
           onBack={() => undefined}
           onTabChange={() => undefined}
           evaluationState={{
@@ -116,7 +145,7 @@ describe("RunDetailPageView", () => {
           status="ready"
           error=""
           detail={readyDetail}
-          activeTab="audit"
+          activeTab="overview"
           onBack={() => undefined}
           onTabChange={() => undefined}
           evaluationState={{ status: "pending" }}
@@ -133,9 +162,95 @@ describe("RunDetailPageView", () => {
   });
 });
 
+describe("OverviewPanel", () => {
+  it("leads with verdict, skeptic score, metrics, and a prioritized next-step cue", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <OverviewPanel
+          detail={failedDetail}
+          evaluationState={{ status: "idle" }}
+          onEvaluate={() => undefined}
+          onNavigate={() => undefined}
+        />
+      </LocaleProvider>,
+    );
+
+    // Verdict fail + skeptic score surfaced above raw evidence.
+    expect(html).toContain("失败");
+    expect(html).toContain("33%");
+    // Metric tiles for trust judgement.
+    expect(html).toContain('data-testid="overview-metric-fabricated"');
+    expect(html).toContain("虚构指令");
+    // Prioritized cue for the failed verifier, pointing at Reports.
+    expect(html).toContain('data-testid="overview-cue-verifier-failed"');
+    // Top-issues preview surfaces the high-severity problem type.
+    expect(html).toContain("首要问题");
+    expect(html).toContain("overconfident");
+    // Grounding summary uses counts, not raw evidence IDs.
+    expect(html).toContain("1 条声明");
+    // No raw evidence excerpts on the overview.
+    expect(html).not.toContain("sessionID");
+  });
+
+  it("navigates to the target tab on cue click and triggers evaluate for the evaluate cue", () => {
+    const onNavigate = vi.fn();
+    const onEvaluate = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <LocaleProvider>
+          <OverviewPanel
+            detail={failedDetail}
+            evaluationState={{ status: "idle" }}
+            onEvaluate={onEvaluate}
+            onNavigate={onNavigate}
+          />
+        </LocaleProvider>,
+      );
+    });
+
+    const verifierCue = container.querySelector(
+      '[data-testid="overview-cue-verifier-failed"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      verifierCue.click();
+    });
+    expect(onNavigate).toHaveBeenCalledWith("reports");
+
+    const evaluateCue = container.querySelector(
+      '[data-testid="overview-cue-evaluate"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      evaluateCue.click();
+    });
+    expect(onEvaluate).toHaveBeenCalled();
+
+    const viewAll = container.querySelector(
+      ".overview-issues button",
+    ) as HTMLButtonElement;
+    act(() => {
+      viewAll.click();
+    });
+    expect(onNavigate).toHaveBeenCalledWith("reports");
+
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+});
+
 describe("Tab keyboard navigation", () => {
-  function TabNavigationWrapper({ initial }: { initial?: "audit" | "reports" | "preview" } = {}) {
-    const [tab, setTab] = useState<"audit" | "reports" | "preview">(initial ?? "audit");
+  function TabNavigationWrapper({
+    initial,
+  }: {
+    initial?: "overview" | "reports" | "preview" | "claims";
+  } = {}) {
+    const [tab, setTab] = useState<"overview" | "reports" | "preview" | "claims">(
+      initial ?? "overview",
+    );
     return (
       <LocaleProvider>
         <DetailShell
@@ -151,7 +266,7 @@ describe("Tab keyboard navigation", () => {
     );
   }
 
-  function renderIntoDom(initial?: "audit" | "reports" | "preview") {
+  function renderIntoDom(initial?: "overview" | "reports" | "preview" | "claims") {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -164,12 +279,12 @@ describe("Tab keyboard navigation", () => {
   it("moves focus to the next tab on ArrowRight", () => {
     const { container, root } = renderIntoDom();
 
-    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    const overviewTab = container.querySelector('[data-testid="overview-tab"]') as HTMLElement;
     act(() => {
-      auditTab.focus();
+      overviewTab.focus();
     });
     act(() => {
-      auditTab.dispatchEvent(
+      overviewTab.dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
       );
     });
@@ -194,48 +309,48 @@ describe("Tab keyboard navigation", () => {
       );
     });
 
-    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
-    expect(auditTab.getAttribute("aria-selected")).toBe("true");
+    const overviewTab = container.querySelector('[data-testid="overview-tab"]') as HTMLElement;
+    expect(overviewTab.getAttribute("aria-selected")).toBe("true");
 
     act(() => { root.unmount(); });
     container.remove();
   });
 
   it("wraps from last tab to first on ArrowRight", () => {
-    const { container, root } = renderIntoDom("preview");
+    const { container, root } = renderIntoDom("claims");
 
-    const previewTab = container.querySelector('[data-testid="preview-tab"]') as HTMLElement;
+    const claimsTab = container.querySelector('[data-testid="claims-tab"]') as HTMLElement;
     act(() => {
-      previewTab.focus();
+      claimsTab.focus();
     });
     act(() => {
-      previewTab.dispatchEvent(
+      claimsTab.dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
       );
     });
 
-    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
-    expect(auditTab.getAttribute("aria-selected")).toBe("true");
+    const overviewTab = container.querySelector('[data-testid="overview-tab"]') as HTMLElement;
+    expect(overviewTab.getAttribute("aria-selected")).toBe("true");
 
     act(() => { root.unmount(); });
     container.remove();
   });
 
   it("wraps from first tab to last on ArrowLeft", () => {
-    const { container, root } = renderIntoDom("audit");
+    const { container, root } = renderIntoDom("overview");
 
-    const auditTab = container.querySelector('[data-testid="audit-tab"]') as HTMLElement;
+    const overviewTab = container.querySelector('[data-testid="overview-tab"]') as HTMLElement;
     act(() => {
-      auditTab.focus();
+      overviewTab.focus();
     });
     act(() => {
-      auditTab.dispatchEvent(
+      overviewTab.dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
       );
     });
 
-    const previewTab = container.querySelector('[data-testid="preview-tab"]') as HTMLElement;
-    expect(previewTab.getAttribute("aria-selected")).toBe("true");
+    const claimsTab = container.querySelector('[data-testid="claims-tab"]') as HTMLElement;
+    expect(claimsTab.getAttribute("aria-selected")).toBe("true");
 
     act(() => { root.unmount(); });
     container.remove();
@@ -280,4 +395,63 @@ const readyDetail: RunDetail = {
   writerSections: null,
   skillMarkdown: "# Generated skill",
   traces: [],
+};
+
+const failedDetail: RunDetail = {
+  name: "2026-06-failed-run",
+  claimManifest: {
+    schemaVersion: "claim-manifest/v1",
+    claims: [
+      {
+        id: "claim-1",
+        dimension: "constraint",
+        label: "minimal-diff",
+        confidence: 0.6,
+        rationale: "Prefers small diffs.",
+        evidenceRefs: ["sessionID:messageID:partID"],
+      },
+    ],
+    evidenceSummary: "Mixed evidence was collected from local sessions.",
+    dimensionsCovered: ["constraint"],
+    metadata: {
+      generatedAt: "2026-06-17T08:00:00.000Z",
+      sessionCount: 1,
+      totalEvidenceItems: 5,
+    },
+  },
+  skepticReport: {
+    schemaVersion: "skeptic-report/v1",
+    issues: [
+      {
+        claimId: "claim-1",
+        severity: "high",
+        problemType: "overconfident",
+        detail: "Claim confidence is not supported by the cited evidence.",
+        suggestion: "Lower confidence or add stronger evidence.",
+      },
+    ],
+    overallScore: 0.33,
+    metadata: {
+      generatedAt: "2026-06-17T08:00:00.000Z",
+      claimCount: 1,
+      issueCount: 1,
+    },
+  },
+  verifierReport: {
+    schemaVersion: "verifier-report/v1",
+    pass: false,
+    checkedItems: [
+      { directive: "Prefer minimal diffs.", claimId: "claim-1", status: "fabricated" },
+    ],
+    issues: [],
+    metadata: {
+      generatedAt: "2026-06-17T08:00:00.000Z",
+      directiveCount: 1,
+      verifiedCount: 0,
+      fabricatedCount: 1,
+    },
+  },
+  writerSections: null,
+  skillMarkdown: "# Generated skill",
+  traces: [{ stage: "verifier", model: "m", provider: "p" }],
 };

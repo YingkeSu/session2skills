@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createRoot } from "react-dom/client";
 import { createElement } from "react";
 import { withQueryClient } from "../test-utils.js";
+import { LocaleProvider } from "../i18n/LocaleContext.js";
 import { ScoreCard } from "./ScoreCard.js";
 import type { SkillEvaluation } from "../runs.js";
 
@@ -35,8 +36,10 @@ function renderScoreCard(evaluation: SkillEvaluation | null): HTMLDivElement {
   const root = createRoot(container);
   root.render(
     withQueryClient(
-      createElement("div", null,
-        createElement(ScoreCard, { evaluation }),
+      createElement(LocaleProvider, null,
+        createElement("div", null,
+          createElement(ScoreCard, { evaluation }),
+        ),
       ),
     ),
   );

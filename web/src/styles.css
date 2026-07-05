@@ -355,11 +355,11 @@ body {
   gap: var(--space-4);
 }
 
-/* Master-detail split: run list (320px) on the left, selected-run detail on
+/* Master-detail split: run rail (360px) on the left, selected-run detail on
    the right. Collapses to a single column on narrow viewports. */
 .runs-master-detail {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -422,6 +422,12 @@ body {
   margin: 0 0 var(--space-2);
   color: var(--ink);
   font-weight: 500;
+}
+
+.runs-detail-artifacts {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
 }
 
 .dashboard-summary {
@@ -730,71 +736,178 @@ body {
   font-weight: 600;
 }
 
-.runs-table-wrap {
-  overflow-x: auto;
+/* Run list — a compact desktop rail. Each run is a real <button> (keyboard
+   activatable by default) whose left rail bar encodes overall quality
+   (verifier fail → danger, else skeptic-score tone), so a column of colored
+   bars makes status scannable without reading every row. */
+.run-list-wrap {
+  min-width: 0;
 }
 
-.runs-table {
+.run-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.run-list-row-item {
+  display: flex;
+  min-width: 0;
+}
+
+.run-item {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  align-items: stretch;
   width: 100%;
-  border-collapse: collapse;
-  min-width: 760px;
-}
-
-.runs-table th,
-.runs-table td {
-  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
-  border-bottom: 1px solid var(--border-soft);
-  vertical-align: middle;
-}
-
-.runs-table th {
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  background: var(--surface-2);
-  font-weight: 600;
-}
-
-.runs-table tbody td {
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-.run-row {
   cursor: pointer;
   transition: background-color var(--transition);
 }
 
-.run-row:hover {
+/* Divider only between adjacent rows — avoids doubling the panel-header
+   border above and the panel border below. */
+.run-list-row-item + .run-list-row-item .run-item {
+  border-top: 1px solid var(--border-soft);
+}
+
+.run-item-rail {
+  width: 3px;
+  background: var(--border-strong);
+}
+
+.run-item-rail.tone-good { background: var(--success); }
+.run-item-rail.tone-warning { background: var(--warning); }
+.run-item-rail.tone-danger { background: var(--danger); }
+
+.run-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.run-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.run-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-strong);
+  color: var(--ink);
+}
+
+.run-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.run-item-context {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.run-item-model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.run-item-sep {
+  color: var(--border-strong);
+}
+
+.run-item-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-item-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.run-item-claims {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.run-item-claims-num {
+  font-weight: var(--font-weight-strong);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-item-claims-label {
+  font-size: 11px;
+}
+
+/* Interaction states. */
+.run-item:hover {
   background: var(--surface-2);
 }
 
-.run-row:focus-visible {
+.run-item:focus-visible {
   background: var(--accent-soft);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-.run-row.is-failed {
+.run-item.is-failed {
   background: var(--danger-soft);
 }
 
-.run-row.is-failed:hover {
+.run-item.is-failed:hover {
   background: color-mix(in oklch, var(--danger-soft) 70%, var(--surface-2));
 }
 
-/* Selected row in the master-detail layout. */
-.run-row.is-active {
+/* Selected row — accent tint + accent rail + accent ink name. Selected state
+   intentionally wins over .is-failed so the focus anchor is unambiguous;
+   the verifier badge and score pill still carry the run's status color. */
+.run-item.is-active {
   background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.run-row.is-active:hover {
+.run-item.is-active:hover {
   background: color-mix(in oklch, var(--accent-soft) 80%, var(--surface-2));
 }
 
-.run-name {
-  font-weight: 600;
-  color: var(--ink);
-  word-break: break-word;
+.run-item.is-active .run-item-rail {
+  background: var(--accent);
+}
+
+.run-item.is-active .run-item-name {
+  color: var(--accent-ink);
 }
 
 /* Pills & badges — saturated fill + white text (every semantic clears 4.5:1). */

@@ -157,6 +157,19 @@ async function writeSkillMeta(runDir: string, meta: SkillRunMeta): Promise<void>
   );
 }
 
+async function getActiveRunConflict(runDir: string): Promise<string | null> {
+  const progress = await readProgress(runDir);
+  if (!progress || isTerminalStage(progress.stage)) {
+    return null;
+  }
+  if (progress.pid !== undefined) {
+    return isPidAlive(progress.pid)
+      ? `Generation already running (pid ${progress.pid})`
+      : null;
+  }
+  return "Generation is in progress";
+}
+
 export type ServerGenerateRunner = (input: GenerateSkillRunInput) => Promise<unknown>;
 
 export type SessionSelectionInput = {
@@ -531,6 +544,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       return c.json({ error: `Run not found: ${name}` }, 404);
     }
 
+    const activeConflict = await getActiveRunConflict(runDir);
+    if (activeConflict) {
+      return c.json({ error: activeConflict }, 409);
+    }
+
     let body: unknown;
     try {
       body = await c.req.json();
@@ -600,6 +618,11 @@ export function createServer(runsDirectory: string, options: CreateServerOptions
       }
     } catch {
       return c.json({ error: `Run not found: ${name}` }, 404);
+    }
+
+    const activeConflict = await getActiveRunConflict(runDir);
+    if (activeConflict) {
+      return c.json({ error: activeConflict }, 409);
     }
 
     try {

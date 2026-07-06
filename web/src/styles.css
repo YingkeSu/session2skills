@@ -918,6 +918,13 @@ body {
   flex-wrap: wrap;
 }
 
+.runs-management-error {
+  margin: 0;
+  color: var(--danger-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .dashboard-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

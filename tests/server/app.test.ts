@@ -945,6 +945,32 @@ describe("skill management: group / archive / delete", () => {
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "Unauthorized" });
     });
+
+    test("returns 409 when generation is still running", async () => {
+      await seedRun("patch-running");
+      await writeFile(
+        join(runsDir, "patch-running", ".progress.json"),
+        JSON.stringify({
+          stage: "analyst",
+          completedStages: [],
+          startedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+          pid: process.pid,
+        }),
+      );
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-running/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: true }),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: `Generation already running (pid ${process.pid})`,
+      });
+    });
   });
 
   describe("DELETE /api/runs/:name", () => {
@@ -998,6 +1024,33 @@ describe("skill management: group / archive / delete", () => {
       expect(await res.json()).toEqual({ error: "Unauthorized" });
       // The run must still exist when auth fails.
       const stillThere = await stat(join(runsDir, "delete-auth")).catch(() => null);
+      expect(stillThere?.isDirectory()).toBe(true);
+    });
+
+    test("returns 409 and leaves the run in place when generation is still running", async () => {
+      await seedRun("delete-running");
+      await writeFile(
+        join(runsDir, "delete-running", ".progress.json"),
+        JSON.stringify({
+          stage: "writer",
+          completedStages: ["analyst", "skeptic"],
+          startedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+          pid: process.pid,
+        }),
+      );
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/delete-running", {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: `Generation already running (pid ${process.pid})`,
+      });
+      const stillThere = await stat(join(runsDir, "delete-running")).catch(() => null);
       expect(stillThere?.isDirectory()).toBe(true);
     });
   });

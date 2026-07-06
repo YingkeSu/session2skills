@@ -59,6 +59,7 @@ type RunManagement = {
   onDelete: (name: string) => void | Promise<void>;
   metaPending: boolean;
   deletePending: boolean;
+  errorMessage: string | null;
 };
 
 export function App(): JSX.Element {
@@ -74,6 +75,7 @@ export function App(): JSX.Element {
   const [showGeneratePanel, setShowGeneratePanel] = useState(false);
   const [generateSuccessName, setGenerateSuccessName] = useState<string | null>(null);
   const [generateErrorMessage, setGenerateErrorMessage] = useState<string | null>(null);
+  const [managementErrorMessage, setManagementErrorMessage] = useState<string | null>(null);
   const [runningRunName, setRunningRunName] = useState<string | null>(null);
 
   const generateMutation = useGenerateMutation();
@@ -165,14 +167,24 @@ export function App(): JSX.Element {
     name: string,
     group: string | null,
   ): Promise<void> => {
-    await updateMetaMutation.mutateAsync({ name, patch: { group } });
+    setManagementErrorMessage(null);
+    try {
+      await updateMetaMutation.mutateAsync({ name, patch: { group } });
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleToggleArchived = async (
     name: string,
     archived: boolean,
   ): Promise<void> => {
-    await updateMetaMutation.mutateAsync({ name, patch: { archived } });
+    setManagementErrorMessage(null);
+    try {
+      await updateMetaMutation.mutateAsync({ name, patch: { archived } });
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleDeleteRun = async (name: string): Promise<void> => {
@@ -183,7 +195,13 @@ export function App(): JSX.Element {
       );
       if (!confirmed) return;
     }
-    await deleteRunMutation.mutateAsync(name);
+    setManagementErrorMessage(null);
+    try {
+      await deleteRunMutation.mutateAsync(name);
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+      return;
+    }
     // If the deep-linked run was removed, drop the URL selection so the list
     // view is the landing surface again instead of a stale detail page.
     if (selectedRun === name) {
@@ -197,6 +215,7 @@ export function App(): JSX.Element {
     onDelete: handleDeleteRun,
     metaPending: updateMetaMutation.isPending,
     deletePending: deleteRunMutation.isPending,
+    errorMessage: managementErrorMessage,
   };
 
   if (showDocs) {
@@ -325,6 +344,17 @@ export function RunsDashboard({
   const hasUngrouped = runs.some((run) => !run.group);
   const visibleRuns = filterRunsByGroup(runs, groupFilter);
 
+  useEffect(() => {
+    if (!groupFilter) return;
+    if (groupFilter === UNGROUPED_FILTER) {
+      if (!hasUngrouped) setGroupFilter("");
+      return;
+    }
+    if (!groups.includes(groupFilter)) {
+      setGroupFilter("");
+    }
+  }, [groupFilter, groups, hasUngrouped]);
+
   const handleRowActivate = (name: string): void => {
     setPreviewedRun(name);
     onSelect(name);
@@ -392,6 +422,7 @@ export function RunsDashboard({
               <span>{t("management.groupFilter")}</span>
               <select
                 className="s2s-select runs-filter-select"
+                aria-label={t("management.groupFilter")}
                 value={groupFilter}
                 onChange={(event) => setGroupFilter(event.currentTarget.value)}
               >
@@ -700,6 +731,13 @@ function RunDetailPreview({
                 : t("management.delete")}
             </button>
           </div>
+          {management.errorMessage && (
+            <p className="runs-management-error" role="alert">
+              {t("management.errorPrefix", {
+                message: management.errorMessage,
+              })}
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -366,6 +366,7 @@ describe("skill management", () => {
             onDelete: () => undefined,
             metaPending: false,
             deletePending: false,
+            errorMessage: null,
           }}
         />
       </LocaleProvider>,
@@ -434,6 +435,101 @@ describe("skill management", () => {
       (r) => r.url === "/api/runs/grouped-run/meta" && r.init?.method === "PATCH",
     );
     expect(patch?.init?.body).toBe(JSON.stringify({ group: "frontend-renamed" }));
+  });
+
+  it("shows management errors when a meta update fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (
+          url === "/api/runs/grouped-run/meta" &&
+          init?.method === "PATCH"
+        ) {
+          return jsonResponse({ error: "boom" }, 500);
+        }
+        return jsonResponse(managedRuns);
+      }),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("Save group");
+    await React.act(async () => {
+      setInputValue(inputById("run-group-edit"), "frontend-renamed");
+    });
+    await React.act(async () => {
+      buttonByText("Save group").click();
+    });
+
+    await screenText("Management action failed");
+  });
+
+  it("resets a dangling group filter after archiving the only run in that group", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    let frontendArchived = false;
+    const getRuns = (): RunSummary[] =>
+      frontendArchived
+        ? [managedRuns[2]!]
+        : [managedRuns[0]!, managedRuns[2]!];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        requests.push({ url, init });
+        if (
+          url === "/api/runs/grouped-run/meta" &&
+          init?.method === "PATCH"
+        ) {
+          frontendArchived = true;
+          return jsonResponse({ ...managedRuns[0], archived: true });
+        }
+        return jsonResponse(getRuns());
+      }),
+    );
+
+    globalThis.localStorage?.setItem("session2skills-locale", "en");
+    const container = document.createElement("div");
+    document.body.append(container);
+    await React.act(async () => {
+      createRoot(container).render(
+        withQueryClient(
+          <LocaleProvider>
+            <App />
+          </LocaleProvider>,
+        ),
+      );
+    });
+
+    await screenText("grouped-run");
+    await React.act(async () => {
+      setSelectValue(selectByLabel("Group filter"), "frontend");
+    });
+    expect(document.body.textContent).not.toContain("ungrouped-run");
+
+    await React.act(async () => {
+      buttonByText("Archive").click();
+    });
+
+    await screenText("ungrouped-run");
+    expect(selectByLabel("Group filter").value).toBe("");
+    expect(
+      requests.some(
+        (r) => r.url === "/api/runs/grouped-run/meta" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true);
   });
 
   it("deletes the selected run after window.confirm", async () => {
@@ -518,9 +614,9 @@ describe("run URL state", () => {
   });
 });
 
-function jsonResponse(data: unknown): Response {
+function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
-    status: 200,
+    status,
     headers: { "content-type": "application/json" },
   });
 }

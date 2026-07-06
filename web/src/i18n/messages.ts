@@ -47,6 +47,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "management.delete": "删除",
     "management.deletePending": "删除中…",
     "management.deleteConfirm": "确定删除运行 “{name}”？此操作不可撤销。",
+    "management.errorPrefix": "管理操作失败：{message}",
 
     "runTable.name": "名称",
     "runTable.model": "模型",
@@ -346,6 +347,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "management.delete": "Delete",
     "management.deletePending": "Deleting…",
     "management.deleteConfirm": "Delete run \"{name}\"? This cannot be undone.",
+    "management.errorPrefix": "Management action failed: {message}",
 
     "runTable.name": "Name",
     "runTable.model": "Model",

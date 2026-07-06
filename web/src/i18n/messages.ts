@@ -215,6 +215,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "artifact.summary": "summary",
 
     "reports.skepticTitle": "质疑报告",
+    "rawJson.show": "查看原始 JSON",
     "reports.noSkeptic": "没有可用的质疑报告。",
     "reports.skepticSummary": {
       one: "{claims} 条声明中有 {count} 个问题",
@@ -515,6 +516,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "artifact.summary": "summary",
 
     "reports.skepticTitle": "Skeptic Report",
+    "rawJson.show": "Show raw JSON",
     "reports.noSkeptic": "No skeptic report available.",
     "reports.skepticSummary": {
       one: "{count} issue across {claims} claims",

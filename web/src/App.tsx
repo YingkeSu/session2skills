@@ -731,10 +731,10 @@ function RunDetailPreview({
                 : t("management.delete")}
             </button>
           </div>
-          {management.errorMessage && (
+          {management?.errorMessage && (
             <p className="runs-management-error" role="alert">
               {t("management.errorPrefix", {
-                message: management.errorMessage,
+                message: management?.errorMessage,
               })}
             </p>
           )}

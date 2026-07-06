@@ -5,6 +5,13 @@ import {
   type GenerationProgress,
   type RunSummary,
 } from "./runs.js";
+import {
+  DEFAULT_RUN_FILTERS,
+  distinctModels,
+  filterRuns,
+  type RunFilterState,
+  type VerifierFilter,
+} from "./lib/run-filters.js";
 import type { SessionSelection } from "./components/SessionBrowser.js";
 import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery, useUpdateRunMetaMutation, useDeleteRunMutation } from "./hooks/useQueries.js";
 import { DocsPage } from "./components/DocsPage.js";
@@ -339,10 +346,17 @@ export function RunsDashboard({
   // Group filter is client-side only: it narrows the visible rows without
   // touching the query. "" = all groups, UNGROUPED_FILTER = no group.
   const [groupFilter, setGroupFilter] = useState<string>("");
+  // Text + structured filters compose after the group filter. Pure logic
+  // lives in lib/run-filters.ts so it is unit-tested independently.
+  const [runFilters, setRunFilters] = useState<RunFilterState>(
+    DEFAULT_RUN_FILTERS,
+  );
 
   const groups = deriveGroups(runs);
   const hasUngrouped = runs.some((run) => !run.group);
   const visibleRuns = filterRunsByGroup(runs, groupFilter);
+  const models = distinctModels(runs);
+  const filteredRuns = filterRuns(visibleRuns, runFilters);
 
   useEffect(() => {
     if (!groupFilter) return;
@@ -364,8 +378,10 @@ export function RunsDashboard({
   // preview wins, otherwise the first run is the default selection so the
   // cockpit opens with a concrete run in focus instead of an empty pane.
   const selectedRun = previewedRun
-    ? runs.find((run) => run.name === previewedRun) ?? runs[0] ?? null
-    : runs[0] ?? null;
+    ? filteredRuns.find((run) => run.name === previewedRun) ??
+      filteredRuns[0] ??
+      null
+    : filteredRuns[0] ?? null;
   const activeName = selectedRun?.name ?? null;
 
   return (
@@ -408,7 +424,7 @@ export function RunsDashboard({
               <p>{t("dashboard.runsHelp")}</p>
             </div>
             <span className="runs-count">
-              {t("dashboard.runCount", { count: visibleRuns.length })}
+              {t("dashboard.runCount", { count: filteredRuns.length })}
             </span>
           </div>
 
@@ -439,6 +455,85 @@ export function RunsDashboard({
                 ))}
               </select>
             </label>
+            <label className="runs-toolbar-field">
+              <span>{t("management.search")}</span>
+              <input
+                type="search"
+                className="s2s-input runs-search-input"
+                aria-label={t("management.search")}
+                data-testid="runs-search-input"
+                placeholder={t("management.searchPlaceholder")}
+                value={runFilters.search}
+                onChange={(event) =>
+                  setRunFilters({
+                    ...runFilters,
+                    search: event.currentTarget.value,
+                  })
+                }
+              />
+            </label>
+            <label className="runs-toolbar-field">
+              <span>{t("management.verifierFilter")}</span>
+              <select
+                className="s2s-select runs-filter-select"
+                aria-label={t("management.verifierFilter")}
+                data-testid="runs-verifier-filter"
+                value={runFilters.verifier}
+                onChange={(event) =>
+                  setRunFilters({
+                    ...runFilters,
+                    verifier: event.currentTarget.value as VerifierFilter,
+                  })
+                }
+              >
+                <option value="all">{t("management.verifierAll")}</option>
+                <option value="pass">{t("management.verifierPass")}</option>
+                <option value="fail">{t("management.verifierFail")}</option>
+              </select>
+            </label>
+            <label className="runs-toolbar-field">
+              <span>{t("management.modelFilter")}</span>
+              <select
+                className="s2s-select runs-filter-select"
+                aria-label={t("management.modelFilter")}
+                data-testid="runs-model-filter"
+                value={runFilters.model}
+                onChange={(event) =>
+                  setRunFilters({
+                    ...runFilters,
+                    model: event.currentTarget.value,
+                  })
+                }
+              >
+                <option value="">{t("management.modelAll")}</option>
+                {models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="runs-toolbar-field">
+              <span>{t("management.maxScore")}</span>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                className="s2s-input runs-filter-select"
+                aria-label={t("management.maxScore")}
+                data-testid="runs-max-score-filter"
+                placeholder={t("management.maxScorePlaceholder")}
+                value={runFilters.maxSkepticScore ?? ""}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setRunFilters({
+                    ...runFilters,
+                    maxSkepticScore: value === "" ? null : Number(value),
+                  });
+                }}
+              />
+            </label>
             <label className="runs-toolbar-check">
               <input
                 type="checkbox"
@@ -454,7 +549,7 @@ export function RunsDashboard({
 
           <div className="run-list-wrap">
             <ul className="run-list" aria-label={t("dashboard.runsList")}>
-              {visibleRuns.map((run) => {
+              {filteredRuns.map((run) => {
                 const isActive = activeName === run.name;
                 return (
                   <li key={run.name} className="run-list-row-item">
@@ -731,10 +826,10 @@ function RunDetailPreview({
                 : t("management.delete")}
             </button>
           </div>
-          {management.errorMessage && (
+          {management?.errorMessage && (
             <p className="runs-management-error" role="alert">
               {t("management.errorPrefix", {
-                message: management.errorMessage,
+                message: management?.errorMessage,
               })}
             </p>
           )}

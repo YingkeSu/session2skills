@@ -39,6 +39,11 @@ Read before editing:
 - Keep desktop Electron compatibility in mind.
 - Preserve i18n keys or update both locales when text changes.
 - Do not commit generated runtime output.
+- Default to diff-only worker mode: do not run `git commit`, `git merge`,
+  `git switch`, `git reset`, or `git push` unless Codex explicitly authorizes
+  branch-commit mode for this task.
+- If Codex copied missing context files into this worktree only for dispatch,
+  do not include those files in the slice diff.
 
 ## Verification
 
@@ -54,6 +59,15 @@ touches shared behavior, run:
 ```bash
 npm run test:unit
 ```
+
+If `npm run test:unit` enters real e2e files or stalls because the local script
+does not exclude them, stop it and run:
+
+```bash
+rg --files tests web/src -g '*.test.ts' -g '*.test.tsx' -g '!tests/e2e/**' | xargs npx vitest run
+```
+
+Record the substitution and reason in `verification.txt`.
 
 ## Completion Report
 

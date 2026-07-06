@@ -2,6 +2,7 @@ import type { LLMTraceSummary } from "../runs.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 import { VirtualList } from "./VirtualList.js";
+import { RawJsonDrawer } from "./RawJsonDrawer.js";
 
 type PreviewTracesTabProps = {
   skillMarkdown: string | null;
@@ -401,6 +402,7 @@ export function PreviewTracesTab({
                           summary.requestPromptName}
                       </div>
                     )}
+                    <RawJsonDrawer value={trace} testId="raw-trace" />
                   </div>
                 </details>
               );

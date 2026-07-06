@@ -1,5 +1,6 @@
 import type { SkepticReport, VerifierReport } from "../runs.js";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { RawJsonDrawer } from "./RawJsonDrawer.js";
 
 type ReportsTabProps = {
   skepticReport: SkepticReport | null;
@@ -40,11 +41,14 @@ export function ReportsTab({
         <div className="s2s-panel-head">
           <h3 className="s2s-panel-title">{t("reports.skepticTitle")}</h3>
           {hasSkeptic && (
-            <span
-              className={`s2s-badge ${scoreBadgeClass(skepticReport.overallScore)}`}
-            >
-              {(skepticReport.overallScore * 100).toFixed(0)}%
-            </span>
+            <>
+              <span
+                className={`s2s-badge ${scoreBadgeClass(skepticReport.overallScore)}`}
+              >
+                {(skepticReport.overallScore * 100).toFixed(0)}%
+              </span>
+              <RawJsonDrawer value={skepticReport} testId="raw-skeptic-report" />
+            </>
           )}
         </div>
 
@@ -103,13 +107,16 @@ export function ReportsTab({
         <div className="s2s-panel-head">
           <h3 className="s2s-panel-title">{t("reports.verifierTitle")}</h3>
           {hasVerifier && (
-            <span
-              className={`s2s-badge ${
-                verifierReport.pass ? "s2s-badge-success" : "s2s-badge-danger"
-              }`}
-            >
-              {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
-            </span>
+            <>
+              <span
+                className={`s2s-badge ${
+                  verifierReport.pass ? "s2s-badge-success" : "s2s-badge-danger"
+                }`}
+              >
+                {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
+              </span>
+              <RawJsonDrawer value={verifierReport} testId="raw-verifier-report" />
+            </>
           )}
         </div>
 

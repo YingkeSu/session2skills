@@ -2147,3 +2147,33 @@ body {
   font-size: var(--text-sm);
   margin: 0;
 }
+
+/* Raw JSON viewer (RawJsonDrawer): dependency-free syntax highlighting via
+   lib/json-highlight.ts. Neutral surface; keys/values share the status-color
+   tokens so highlighting reads on light and dark. */
+.raw-json-toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+.raw-json-pre {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.json-key { color: var(--accent-ink); }
+.json-string { color: var(--success-ink); }
+.json-number { color: var(--warning-ink); }
+.json-boolean { color: var(--danger-ink); }
+.json-null { color: var(--ink-muted); }
+.json-punct { color: var(--ink-2); }

@@ -116,4 +116,55 @@ describe("RunsDashboard master-detail layout", () => {
     const alphaButton = screen.getByRole("button", { name: /alpha/ });
     expect(alphaButton.tagName).toBe("BUTTON");
   });
+
+  it("narrows the run list by search text across name and model", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1" }),
+      makeRun({ name: "beta", model: "claude-sonnet" }),
+      makeRun({ name: "gamma", model: "gpt-4.1" }),
+    ]);
+
+    const list = () => document.querySelector(".run-list")!;
+    expect(list().textContent).toContain("alpha");
+    expect(list().textContent).toContain("beta");
+
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "bet" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+    expect(list().textContent).not.toContain("gamma");
+
+    // Search also matches model strings.
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "claude" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+  });
+
+  it("narrows the run list by verifier pass/fail and by model", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1", verifierPassed: true }),
+      makeRun({ name: "beta", model: "claude", verifierPassed: false }),
+    ]);
+
+    const list = () => document.querySelector(".run-list")!;
+
+    fireEvent.change(screen.getByTestId("runs-verifier-filter"), {
+      target: { value: "fail" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+
+    // Reset verifier, then filter by model.
+    fireEvent.change(screen.getByTestId("runs-verifier-filter"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByTestId("runs-model-filter"), {
+      target: { value: "claude" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+  });
 });

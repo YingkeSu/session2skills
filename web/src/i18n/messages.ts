@@ -57,6 +57,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "audit.claims": "声明",
     "audit.noClaims": "未提取到声明。",
     "audit.confidence": "置信度",
+    "audit.confidenceTooltip": "依据 {refs} 条证据",
     "audit.claimCount": {
       one: "{count} 条声明",
       other: "{count} 条声明",
@@ -285,6 +286,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "audit.claims": "Claims",
     "audit.noClaims": "No claims extracted.",
     "audit.confidence": "confidence",
+    "audit.confidenceTooltip": "Backed by {refs} evidence ref(s)",
     "audit.claimCount": {
       one: "{count} claim",
       other: "{count} claims",

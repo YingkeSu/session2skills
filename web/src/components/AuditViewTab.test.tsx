@@ -141,6 +141,72 @@ describe("AuditViewTab", () => {
     expect(await screenText("42%")).toBeTruthy();
   });
 
+  it("colors confidence meters by tier and exposes an evidence-count tooltip", async () => {
+    renderAuditTab(
+      {
+        schemaVersion: "claim-manifest/v1",
+        evidenceSummary: "Summary",
+        dimensionsCovered: ["behavior"],
+        claims: [
+          {
+            id: "c-high",
+            dimension: "behavior",
+            label: "High claim",
+            confidence: 0.9,
+            rationale: "r",
+            evidenceRefs: ["e1", "e2"],
+          },
+          {
+            id: "c-medium",
+            dimension: "behavior",
+            label: "Medium claim",
+            confidence: 0.6,
+            rationale: "r",
+            evidenceRefs: ["e1"],
+          },
+          {
+            id: "c-low",
+            dimension: "behavior",
+            label: "Low claim",
+            confidence: 0.3,
+            rationale: "r",
+            evidenceRefs: [],
+          },
+        ],
+        metadata: {
+          generatedAt: "2026-06-18T00:00:00Z",
+          sessionCount: 1,
+          totalEvidenceItems: 2,
+        },
+        evidence: [
+          { evidenceID: "e1", sourceType: "message", excerpt: "x" },
+          { evidenceID: "e2", sourceType: "message", excerpt: "y" },
+        ],
+      },
+      null,
+      null,
+    );
+
+    await screenText("High claim");
+
+    const fills = document.body.querySelectorAll<HTMLElement>(
+      "[class*='s2s-meter-fill-']",
+    );
+    const tierClasses = new Set(Array.from(fills).map((el) => el.className));
+    expect(tierClasses.has("s2s-meter-fill s2s-meter-fill-high")).toBe(true);
+    expect(tierClasses.has("s2s-meter-fill s2s-meter-fill-medium")).toBe(true);
+    expect(tierClasses.has("s2s-meter-fill s2s-meter-fill-low")).toBe(true);
+
+    // The high-confidence claim (2 evidence refs) surfaces the count via title.
+    const badges = document.body.querySelectorAll<HTMLElement>(
+      "[data-testid='claim-confidence-badge']",
+    );
+    const highBadge = Array.from(badges).find((b) =>
+      b.textContent?.includes("90%"),
+    );
+    expect(highBadge?.getAttribute("title") ?? "").toContain("2");
+  });
+
   it("virtualizes the evidence excerpt list so a large manifest does not bloat the DOM", async () => {
     const manyEvidence = Array.from({ length: 500 }, (_, i) => ({
       evidenceID: `ev-${i}`,

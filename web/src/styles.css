@@ -794,6 +794,24 @@ body {
   background: var(--warning);
 }
 
+/* Confidence meter fill: tier-colored so a weak claim reads red at a glance
+   without a separate legend. Tiers come from lib/confidence.ts (>=0.8 / 0.5–0.8 / <0.5). */
+.s2s-meter-fill {
+  height: 100%;
+}
+
+.s2s-meter-fill-high {
+  background: var(--success);
+}
+
+.s2s-meter-fill-medium {
+  background: var(--warning);
+}
+
+.s2s-meter-fill-low {
+  background: var(--danger);
+}
+
 .issue-pill {
   color: var(--ink-on-fill);
   background: var(--cat-gray);

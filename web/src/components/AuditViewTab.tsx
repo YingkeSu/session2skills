@@ -8,6 +8,7 @@ import { EvidencePanel } from "./EvidencePanel.js";
 import { VirtualList } from "./VirtualList.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { confidenceTier } from "../lib/confidence.js";
 
 type AuditViewTabProps = {
   manifest: ClaimManifest;
@@ -172,6 +173,7 @@ export function AuditViewTab({
                   {claims.map((claim) => {
                     const trustStatus = trustMap.get(claim.id);
                     const issueCount = skepticMap.get(claim.id) ?? 0;
+                    const tier = confidenceTier(claim.confidence);
                     return (
                       <div
                         key={claim.id}
@@ -192,7 +194,13 @@ export function AuditViewTab({
                           <strong style={{ fontSize: "14px" }}>
                             {claim.label}
                           </strong>
-                          <span style={confidenceBadgeStyle}>
+                          <span
+                            data-testid="claim-confidence-badge"
+                            title={t("audit.confidenceTooltip", {
+                              refs: claim.evidenceRefs.length,
+                            })}
+                            style={confidenceBadgeStyle}
+                          >
                             {Math.round(claim.confidence * 100)}%
                           </span>
                           {trustStatus && (
@@ -245,10 +253,9 @@ export function AuditViewTab({
                             }}
                           >
                             <div
+                              className={`s2s-meter-fill s2s-meter-fill-${tier}`}
                               style={{
-                                height: "100%",
                                 width: `${Math.round(claim.confidence * 100)}%`,
-                                background: "var(--accent)",
                               }}
                               />
                             </div>

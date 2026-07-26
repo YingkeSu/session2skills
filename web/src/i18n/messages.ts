@@ -6,9 +6,9 @@ export type MessageDictionary = Record<string, MessageValue>;
 
 export const messages: Record<Locale, MessageDictionary> = {
   zh: {
-    "app.title": "测试运行记录",
-    "app.kicker": "session2skills cockpit",
-    "app.subtitle": "审计、预览并生成证据驱动的 agent 技能。",
+    "app.title": "证据审计工作台",
+    "app.kicker": "session2skills",
+    "app.subtitle": "追溯每一条声明，确认每一份技能值得信任。",
     "app.newRun": "新建运行",
     "app.loading": "正在加载运行记录…",
     "app.errorPrefix": "错误: {message}",
@@ -23,13 +23,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "dashboard.runsList": "运行列表",
     "dashboard.runsHelp": "选择一条运行记录查看审计、报告和预览。",
     "dashboard.runDetail": "运行详情",
+    "dashboard.openAudit": "打开审计",
     "dashboard.detailEmpty": "从左侧列表选择一条运行记录，在此处查看详情。",
+    "dashboard.noRunsTitle": "还没有运行记录",
+    "dashboard.noRunsHelp": "使用“新建运行”从本地会话创建第一份审计。",
+    "dashboard.noMatchesTitle": "没有匹配当前条件的运行",
+    "dashboard.noMatchesHelp": "调整搜索或筛选条件后重试。",
     "dashboard.runCount": {
       one: "{count} 条运行",
       other: "{count} 条运行",
     },
 
     "management.toolbarLabel": "运行管理",
+    "management.filters": "筛选",
     "management.groupFilter": "分组筛选",
     "management.groupAll": "全部分组",
     "management.ungrouped": "未分组",
@@ -72,6 +78,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "badge.fail": "失败",
 
     "detail.back": "← 返回运行列表",
+    "detail.context": "运行审计",
     "detail.loading": "正在加载运行详情…",
     "detail.errorPrefix": "加载运行详情出错: {message}",
     "detail.evaluateTitle": "技能评估",
@@ -318,9 +325,9 @@ export const messages: Record<Locale, MessageDictionary> = {
     "docs.links": "相关链接",
   },
   en: {
-    "app.title": "Harness Runs",
-    "app.kicker": "session2skills cockpit",
-    "app.subtitle": "Review, preview, and generate evidence-grounded agent skills.",
+    "app.title": "Evidence audit workspace",
+    "app.kicker": "session2skills",
+    "app.subtitle": "Trace every claim and verify every skill before you trust it.",
     "app.newRun": "New Run",
     "app.loading": "Loading runs…",
     "app.errorPrefix": "Error: {message}",
@@ -335,13 +342,19 @@ export const messages: Record<Locale, MessageDictionary> = {
     "dashboard.runsList": "Runs list",
     "dashboard.runsHelp": "Select a run to inspect audit data, reports, and preview output.",
     "dashboard.runDetail": "Run detail",
+    "dashboard.openAudit": "Open audit",
     "dashboard.detailEmpty": "Select a run from the list to see its detail here.",
+    "dashboard.noRunsTitle": "No runs yet",
+    "dashboard.noRunsHelp": "Use New Run to create the first audit from a local session.",
+    "dashboard.noMatchesTitle": "No runs match these filters",
+    "dashboard.noMatchesHelp": "Adjust the search or filter criteria and try again.",
     "dashboard.runCount": {
       one: "{count} run",
       other: "{count} runs",
     },
 
     "management.toolbarLabel": "Run management",
+    "management.filters": "Filters",
     "management.groupFilter": "Group filter",
     "management.groupAll": "All groups",
     "management.ungrouped": "Ungrouped",
@@ -384,6 +397,7 @@ export const messages: Record<Locale, MessageDictionary> = {
     "badge.fail": "FAIL",
 
     "detail.back": "← Back to runs",
+    "detail.context": "Run audit",
     "detail.loading": "Loading run details…",
     "detail.errorPrefix": "Error loading run: {message}",
     "detail.evaluateTitle": "Skill Evaluation",

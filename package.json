@@ -41,7 +41,7 @@
     "start": "node dist/cli/main.js",
     "pretest": "npm run build",
     "test": "vitest run",
-    "test:unit": "vitest run --exclude tests/e2e/** --exclude .claude/**",
+    "test:unit": "vitest run --exclude 'tests/e2e/**' --exclude '.claude/**'",
     "pretest:e2e": "npm run build",
     "test:e2e": "vitest run tests/e2e/",
     "test:e2e:web": "vitest run tests/e2e/serve.test.ts tests/e2e/web-flow.test.ts",

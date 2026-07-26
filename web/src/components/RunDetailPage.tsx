@@ -240,25 +240,25 @@ export function DetailShell({
   );
 
   return (
-    <div style={shellStyle}>
-      <div style={headerRowStyle}>
-        <button type="button" onClick={onBack} style={backButtonStyle}>
+    <div className="detail-shell">
+      <div className="detail-utility-row">
+        <button type="button" onClick={onBack} className="s2s-btn detail-back">
           {t("detail.back")}
         </button>
         <LanguageToggle />
       </div>
 
-      <header style={headerStyle}>
-        <div style={titleClusterStyle}>
-          <p style={eyebrowStyle}>{t("app.title")}</p>
-          <h1 style={titleStyle}>{runName}</h1>
+      <header className="detail-header">
+        <div className="detail-title-cluster">
+          <p className="detail-context">{t("detail.context")}</p>
+          <h1>{runName}</h1>
         </div>
         {reportStatus && (
-          <div style={statusClusterStyle}>
-            <span style={statusPillStyle(reportStatus.pass ? "pass" : "fail")}>
+          <div className="detail-status-cluster">
+            <span className={`status-badge ${reportStatus.pass ? "pass" : "fail"}`}>
               {reportStatus.pass ? t("badge.pass") : t("badge.fail")}
             </span>
-            <span style={statusMetaStyle}>{reportStatus.summary}</span>
+            <span className="detail-status-meta">{reportStatus.summary}</span>
           </div>
         )}
       </header>
@@ -268,7 +268,7 @@ export function DetailShell({
         onStageSelect={(stage) => onTabChange(stageToTab(stage))}
       />
 
-      <nav aria-label={t("app.title")} role="tablist" style={tabsStyle}>
+      <nav aria-label={t("app.title")} role="tablist" className="detail-tabs">
         {tabs.map((tab) => {
           const selected = activeTab === tab.id;
           return (
@@ -283,7 +283,7 @@ export function DetailShell({
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
               onKeyDown={handleTabKeyDown}
-              style={tabButtonStyle(selected)}
+              className={selected ? "detail-tab is-active" : "detail-tab"}
             >
               {tab.label}
             </button>
@@ -291,7 +291,7 @@ export function DetailShell({
         })}
       </nav>
 
-      <main style={contentStyle}>{children}</main>
+      <main className="detail-content">{children}</main>
     </div>
   );
 }
@@ -330,7 +330,7 @@ export function OverviewPanel({
 
   return (
     <div className="overview-panel">
-      <section className="s2s-card overview-quality" aria-label={t("overview.qualityTitle")}>
+      <section className="overview-audit" aria-label={t("overview.qualityTitle")}>
         <div className="overview-quality-grid">
           <div className="overview-readout">
             <span className="overview-readout-label">{t("overview.verdictLabel")}</span>
@@ -358,31 +358,33 @@ export function OverviewPanel({
             sessions: sessionCount,
           })}
         </p>
-      </section>
-
-      <section className="overview-metrics" aria-label={t("overview.metricsTitle")}>
-        <OverviewTile
-          testid="overview-metric-claims"
-          label={t("overview.metric.claims")}
-          value={claimCount}
-        />
-        <OverviewTile
-          testid="overview-metric-issues"
-          label={t("overview.metric.issues")}
-          value={issueCount}
-          tone={issueCount > 0 ? "warning" : "neutral"}
-        />
-        <OverviewTile
-          testid="overview-metric-fabricated"
-          label={t("overview.metric.fabricated")}
-          value={fabricated}
-          tone={fabricated > 0 ? "danger" : "neutral"}
-        />
-        <OverviewTile
-          testid="overview-metric-evidence"
-          label={t("overview.metric.evidence")}
-          value={evidenceItems}
-        />
+        <dl
+          className="overview-audit-summary"
+          data-testid="overview-audit-summary"
+        >
+          <OverviewTile
+            testid="overview-metric-claims"
+            label={t("overview.metric.claims")}
+            value={claimCount}
+          />
+          <OverviewTile
+            testid="overview-metric-issues"
+            label={t("overview.metric.issues")}
+            value={issueCount}
+            tone={issueCount > 0 ? "warning" : "neutral"}
+          />
+          <OverviewTile
+            testid="overview-metric-fabricated"
+            label={t("overview.metric.fabricated")}
+            value={fabricated}
+            tone={fabricated > 0 ? "danger" : "neutral"}
+          />
+          <OverviewTile
+            testid="overview-metric-evidence"
+            label={t("overview.metric.evidence")}
+            value={evidenceItems}
+          />
+        </dl>
       </section>
 
       <section className="s2s-card overview-next" aria-label={t("overview.nextTitle")}>
@@ -468,15 +470,15 @@ function EvaluateCard({
 }): JSX.Element {
   const { t } = useLocale();
   return (
-    <section style={evaluateCardStyle}>
-      <div style={evaluateHeaderStyle}>
-        <h3 style={evaluateTitleStyle}>{t("detail.evaluateTitle")}</h3>
+    <section className="s2s-card evaluate-card">
+      <div className="evaluate-card-header">
+        <h3>{t("detail.evaluateTitle")}</h3>
         <button
           type="button"
           data-testid="evaluate-button"
           onClick={onEvaluate}
           disabled={evaluationState.status === "pending"}
-          style={evaluateButtonStyle}
+          className="s2s-btn s2s-btn-primary"
         >
           {t("detail.evaluate")}
         </button>
@@ -490,7 +492,7 @@ function EvaluateCard({
         </ShellState>
       )}
       {evaluationState.status === "ready" && (
-        <div style={evaluateResultStyle}>
+        <div className="evaluate-card-result">
           <div>{t("detail.verdict")}: {evaluationState.evaluation.verdict}</div>
           <div>{t("detail.gates")}: {evaluationState.evaluation.gates.lint}/{evaluationState.evaluation.gates.redaction}/{evaluationState.evaluation.gates.grounding}</div>
         </div>
@@ -515,8 +517,8 @@ function OverviewTile({
       className={`overview-tile overview-tile-${tone}`}
       data-testid={testid}
     >
-      <span className="overview-tile-value">{value}</span>
-      <span className="overview-tile-label">{label}</span>
+      <dt className="overview-tile-label">{label}</dt>
+      <dd className="overview-tile-value">{value}</dd>
     </div>
   );
 }
@@ -682,12 +684,7 @@ function ShellState({
   tone?: "neutral" | "error";
 }): JSX.Element {
   return (
-    <div
-      style={{
-        ...shellStateStyle,
-        color: tone === "error" ? "var(--danger)" : "var(--ink-muted)",
-      }}
-    >
+    <div className={`detail-shell-state detail-shell-state-${tone}`}>
       {children}
     </div>
   );
@@ -704,158 +701,3 @@ const EMPTY_MANIFEST = {
     totalEvidenceItems: 0,
   },
 } satisfies NonNullable<RunDetail["claimManifest"]>;
-
-const shellStyle: React.CSSProperties = {
-  fontFamily: "var(--font-sans)",
-  padding: "var(--space-6)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-4)",
-};
-
-const headerRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--space-3)",
-};
-
-const backButtonStyle: React.CSSProperties = {
-  padding: "var(--space-2) var(--space-3)",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border-strong)",
-  background: "var(--surface)",
-  color: "var(--ink-2)",
-  cursor: "pointer",
-  fontSize: "var(--text-sm)",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: "var(--space-4)",
-  flexWrap: "wrap",
-};
-
-const titleClusterStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-1)",
-  minWidth: 0,
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-xs)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  fontWeight: 600,
-  color: "var(--ink-muted)",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-2xl)",
-  lineHeight: 1.2,
-  letterSpacing: "-0.01em",
-  wordBreak: "break-word",
-  color: "var(--ink)",
-};
-
-const statusClusterStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space-2)",
-  flexWrap: "wrap",
-  justifyContent: "flex-end",
-};
-
-const statusMetaStyle: React.CSSProperties = {
-  fontSize: "var(--text-sm)",
-  color: "var(--ink-2)",
-};
-
-function statusPillStyle(tone: "pass" | "fail"): React.CSSProperties {
-  return {
-    padding: "var(--space-1) var(--space-3)",
-    borderRadius: "var(--radius-pill)",
-    fontSize: "var(--text-sm)",
-    fontWeight: 600,
-    color: "var(--ink-on-fill)",
-    background: tone === "pass" ? "var(--success)" : "var(--danger)",
-  };
-}
-
-const tabsStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "var(--space-2)",
-  borderBottom: "1px solid var(--border)",
-};
-
-function tabButtonStyle(selected: boolean): React.CSSProperties {
-  return {
-    minWidth: "112px",
-    minHeight: "40px",
-    padding: "var(--space-2) var(--space-4)",
-    border: "none",
-    borderBottom: selected ? "2px solid var(--accent)" : "2px solid transparent",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: "var(--text-base)",
-    fontWeight: selected ? 600 : 400,
-    color: selected ? "var(--accent)" : "var(--ink-2)",
-    marginBottom: "-1px",
-  };
-}
-
-const contentStyle: React.CSSProperties = {
-  minHeight: "160px",
-};
-
-const shellStateStyle: React.CSSProperties = {
-  padding: "var(--space-8)",
-  textAlign: "center",
-};
-
-const evaluateCardStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-3)",
-};
-
-const evaluateHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--space-3)",
-};
-
-const evaluateTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-md)",
-  fontWeight: 700,
-  color: "var(--ink)",
-};
-
-const evaluateButtonStyle: React.CSSProperties = {
-  padding: "var(--space-2) var(--space-3)",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--accent)",
-  background: "var(--accent)",
-  color: "var(--ink-on-fill)",
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const evaluateResultStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-1)",
-  fontSize: "var(--text-sm)",
-  color: "var(--ink)",
-};

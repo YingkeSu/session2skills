@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RunsDashboard } from "../App.js";
 import { LocaleProvider } from "../i18n/LocaleContext.js";
@@ -60,6 +60,20 @@ function renderDashboard(runs: RunSummary[]): void {
 }
 
 describe("RunsDashboard master-detail layout", () => {
+  it("presents run health as one semantic audit summary", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", verifierPassed: true, skepticIssueCount: 1 }),
+      makeRun({ name: "beta", verifierPassed: false, skepticIssueCount: 2 }),
+    ]);
+
+    const summary = screen.getByTestId("audit-summary");
+    expect(summary.tagName).toBe("DL");
+    expect(summary.textContent).toContain("Total runs");
+    expect(summary.textContent).toContain("Verifier failures");
+    expect(summary.textContent).toContain("Total issues");
+    expect(summary.textContent).toContain("Avg skeptic score");
+  });
+
   it("renders the master list and selects the first run by default", () => {
     renderDashboard([makeRun({ name: "alpha" })]);
 
@@ -76,6 +90,22 @@ describe("RunsDashboard master-detail layout", () => {
       "alpha",
     );
     expect(screen.queryByTestId("run-detail-empty")).toBeNull();
+  });
+
+  it("opens the default-selected run from an explicit audit action", () => {
+    storage.set("session2skills-locale", "en");
+    const onSelect = vi.fn();
+    render(
+      <LocaleProvider>
+        <RunsDashboard
+          runs={[makeRun({ name: "alpha" })]}
+          onSelect={onSelect}
+        />
+      </LocaleProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open audit" }));
+    expect(onSelect).toHaveBeenCalledWith("alpha");
   });
 
   it("moves the selection when a different run row is chosen", () => {
@@ -141,6 +171,46 @@ describe("RunsDashboard master-detail layout", () => {
     });
     expect(list().textContent).not.toContain("alpha");
     expect(list().textContent).toContain("beta");
+  });
+
+  it("explains an empty run list and a filter with no matches", () => {
+    storage.set("session2skills-locale", "en");
+    const { unmount } = render(
+      <LocaleProvider>
+        <RunsDashboard runs={[]} onSelect={() => undefined} />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByTestId("run-list-empty").textContent).toContain(
+      "No runs yet",
+    );
+
+    unmount();
+    renderDashboard([makeRun({ name: "alpha" })]);
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "missing" },
+    });
+    expect(screen.getByTestId("run-list-empty").textContent).toContain(
+      "No runs match",
+    );
+  });
+
+  it("keeps search visible while advanced filters use an accessible disclosure", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1" }),
+      makeRun({ name: "beta", model: "claude-sonnet" }),
+    ]);
+
+    expect(screen.getByTestId("runs-search-input")).toBeTruthy();
+
+    const toggle = screen.getByTestId("runs-filter-toggle");
+    const filters = screen.getByTestId("runs-filter-panel");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(filters.hasAttribute("hidden")).toBe(true);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(filters.hasAttribute("hidden")).toBe(false);
   });
 
   it("narrows the run list by verifier pass/fail and by model", () => {

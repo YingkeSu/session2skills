@@ -192,6 +192,23 @@ describe("OverviewPanel", () => {
     expect(html).not.toContain("sessionID");
   });
 
+  it("groups trust metrics into one semantic audit summary", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider>
+        <OverviewPanel
+          detail={readyDetail}
+          evaluationState={{ status: "idle" }}
+          onEvaluate={() => undefined}
+          onNavigate={() => undefined}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain('<dl class="overview-audit-summary" data-testid="overview-audit-summary">');
+    expect(html).toContain('data-testid="overview-metric-claims"');
+    expect(html).toContain('data-testid="overview-metric-evidence"');
+  });
+
   it("navigates to the target tab on cue click and triggers evaluate for the evaluate cue", () => {
     const onNavigate = vi.fn();
     const onEvaluate = vi.fn();

@@ -351,6 +351,7 @@ export function RunsDashboard({
   const [runFilters, setRunFilters] = useState<RunFilterState>(
     DEFAULT_RUN_FILTERS,
   );
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const groups = deriveGroups(runs);
   const hasUngrouped = runs.some((run) => !run.group);
@@ -386,24 +387,28 @@ export function RunsDashboard({
 
   return (
     <main className="runs-dashboard" aria-label={t("dashboard.label")} data-testid="run-dashboard">
-      <section className="dashboard-summary" aria-label={t("dashboard.summary")}>
-        <MetricCard label={t("dashboard.totalRuns")} value={summary.totalRuns} />
-        <MetricCard
+      <dl
+        className="dashboard-summary"
+        aria-label={t("dashboard.summary")}
+        data-testid="audit-summary"
+      >
+        <SummaryStat label={t("dashboard.totalRuns")} value={summary.totalRuns} />
+        <SummaryStat
           label={t("dashboard.verifierFailures")}
           value={summary.verifierFailures}
           tone={summary.verifierFailures > 0 ? "danger" : "good"}
         />
-        <MetricCard
+        <SummaryStat
           label={t("dashboard.totalIssues")}
           value={summary.totalIssues}
           tone={summary.totalIssues > 0 ? "warning" : "good"}
         />
-        <MetricCard
+        <SummaryStat
           label={t("dashboard.averageSkepticScore")}
           value={summary.averageSkepticScore.toFixed(2)}
           tone={scoreTone(summary.averageSkepticScore)}
         />
-      </section>
+      </dl>
 
       {showGeneratePanel && (
         <GenerateRunPanel
@@ -434,117 +439,136 @@ export function RunsDashboard({
             aria-label={t("management.toolbarLabel")}
             data-testid="runs-management-toolbar"
           >
-            <label className="runs-toolbar-field">
-              <span>{t("management.groupFilter")}</span>
-              <select
-                className="s2s-select runs-filter-select"
-                aria-label={t("management.groupFilter")}
-                value={groupFilter}
-                onChange={(event) => setGroupFilter(event.currentTarget.value)}
+            <div className="runs-toolbar-primary">
+              <label className="runs-search-field">
+                <span className="s2s-visually-hidden">{t("management.search")}</span>
+                <input
+                  type="search"
+                  className="s2s-input runs-search-input"
+                  aria-label={t("management.search")}
+                  data-testid="runs-search-input"
+                  placeholder={t("management.searchPlaceholder")}
+                  value={runFilters.search}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      search: event.currentTarget.value,
+                    })
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-ghost runs-filter-toggle"
+                aria-expanded={filtersOpen}
+                aria-controls="runs-filter-panel"
+                data-testid="runs-filter-toggle"
+                onClick={() => setFiltersOpen((open) => !open)}
               >
-                <option value="">{t("management.groupAll")}</option>
-                {hasUngrouped && (
-                  <option value={UNGROUPED_FILTER}>
-                    {t("management.ungrouped")}
-                  </option>
-                )}
-                {groups.map((group) => (
-                  <option key={group} value={group}>
-                    {group}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="runs-toolbar-field">
-              <span>{t("management.search")}</span>
-              <input
-                type="search"
-                className="s2s-input runs-search-input"
-                aria-label={t("management.search")}
-                data-testid="runs-search-input"
-                placeholder={t("management.searchPlaceholder")}
-                value={runFilters.search}
-                onChange={(event) =>
-                  setRunFilters({
-                    ...runFilters,
-                    search: event.currentTarget.value,
-                  })
-                }
-              />
-            </label>
-            <label className="runs-toolbar-field">
-              <span>{t("management.verifierFilter")}</span>
-              <select
-                className="s2s-select runs-filter-select"
-                aria-label={t("management.verifierFilter")}
-                data-testid="runs-verifier-filter"
-                value={runFilters.verifier}
-                onChange={(event) =>
-                  setRunFilters({
-                    ...runFilters,
-                    verifier: event.currentTarget.value as VerifierFilter,
-                  })
-                }
-              >
-                <option value="all">{t("management.verifierAll")}</option>
-                <option value="pass">{t("management.verifierPass")}</option>
-                <option value="fail">{t("management.verifierFail")}</option>
-              </select>
-            </label>
-            <label className="runs-toolbar-field">
-              <span>{t("management.modelFilter")}</span>
-              <select
-                className="s2s-select runs-filter-select"
-                aria-label={t("management.modelFilter")}
-                data-testid="runs-model-filter"
-                value={runFilters.model}
-                onChange={(event) =>
-                  setRunFilters({
-                    ...runFilters,
-                    model: event.currentTarget.value,
-                  })
-                }
-              >
-                <option value="">{t("management.modelAll")}</option>
-                {models.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="runs-toolbar-field">
-              <span>{t("management.maxScore")}</span>
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.1"
-                className="s2s-input runs-filter-select"
-                aria-label={t("management.maxScore")}
-                data-testid="runs-max-score-filter"
-                placeholder={t("management.maxScorePlaceholder")}
-                value={runFilters.maxSkepticScore ?? ""}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  setRunFilters({
-                    ...runFilters,
-                    maxSkepticScore: value === "" ? null : Number(value),
-                  });
-                }}
-              />
-            </label>
-            <label className="runs-toolbar-check">
-              <input
-                type="checkbox"
-                className="s2s-checkbox"
-                checked={includeArchived}
-                onChange={(event) =>
-                  onIncludeArchivedChange?.(event.currentTarget.checked)
-                }
-              />
-              <span>{t("management.showArchived")}</span>
-            </label>
+                {t("management.filters")}
+              </button>
+            </div>
+            <div
+              id="runs-filter-panel"
+              className="runs-filter-panel"
+              data-testid="runs-filter-panel"
+              hidden={!filtersOpen}
+            >
+              <label className="runs-toolbar-field">
+                <span>{t("management.groupFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.groupFilter")}
+                  value={groupFilter}
+                  onChange={(event) => setGroupFilter(event.currentTarget.value)}
+                >
+                  <option value="">{t("management.groupAll")}</option>
+                  {hasUngrouped && (
+                    <option value={UNGROUPED_FILTER}>
+                      {t("management.ungrouped")}
+                    </option>
+                  )}
+                  {groups.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.verifierFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.verifierFilter")}
+                  data-testid="runs-verifier-filter"
+                  value={runFilters.verifier}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      verifier: event.currentTarget.value as VerifierFilter,
+                    })
+                  }
+                >
+                  <option value="all">{t("management.verifierAll")}</option>
+                  <option value="pass">{t("management.verifierPass")}</option>
+                  <option value="fail">{t("management.verifierFail")}</option>
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.modelFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.modelFilter")}
+                  data-testid="runs-model-filter"
+                  value={runFilters.model}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      model: event.currentTarget.value,
+                    })
+                  }
+                >
+                  <option value="">{t("management.modelAll")}</option>
+                  {models.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.maxScore")}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  className="s2s-input runs-filter-select"
+                  aria-label={t("management.maxScore")}
+                  data-testid="runs-max-score-filter"
+                  placeholder={t("management.maxScorePlaceholder")}
+                  value={runFilters.maxSkepticScore ?? ""}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setRunFilters({
+                      ...runFilters,
+                      maxSkepticScore: value === "" ? null : Number(value),
+                    });
+                  }}
+                />
+              </label>
+              <label className="runs-toolbar-check">
+                <input
+                  type="checkbox"
+                  className="s2s-checkbox"
+                  checked={includeArchived}
+                  onChange={(event) =>
+                    onIncludeArchivedChange?.(event.currentTarget.checked)
+                  }
+                />
+                <span>{t("management.showArchived")}</span>
+              </label>
+            </div>
           </div>
 
           <div className="run-list-wrap">
@@ -565,12 +589,12 @@ export function RunsDashboard({
                       aria-current={isActive ? "true" : undefined}
                       onClick={() => handleRowActivate(run.name)}
                     >
-                      <span
-                        className={`run-item-rail tone-${runQualityTone(run)}`}
-                        aria-hidden="true"
-                      />
                       <span className="run-item-body">
                         <span className="run-item-head">
+                          <span
+                            className={`run-item-signal tone-${runQualityTone(run)}`}
+                            aria-hidden="true"
+                          />
                           <span className="run-item-name" title={run.name}>
                             {run.name}
                           </span>
@@ -637,6 +661,24 @@ export function RunsDashboard({
                   </li>
                 );
               })}
+              {filteredRuns.length === 0 ? (
+                <li
+                  className="run-list-empty"
+                  data-testid="run-list-empty"
+                  role="status"
+                >
+                  <strong>
+                    {runs.length === 0
+                      ? t("dashboard.noRunsTitle")
+                      : t("dashboard.noMatchesTitle")}
+                  </strong>
+                  <span>
+                    {runs.length === 0
+                      ? t("dashboard.noRunsHelp")
+                      : t("dashboard.noMatchesHelp")}
+                  </span>
+                </li>
+              ) : null}
             </ul>
           </div>
         </section>
@@ -647,7 +689,11 @@ export function RunsDashboard({
           aria-label={t("dashboard.runDetail")}
         >
           {selectedRun ? (
-            <RunDetailPreview run={selectedRun} management={management} />
+            <RunDetailPreview
+              run={selectedRun}
+              management={management}
+              onOpen={() => onSelect(selectedRun.name)}
+            />
           ) : (
             <div className="runs-detail-empty" data-testid="run-detail-empty">
               {t("dashboard.detailEmpty")}
@@ -662,9 +708,11 @@ export function RunsDashboard({
 function RunDetailPreview({
   run,
   management,
+  onOpen,
 }: {
   run: RunSummary;
   management?: RunManagement;
+  onOpen: () => void;
 }): JSX.Element {
   const { t } = useLocale();
   const [groupDraft, setGroupDraft] = useState<string>(run.group ?? "");
@@ -697,7 +745,16 @@ function RunDetailPreview({
 
   return (
     <div data-testid="run-detail-selected">
-      <h3 className="runs-detail-selected-title">{run.name}</h3>
+      <div className="runs-detail-heading">
+        <h3 className="runs-detail-selected-title">{run.name}</h3>
+        <button
+          type="button"
+          className="s2s-btn s2s-btn-primary runs-detail-open"
+          onClick={onOpen}
+        >
+          {t("dashboard.openAudit")}
+        </button>
+      </div>
       <dl className="runs-detail-meta-grid">
         <div>
           <dt>{t("runTable.model")}</dt>
@@ -1327,7 +1384,7 @@ function Badge({ pass }: { pass: boolean }): JSX.Element {
   );
 }
 
-function MetricCard({
+function SummaryStat({
   label,
   value,
   tone = "neutral",
@@ -1337,9 +1394,9 @@ function MetricCard({
   tone?: "neutral" | "good" | "warning" | "danger";
 }): JSX.Element {
   return (
-    <div className={`metric-card metric-${tone}`}>
-      <div className="metric-value">{value}</div>
-      <div className="metric-label">{label}</div>
+    <div className={`summary-stat summary-stat-${tone}`}>
+      <dt className="summary-stat-label">{label}</dt>
+      <dd className="summary-stat-value">{value}</dd>
     </div>
   );
 }

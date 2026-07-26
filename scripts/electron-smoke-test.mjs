@@ -75,12 +75,12 @@ function killApp() {
 }
 
 // Extract port from stdout: "Electron server running at http://localhost:<port>"
-function extractPort(): number | null {
+function extractPort() {
   const match = stdout.match(/Electron server running at http:\/\/localhost:(\d+)/);
-  return match ? parseInt(match[1]!, 10) : null;
+  return match ? parseInt(match[1], 10) : null;
 }
 
-async function pollHealth(port: number): Promise<boolean> {
+async function pollHealth(port) {
   const deadline = Date.now() + HEALTH_TIMEOUT_MS;
   while (Date.now() < deadline) {
     try {
@@ -97,11 +97,11 @@ async function pollHealth(port: number): Promise<boolean> {
   return false;
 }
 
-async function run(): Promise<void> {
+async function run() {
   // Wait for the server to start and poll health
   const startTime = Date.now();
 
-  const portFound = await new Promise<boolean>((resolve) => {
+  const portFound = await new Promise((resolve) => {
     const checkInterval = setInterval(() => {
       const port = extractPort();
       if (port) {
@@ -121,7 +121,7 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 
-  const port = extractPort()!;
+  const port = extractPort();
   const healthy = await pollHealth(port);
 
   killApp();

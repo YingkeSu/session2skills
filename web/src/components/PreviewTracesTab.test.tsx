@@ -107,7 +107,8 @@ describe("PreviewTracesTab", () => {
     expect(await waitForText("<img src=x onerror=alert(1)>")).toBeTruthy();
     expect(await waitForText("<script>alert(1)</script>")).toBeTruthy();
     expect(await waitForText("Plain <strong>bold</strong>")).toBeTruthy();
-    const markdownBox = document.body.querySelector("section > div");
+    const markdownBox = document.body.querySelector(".s2s-prose");
+    expect(markdownBox).toBeTruthy();
     expect(markdownBox?.querySelector("img")).toBeNull();
     expect(markdownBox?.querySelector("script")).toBeNull();
     expect(markdownBox?.querySelector("strong")).toBeNull();
@@ -162,7 +163,7 @@ describe("PreviewTracesTab", () => {
     expect(document.body.textContent).not.toContain("line 498");
   });
 
-  it("virtualizes a large trace list so only a window is mounted", async () => {
+  it("stacks the trace list so expanded trace rows can grow without overlap", async () => {
     localStorage.setItem("session2skills-locale", "en");
     const container = document.createElement("div");
     document.body.append(container);
@@ -186,8 +187,12 @@ describe("PreviewTracesTab", () => {
     const scroller = document.body.querySelector('[data-testid="virtual-list"]');
     expect(scroller).toBeTruthy();
     const rendered = scroller!.querySelectorAll("[data-virtual-index]");
-    expect(rendered.length).toBeLessThan(60);
-    expect(document.body.textContent).not.toContain("model-399");
+    expect(rendered).toHaveLength(400);
+    expect((scroller as HTMLElement).style.minHeight).toBe("");
+    expect((scroller as HTMLElement).style.overflowY).toBe("visible");
+    expect((rendered[0] as HTMLElement).style.height).toBe("");
+    expect((rendered[0] as HTMLElement).style.minHeight).toBe("56px");
+    expect(document.body.textContent).toContain("model-399");
   });
 });
 

@@ -21,6 +21,25 @@ export type RunSummary = {
   skillAvailable?: boolean;
   summaryAvailable?: boolean;
   progressStage?: GenerationStage;
+  /**
+   * Skill management metadata. Mirrors the backend `RunSummary` extension:
+   * `group` is a free-form organizer label (null/undefined = ungrouped);
+   * `archived` hides the run from the default list. All fields optional so
+   * older runs (and the list endpoint's pre-management payload) still typecheck.
+   */
+  group?: string | null;
+  archived?: boolean;
+  archivedAt?: string | null;
+  updatedAt?: string;
+};
+
+/**
+ * Partial meta patch sent to `PATCH /api/runs/:name/meta`. `group: null`
+ * clears the group; `archived` toggles archive visibility.
+ */
+export type RunMetaPatch = {
+  group?: string | null;
+  archived?: boolean;
 };
 
 export type GenerateRunRequest = {
@@ -38,6 +57,26 @@ export type GenerateRunRequest = {
     maxChars?: number;
     maxItems?: number;
   };
+  /**
+   * Per-run LLM provider/model override. Mirrors the backend LlmRunConfig.
+   * Sensitive empty fields (e.g. an unset API key) are omitted by the caller.
+   */
+  llmConfig?: LlmRunConfig;
+};
+
+/**
+ * Serializable LLM selection forwarded to the server. Mirrors the backend
+ * `LlmRunConfig` contract in `src/llm/selection.ts`.
+ */
+export type LlmRunConfig = {
+  provider?: string;
+  baseUrl?: string;
+  model?: string;
+  modelVersion?: string;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  path?: string;
+  preferJsonObject?: boolean;
 };
 
 export type DiscoveredProject = {
@@ -192,10 +231,41 @@ export type RunDetail = {
   traces: Array<Record<string, unknown>>;
 };
 
-export async function fetchRuns(): Promise<RunSummary[]> {
-  const res = await fetch("/api/runs");
+export async function fetchRuns(includeArchived = false): Promise<RunSummary[]> {
+  // Archived runs are server-side excluded by default; opting into the
+  // archived view adds the query flag so the dashboard can show/hide them
+  // without client-side filtering.
+  const url = includeArchived ? "/api/runs?includeArchived=true" : "/api/runs";
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to fetch runs: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateRunMeta(
+  name: string,
+  patch: RunMetaPatch,
+): Promise<RunSummary> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(name)}/meta`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update run meta: ${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function deleteRun(
+  name: string,
+): Promise<{ deleted: boolean; name: string }> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete run: ${res.status} ${res.statusText}`);
   }
   return res.json();
 }

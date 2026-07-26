@@ -87,11 +87,13 @@ async function expectVisibleInViewport(
 async function runBrowserFlow(page: Page, baseUrl: string): Promise<void> {
   await page.goto(baseUrl);
   await page.getByRole("main", { name: "运行仪表盘" }).waitFor();
-  await page.getByText(seededRun.runName).click();
+  await page
+    .getByRole("button", { name: new RegExp(seededRun.runName) })
+    .click();
 
   await page.waitForURL(`**/?run=${seededRun.runName}`);
   await page.getByRole("heading", { name: seededRun.runName }).waitFor();
-  await page.getByRole("tab", { name: "审计视图" }).waitFor();
+  await page.getByRole("tab", { name: "声明与证据" }).click();
   await page.getByText("Clarify constraints before editing").waitFor();
 
   await page.getByRole("tab", { name: "报告" }).click();
@@ -105,7 +107,7 @@ async function runBrowserFlow(page: Page, baseUrl: string): Promise<void> {
   await page.getByText("42 tokens").waitFor();
 
   await page.getByRole("button", { name: "EN" }).click();
-  await page.getByRole("tab", { name: "Audit View" }).click();
+  await page.getByRole("tab", { name: "Claims & Evidence" }).click();
   await page.getByRole("heading", { name: "Evidence Summary" }).waitFor();
   await page.getByRole("button", { name: /ev-1/ }).click();
   await page
@@ -116,7 +118,9 @@ async function runBrowserFlow(page: Page, baseUrl: string): Promise<void> {
   await page.getByRole("button", { name: /Back to runs/ }).click();
   await page.waitForURL("**/");
   await page.getByRole("main", { name: "Runs dashboard" }).waitFor();
-  await page.getByText(seededRun.runName).waitFor();
+  await page
+    .getByRole("button", { name: new RegExp(seededRun.runName) })
+    .waitFor();
   await expectVisibleInViewport(page, "main");
 }
 

@@ -34,6 +34,7 @@ import { loadTemplateMarkdown, type TemplateName } from "../generate/templates.j
 import type { SkillType } from "../generate/skill-types.js";
 import type { TonePreset } from "../shared/cli.js";
 import type { SessionSelection } from "../sessions/load-specific-sessions.js";
+import type { LlmRunConfig } from "../llm/selection.js";
 
 /** Serializable subset of {@link GenerateSkillRunInput} that crosses the fork boundary. */
 export type WorkerInput = {
@@ -47,6 +48,12 @@ export type WorkerInput = {
   skillType?: SkillType;
   evidenceConfig?: EvidenceConfig;
   sessionSelections?: Array<SessionSelection>;
+  /**
+   * Per-run LLM selection. Carried over stdin so a forked worker does not fall
+   * back to unrelated `SESSION2SKILLS_LLM_*` env settings. Never persisted: the
+   * worker writes only {@link ProgressFile}, which omits this field.
+   */
+  llmConfig?: LlmRunConfig;
 };
 
 const STAGE_TO_GENERATION_STAGE: Record<HarnessStageName, GenerationStage> = {
@@ -108,6 +115,9 @@ export function parseWorkerInput(raw: string): WorkerInput {
     ...(Array.isArray(obj["sessionSelections"])
       ? { sessionSelections: obj["sessionSelections"] as Array<SessionSelection> }
       : {}),
+    ...(obj["llmConfig"] && typeof obj["llmConfig"] === "object" && !Array.isArray(obj["llmConfig"])
+      ? { llmConfig: obj["llmConfig"] as LlmRunConfig }
+      : {}),
   };
 }
 
@@ -150,6 +160,7 @@ export async function runWorkerJob(input: WorkerInput): Promise<void> {
     ...(input.sessionSelections !== undefined
       ? { sessionSelections: input.sessionSelections }
       : {}),
+    ...(input.llmConfig !== undefined ? { llmConfig: input.llmConfig } : {}),
     onStageComplete: (stage: HarnessStageName) => {
       // The harness flushes per-stage artifacts only at the very end of
       // `generateSkillRun`, so a checkpoint hash is usually not available at

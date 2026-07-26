@@ -36,7 +36,12 @@ export function ProviderPicker({
   const hasAvailabilityInfo = (adapters?.length ?? 0) > 0;
 
   return (
-    <div style={styles.container} role="radiogroup" aria-label="Adapter selector">
+    <div
+      className="s2s-seg"
+      role="radiogroup"
+      aria-label="Adapter selector"
+      style={{ marginBottom: "var(--space-3)" }}
+    >
       {options.map((option) => {
         const isActive = value === option.value;
         const isAvailable = !hasAvailabilityInfo || option.value === "all"
@@ -57,16 +62,12 @@ export function ProviderPicker({
                 ? `${option.label} not detected`
                 : undefined
             }
-            style={{
-              ...styles.button,
-              ...(isActive ? styles.buttonActive : styles.buttonInactive),
-              ...(isDisabled ? styles.buttonDisabled : {}),
-            }}
+            className="s2s-seg-btn"
             onClick={() => {
               if (!isDisabled) onChange(option.value);
             }}
           >
-            <span style={styles.icon}>{option.icon}</span>
+            <span className="s2s-seg-icon">{option.icon}</span>
             <span>{option.label}</span>
           </button>
         );
@@ -74,43 +75,3 @@ export function ProviderPicker({
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "var(--space-2)",
-    marginBottom: "var(--space-3)",
-  },
-  button: {
-    border: "1px solid var(--border-strong)",
-    borderRadius: "var(--radius)",
-    padding: "var(--space-2) var(--space-3)",
-    fontSize: "var(--text-sm)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "var(--space-2)",
-    background: "transparent",
-    color: "var(--ink-2)",
-    transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease",
-  },
-  buttonActive: {
-    background: "var(--accent)",
-    borderColor: "var(--accent)",
-    color: "var(--ink-on-fill)",
-  },
-  buttonInactive: {
-    background: "var(--surface)",
-    borderColor: "var(--border-strong)",
-    color: "var(--ink-2)",
-  },
-  buttonDisabled: {
-    opacity: 0.4,
-    cursor: "not-allowed",
-  },
-  icon: {
-    fontSize: "var(--text-base)",
-    lineHeight: 1,
-  },
-};

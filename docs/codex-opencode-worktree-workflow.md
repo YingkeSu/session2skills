@@ -140,13 +140,15 @@ Run this before every Git operation:
 git rev-parse --show-toplevel
 ```
 
-The output must equal:
+For Git operations in the main integration worktree, the output must equal:
 
 ```text
 /Users/suyingke/Programs/OHO/session2skills
 ```
 
-If it does not match, stop.
+For Git operations in a worker worktree, the output must equal the absolute
+`Worktree:` path declared in that worker's task packet. If the path does not
+match the operation you intend, stop.
 
 Additional rules:
 
@@ -159,6 +161,8 @@ Additional rules:
 - Merge worker branches one at a time.
 - Run verification after each merge into the integration branch.
 - Never let workers decide that the full project is complete. Workers only submit evidence.
+- If Codex copies missing context files into a worker worktree only to unblock
+  dispatch, remove those files from the worker diff before commit or merge.
 
 ## Directory Convention
 
@@ -280,6 +284,14 @@ Verify:
 git worktree list -v
 ```
 
+Also verify each worker path from inside the worker:
+
+```bash
+cd /Users/suyingke/Programs/OHO/session2skills-skill-intent
+git rev-parse --show-toplevel
+test "$(git rev-parse --show-toplevel)" = "/Users/suyingke/Programs/OHO/session2skills-skill-intent"
+```
+
 ### 4. Run OpenCode Workers
 
 Use `opencode run --dir <worktree> --format json` for automation-friendly output.
@@ -329,6 +341,13 @@ nohup opencode run \
 
 This keeps each worker's audit trail isolated inside its own worktree and avoids mixing logs from multiple workers.
 
+After launch, perform one startup health check within 30-60 seconds:
+
+- The event log exists and is non-empty.
+- The worker is still running or has written a completion/blocked report.
+- If the process exited with an empty log, treat dispatch as failed and retry
+  with a foreground command before waiting longer.
+
 ### 5. Worker Verification
 
 Each worker should run focused checks in its own worktree.
@@ -353,6 +372,7 @@ For each worker branch:
 
 ```bash
 cd <worker-worktree>
+git rev-parse --show-toplevel
 git status --short
 git diff --stat
 git diff
@@ -394,7 +414,36 @@ Run e2e only when needed and after build:
 npm run test:e2e
 ```
 
-### 8. Final Review
+If a nominal unit script unexpectedly enters real e2e files or stalls because a
+local exclude flag is ineffective, stop it and run an explicit non-e2e file
+list. For this repository:
+
+```bash
+rg --files tests web/src -g '*.test.ts' -g '*.test.tsx' -g '!tests/e2e/**' | xargs npx vitest run
+```
+
+Record the substitution in the final handoff.
+
+### 8. Fresh-Context Review and Fix Pass
+
+For broad implementation waves, dispatch a review-only worker after integration.
+Treat its report as a fix queue:
+
+- Fix or explicitly defer blocker and high findings before user handoff.
+- Keep medium and low findings as follow-up polish unless they affect the
+  acceptance gates.
+- Rerun focused checks and the affected acceptance gates after each fix pass.
+
+For frontend waves, save browser QA artifacts when available:
+
+```text
+.session2skills/worker-runs/<review-task>/screenshots/
+  1024.png
+  1280x800.png
+  1440x900.png
+```
+
+### 9. Final Review
 
 Before creating a PR or merging to main:
 
@@ -413,7 +462,7 @@ Codex prepares a final summary:
 - Verification commands and results.
 - Remaining risks.
 
-### 9. Cleanup
+### 10. Cleanup
 
 Only after changes are merged or intentionally abandoned:
 

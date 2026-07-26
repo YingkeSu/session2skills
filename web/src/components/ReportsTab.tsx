@@ -1,5 +1,6 @@
 import type { SkepticReport, VerifierReport } from "../runs.js";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { RawJsonDrawer } from "./RawJsonDrawer.js";
 
 type ReportsTabProps = {
   skepticReport: SkepticReport | null;
@@ -8,30 +9,23 @@ type ReportsTabProps = {
 
 import type { JSX } from "react";
 
-function scoreBadge(score: number): JSX.Element {
-  const color =
-    score >= 0.8 ? "var(--success)" : score >= 0.5 ? "var(--warning)" : "var(--danger)";
-  return (
-    <span
-      style={{
-        padding: "var(--space-1) var(--space-3)",
-        borderRadius: "var(--radius-pill)",
-        fontSize: "var(--text-sm)",
-        fontWeight: 600,
-        color: "var(--ink-on-fill)",
-        background: color,
-      }}
-    >
-      {(score * 100).toFixed(0)}%
-    </span>
-  );
+function scoreBadgeClass(score: number): string {
+  if (score >= 0.8) return "s2s-badge-success";
+  if (score >= 0.5) return "s2s-badge-warning";
+  return "s2s-badge-danger";
 }
 
-function severityColor(severity: "high" | "medium" | "low"): string {
-  if (severity === "high") return "var(--danger)";
-  if (severity === "medium") return "var(--warning)";
-  return "var(--accent)";
+function severityBadgeClass(severity: "high" | "medium" | "low"): string {
+  if (severity === "high") return "s2s-badge-danger";
+  if (severity === "medium") return "s2s-badge-warning";
+  return "s2s-badge-accent";
 }
+
+const trustBadge: Record<string, string> = {
+  verified: "s2s-badge-success",
+  unreferenced: "s2s-badge-warning",
+  fabricated: "s2s-badge-danger",
+};
 
 export function ReportsTab({
   skepticReport,
@@ -42,86 +36,63 @@ export function ReportsTab({
   const hasVerifier = verifierReport !== null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <section style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <h3 style={sectionTitleStyle}>{t("reports.skepticTitle")}</h3>
-          {hasSkeptic && scoreBadge(skepticReport.overallScore)}
+    <div className="s2s-stack">
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("reports.skepticTitle")}</h3>
+          {hasSkeptic && (
+            <>
+              <span
+                className={`s2s-badge ${scoreBadgeClass(skepticReport.overallScore)}`}
+              >
+                {(skepticReport.overallScore * 100).toFixed(0)}%
+              </span>
+              <RawJsonDrawer value={skepticReport} testId="raw-skeptic-report" />
+            </>
+          )}
         </div>
 
         {!hasSkeptic ? (
-          <p style={{ color: "var(--ink-muted)" }}>{t("reports.noSkeptic")}</p>
+          <p className="s2s-empty">{t("reports.noSkeptic")}</p>
         ) : (
           <>
-            <div style={summaryStyle}>
+            <p className="s2s-lede">
               {t("reports.skepticSummary", {
                 count: skepticReport.metadata.issueCount,
                 claims: skepticReport.metadata.claimCount,
               })}
-            </div>
+            </p>
             {skepticReport.issues.length === 0 ? (
-              <p style={{ color: "var(--success-ink)" }}>{t("reports.noIssues")}</p>
+              <p className="s2s-ok">{t("reports.noIssues")}</p>
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                }}
-              >
+              <div className="s2s-stack s2s-stack-tighter">
                 {skepticReport.issues.map((issue, idx) => (
                   <details
                     key={`${issue.claimId}-${issue.problemType}-${idx}`}
-                    style={issueCardStyle}
+                    className="s2s-tile s2s-disclosure"
                   >
-                    <summary
-                      style={{
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        listStyle: "none",
-                        justifyContent: "space-between",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
+                    <summary>
+                      <span className="s2s-tag-row">
                         <span
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            background: severityColor(issue.severity),
-                            color: "var(--ink-on-fill)",
-                          }}
+                          className={`s2s-badge s2s-badge-sm ${severityBadgeClass(
+                            issue.severity,
+                          )}`}
                         >
                           {tEnum("severity", issue.severity)}
                         </span>
-                        <strong style={{ fontSize: "13px" }}>
+                        <strong className="s2s-issue-title">
                           {issue.problemType}
                         </strong>
-                        <span style={metaChipStyle}>
+                        <span className="s2s-chip s2s-chip-muted">
                           {t("reports.claimLabel", { id: issue.claimId })}
                         </span>
                       </span>
                     </summary>
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        fontSize: "13px",
-                        lineHeight: 1.5,
-                        color: "var(--ink)",
-                      }}
-                    >
-                      <p style={{ margin: "0 0 6px" }}>{issue.detail}</p>
-                      <p style={{ margin: 0, color: "var(--ink-2)" }}>
-                        <strong>{t("reports.suggestion")}</strong> {issue.suggestion}
+                    <div className="s2s-disclosure-body">
+                      <p className="s2s-issue-detail">{issue.detail}</p>
+                      <p className="s2s-issue-suggestion">
+                        <strong>{t("reports.suggestion")}</strong>{" "}
+                        {issue.suggestion}
                       </p>
                     </div>
                   </details>
@@ -132,132 +103,86 @@ export function ReportsTab({
         )}
       </section>
 
-      <section style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <h3 style={sectionTitleStyle}>{t("reports.verifierTitle")}</h3>
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("reports.verifierTitle")}</h3>
           {hasVerifier && (
-            <span
-              style={{
-                padding: "4px 10px",
-                borderRadius: "999px",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--ink-on-fill)",
-                background: verifierReport.pass ? "var(--success)" : "var(--danger)",
-              }}
-            >
-              {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
-            </span>
+            <>
+              <span
+                className={`s2s-badge ${
+                  verifierReport.pass ? "s2s-badge-success" : "s2s-badge-danger"
+                }`}
+              >
+                {verifierReport.pass ? t("badge.pass") : t("badge.fail")}
+              </span>
+              <RawJsonDrawer value={verifierReport} testId="raw-verifier-report" />
+            </>
           )}
         </div>
 
         {!hasVerifier ? (
-          <p style={{ color: "var(--ink-muted)" }}>{t("reports.noVerifier")}</p>
+          <p className="s2s-empty">{t("reports.noVerifier")}</p>
         ) : (
           <>
-            <div style={summaryStyle}>
+            <p className="s2s-lede">
               {t("reports.verifierSummary", {
                 directives: verifierReport.metadata.directiveCount,
                 verified: verifierReport.metadata.verifiedCount,
                 fabricated: verifierReport.metadata.fabricatedCount,
               })}
-            </div>
+            </p>
 
             {verifierReport.issues.length > 0 && (
               <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                  marginBottom: "12px",
-                }}
+                className="s2s-stack s2s-stack-tighter"
+                style={{ marginBottom: "var(--space-3)" }}
               >
                 {verifierReport.issues.map((issue, idx) => (
                   <details
                     key={`verifier-issue-${idx}`}
-                    style={issueCardStyle}
+                    className="s2s-tile s2s-disclosure"
                   >
-                    <summary
-                      style={{
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        listStyle: "none",
-                        justifyContent: "space-between",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
+                    <summary>
+                      <span className="s2s-tag-row">
                         <span
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            background: severityColor(issue.severity),
-                            color: "var(--ink-on-fill)",
-                          }}
+                          className={`s2s-badge s2s-badge-sm ${severityBadgeClass(
+                            issue.severity,
+                          )}`}
                         >
                           {tEnum("severity", issue.severity)}
                         </span>
-                        <strong style={{ fontSize: "13px" }}>
+                        <strong className="s2s-issue-title">
                           {issue.location}
                         </strong>
                       </span>
                     </summary>
-                    <p
-                      style={{
-                        margin: "8px 0 0",
-                        fontSize: "13px",
-                        lineHeight: 1.5,
-                        color: "var(--ink)",
-                      }}
-                    >
-                      {issue.description}
-                    </p>
+                    <div className="s2s-disclosure-body">
+                      <p className="s2s-issue-detail">{issue.description}</p>
+                    </div>
                   </details>
                 ))}
               </div>
             )}
 
-            <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  borderCollapse: "collapse",
-                  width: "100%",
-                  fontSize: "13px",
-                }}
-              >
+            <div className="s2s-table-wrap">
+              <table className="s2s-table">
                 <thead>
                   <tr>
-                    <th style={thStyle}>{t("reports.directive")}</th>
-                    <th style={thStyle}>{t("reports.claim")}</th>
-                    <th style={thStyle}>{t("reports.status")}</th>
+                    <th>{t("reports.directive")}</th>
+                    <th>{t("reports.claim")}</th>
+                    <th>{t("reports.status")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {verifierReport.checkedItems.map((item, idx) => (
                     <tr key={`checked-${idx}`}>
-                      <td style={tdStyle}>{item.directive}</td>
-                      <td style={tdStyle}>
-                        {item.claimId ?? "—"}
-                      </td>
-                      <td style={tdStyle}>
+                      <td>{item.directive}</td>
+                      <td>{item.claimId ?? "—"}</td>
+                      <td>
                         <span
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "var(--ink-on-fill)",
-                            background:
-                              trustColors[item.status] ?? "var(--cat-gray)",
-                          }}
+                          className={`s2s-badge s2s-badge-sm ${
+                            trustBadge[item.status] ?? "s2s-badge-muted"
+                          }`}
                         >
                           {tEnum("status", item.status)}
                         </span>
@@ -273,73 +198,3 @@ export function ReportsTab({
     </div>
   );
 }
-
-const sectionStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-};
-
-const sectionHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--space-3)",
-  marginBottom: "var(--space-3)",
-  flexWrap: "wrap",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-md)",
-  fontWeight: 700,
-  color: "var(--ink)",
-};
-
-const summaryStyle: React.CSSProperties = {
-  fontSize: "var(--text-sm)",
-  color: "var(--ink-2)",
-  marginBottom: "var(--space-3)",
-  lineHeight: 1.5,
-};
-
-const issueCardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-soft)",
-  borderRadius: "var(--radius-sm)",
-  padding: "var(--space-3)",
-  background: "var(--surface)",
-};
-
-const metaChipStyle: React.CSSProperties = {
-  padding: "2px var(--space-2)",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--surface-3)",
-  color: "var(--ink-2)",
-  fontSize: "var(--text-xs)",
-  whiteSpace: "nowrap",
-};
-
-const trustColors: Record<string, string> = {
-  verified: "var(--success)",
-  unreferenced: "var(--warning)",
-  fabricated: "var(--danger)",
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  borderBottom: "2px solid var(--border)",
-  padding: "var(--space-2) var(--space-3)",
-  fontSize: "var(--text-xs)",
-  color: "var(--ink-muted)",
-  background: "var(--surface-2)",
-  fontWeight: 600,
-};
-
-const tdStyle: React.CSSProperties = {
-  borderBottom: "1px solid var(--border-soft)",
-  padding: "var(--space-2) var(--space-3)",
-  verticalAlign: "top",
-  fontSize: "var(--text-sm)",
-  color: "var(--ink-2)",
-};

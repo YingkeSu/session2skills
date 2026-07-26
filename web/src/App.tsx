@@ -5,8 +5,15 @@ import {
   type GenerationProgress,
   type RunSummary,
 } from "./runs.js";
+import {
+  DEFAULT_RUN_FILTERS,
+  distinctModels,
+  filterRuns,
+  type RunFilterState,
+  type VerifierFilter,
+} from "./lib/run-filters.js";
 import type { SessionSelection } from "./components/SessionBrowser.js";
-import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery } from "./hooks/useQueries.js";
+import { useRunsQuery, useGenerateMutation, useSessionsQuery, useGenerationProgress, useAdaptersQuery, useProjectsQuery, useUpdateRunMetaMutation, useDeleteRunMutation } from "./hooks/useQueries.js";
 import { DocsPage } from "./components/DocsPage.js";
 import { RunDetailPage } from "./components/RunDetailPage.js";
 import { ProviderPicker } from "./components/ProviderPicker.js";
@@ -16,6 +23,23 @@ import { LanguageToggle } from "./i18n/LanguageToggle.js";
 import { useLocale } from "./i18n/LocaleContext.js";
 import "./styles.css";
 
+/**
+ * Built-in OpenAI-compatible provider presets for the generate panel. Mirrors
+ * the backend `LLM_PROVIDER_PRESETS` in `src/llm/selection.ts`. The first entry
+ * (empty id) means "use the server's env-configured default". Presets only seed
+ * provider id + base URL; the model and API key are always user-supplied.
+ */
+const LLM_PRESETS = [
+  { id: "", label: "Server default", provider: "", baseUrl: "" },
+  { id: "openai", label: "OpenAI", provider: "openai", baseUrl: "https://api.openai.com/v1" },
+  { id: "openrouter", label: "OpenRouter", provider: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
+  { id: "deepseek", label: "DeepSeek", provider: "deepseek", baseUrl: "https://api.deepseek.com/v1" },
+  { id: "zhipuai", label: "ZhipuAI (GLM)", provider: "zhipuai", baseUrl: "https://open.bigmodel.cn/api/paas/v4" },
+  { id: "ollama", label: "Ollama", provider: "ollama", baseUrl: "http://localhost:11434/v1" },
+  { id: "litellm", label: "LiteLLM", provider: "litellm", baseUrl: "http://localhost:4000/v1" },
+  { id: "openai-compatible", label: "OpenAI-compatible (custom)", provider: "openai-compatible", baseUrl: "" },
+] as const;
+
 type GenerateState =
   | { status: "idle" }
   | { status: "pending" }
@@ -23,18 +47,47 @@ type GenerateState =
   | { status: "success"; runName: string }
   | { status: "error"; message: string };
 
+/**
+ * Select value for the "runs with no group" filter option. A sentinel string
+ * keeps the `<select>` value uniformly a string while still distinguishing
+ * "ungrouped" from "all groups" (the empty string).
+ */
+const UNGROUPED_FILTER = "__none__";
+
+/**
+ * Per-run management handlers wired in `App` (which owns the react-query
+ * mutations) and forwarded into `RunsDashboard` → `RunDetailPreview`. Kept as
+ * plain callbacks so `RunsDashboard` can render without a QueryClient (the
+ * static-markup tests mount it standalone).
+ */
+type RunManagement = {
+  onUpdateGroup: (name: string, group: string | null) => void | Promise<void>;
+  onToggleArchived: (name: string, archived: boolean) => void | Promise<void>;
+  onDelete: (name: string) => void | Promise<void>;
+  metaPending: boolean;
+  deletePending: boolean;
+  errorMessage: string | null;
+};
+
 export function App(): JSX.Element {
   const { t } = useLocale();
-  const { data: runs, isLoading, error: runsError } = useRunsQuery();
+  // Archive visibility is App-level state because it changes which endpoint
+  // variant the runs query hits (includeArchived=true), not just client filter.
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const { data: runs, isLoading, error: runsError } = useRunsQuery(includeArchived);
   const [selectedRun, setSelectedRun] = useState<string | null>(() =>
     getInitialSelectedRun(),
   );
   const [showDocs, setShowDocs] = useState(false);
+  const [showGeneratePanel, setShowGeneratePanel] = useState(false);
   const [generateSuccessName, setGenerateSuccessName] = useState<string | null>(null);
   const [generateErrorMessage, setGenerateErrorMessage] = useState<string | null>(null);
+  const [managementErrorMessage, setManagementErrorMessage] = useState<string | null>(null);
   const [runningRunName, setRunningRunName] = useState<string | null>(null);
 
   const generateMutation = useGenerateMutation();
+  const updateMetaMutation = useUpdateRunMetaMutation();
+  const deleteRunMutation = useDeleteRunMutation();
   const { data: progress } = useGenerationProgress(
     runningRunName,
     runningRunName !== null,
@@ -117,6 +170,61 @@ export function App(): JSX.Element {
     }
   };
 
+  const handleUpdateGroup = async (
+    name: string,
+    group: string | null,
+  ): Promise<void> => {
+    setManagementErrorMessage(null);
+    try {
+      await updateMetaMutation.mutateAsync({ name, patch: { group } });
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleToggleArchived = async (
+    name: string,
+    archived: boolean,
+  ): Promise<void> => {
+    setManagementErrorMessage(null);
+    try {
+      await updateMetaMutation.mutateAsync({ name, patch: { archived } });
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleDeleteRun = async (name: string): Promise<void> => {
+    // window.confirm gate per spec; guard for non-browser (ssr/static) renders.
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        t("management.deleteConfirm", { name }),
+      );
+      if (!confirmed) return;
+    }
+    setManagementErrorMessage(null);
+    try {
+      await deleteRunMutation.mutateAsync(name);
+    } catch (err: unknown) {
+      setManagementErrorMessage(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    // If the deep-linked run was removed, drop the URL selection so the list
+    // view is the landing surface again instead of a stale detail page.
+    if (selectedRun === name) {
+      closeRun();
+    }
+  };
+
+  const runManagement: RunManagement = {
+    onUpdateGroup: handleUpdateGroup,
+    onToggleArchived: handleToggleArchived,
+    onDelete: handleDeleteRun,
+    metaPending: updateMetaMutation.isPending,
+    deletePending: deleteRunMutation.isPending,
+    errorMessage: managementErrorMessage,
+  };
+
   if (showDocs) {
     return (
       <DocsPage onBack={() => setShowDocs(false)} />
@@ -148,18 +256,22 @@ export function App(): JSX.Element {
 
   const readyRuns = runs ?? [];
 
-  if (readyRuns.length === 0) {
-    return <Shell onShowDocs={() => setShowDocs(true)}>{t("app.noRuns")}</Shell>;
-  }
-
   return (
-    <Shell onShowDocs={() => setShowDocs(true)}>
+    <Shell
+      onShowDocs={() => setShowDocs(true)}
+      onNewRun={() => setShowGeneratePanel((visible) => !visible)}
+      newRunActive={showGeneratePanel}
+    >
       <RunsDashboard
         runs={readyRuns}
         generateState={generateState}
         progress={progress}
+        showGeneratePanel={showGeneratePanel}
         onGenerate={handleGenerate}
         onSelect={(name) => setSelectedRun(name)}
+        includeArchived={includeArchived}
+        onIncludeArchivedChange={setIncludeArchived}
+        management={runManagement}
       />
     </Shell>
   );
@@ -211,54 +323,100 @@ export function RunsDashboard({
   runs,
   generateState = { status: "idle" },
   progress,
+  showGeneratePanel = false,
   onGenerate = () => undefined,
   onSelect,
+  includeArchived = false,
+  onIncludeArchivedChange,
+  management,
 }: {
   runs: RunSummary[];
   generateState?: GenerateState;
   progress?: GenerationProgress | null;
+  showGeneratePanel?: boolean;
   onGenerate?: (request: GenerateRunRequest) => void | Promise<void>;
   onSelect: (name: string) => void;
+  includeArchived?: boolean;
+  onIncludeArchivedChange?: (includeArchived: boolean) => void;
+  management?: RunManagement;
 }): JSX.Element {
   const { t } = useLocale();
   const summary = summarizeRuns(runs);
   const [previewedRun, setPreviewedRun] = useState<string | null>(null);
+  // Group filter is client-side only: it narrows the visible rows without
+  // touching the query. "" = all groups, UNGROUPED_FILTER = no group.
+  const [groupFilter, setGroupFilter] = useState<string>("");
+  // Text + structured filters compose after the group filter. Pure logic
+  // lives in lib/run-filters.ts so it is unit-tested independently.
+  const [runFilters, setRunFilters] = useState<RunFilterState>(
+    DEFAULT_RUN_FILTERS,
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const groups = deriveGroups(runs);
+  const hasUngrouped = runs.some((run) => !run.group);
+  const visibleRuns = filterRunsByGroup(runs, groupFilter);
+  const models = distinctModels(runs);
+  const filteredRuns = filterRuns(visibleRuns, runFilters);
+
+  useEffect(() => {
+    if (!groupFilter) return;
+    if (groupFilter === UNGROUPED_FILTER) {
+      if (!hasUngrouped) setGroupFilter("");
+      return;
+    }
+    if (!groups.includes(groupFilter)) {
+      setGroupFilter("");
+    }
+  }, [groupFilter, groups, hasUngrouped]);
 
   const handleRowActivate = (name: string): void => {
     setPreviewedRun(name);
     onSelect(name);
   };
 
+  // A run is always selected when the list is non-empty: the explicit
+  // preview wins, otherwise the first run is the default selection so the
+  // cockpit opens with a concrete run in focus instead of an empty pane.
   const selectedRun = previewedRun
-    ? runs.find((run) => run.name === previewedRun) ?? null
-    : null;
+    ? filteredRuns.find((run) => run.name === previewedRun) ??
+      filteredRuns[0] ??
+      null
+    : filteredRuns[0] ?? null;
+  const activeName = selectedRun?.name ?? null;
 
   return (
     <main className="runs-dashboard" aria-label={t("dashboard.label")} data-testid="run-dashboard">
-      <section className="dashboard-summary" aria-label={t("dashboard.summary")}>
-        <MetricCard label={t("dashboard.totalRuns")} value={summary.totalRuns} />
-        <MetricCard
+      <dl
+        className="dashboard-summary"
+        aria-label={t("dashboard.summary")}
+        data-testid="audit-summary"
+      >
+        <SummaryStat label={t("dashboard.totalRuns")} value={summary.totalRuns} />
+        <SummaryStat
           label={t("dashboard.verifierFailures")}
           value={summary.verifierFailures}
           tone={summary.verifierFailures > 0 ? "danger" : "good"}
         />
-        <MetricCard
+        <SummaryStat
           label={t("dashboard.totalIssues")}
           value={summary.totalIssues}
           tone={summary.totalIssues > 0 ? "warning" : "good"}
         />
-        <MetricCard
+        <SummaryStat
           label={t("dashboard.averageSkepticScore")}
           value={summary.averageSkepticScore.toFixed(2)}
           tone={scoreTone(summary.averageSkepticScore)}
         />
-      </section>
+      </dl>
 
-      <GenerateRunPanel
-        generateState={generateState}
-        progress={progress}
-        onGenerate={onGenerate}
-      />
+      {showGeneratePanel && (
+        <GenerateRunPanel
+          generateState={generateState}
+          progress={progress}
+          onGenerate={onGenerate}
+        />
+      )}
 
       <div className="runs-master-detail">
         <section
@@ -271,75 +429,257 @@ export function RunsDashboard({
               <p>{t("dashboard.runsHelp")}</p>
             </div>
             <span className="runs-count">
-              {t("dashboard.runCount", { count: runs.length })}
+              {t("dashboard.runCount", { count: filteredRuns.length })}
             </span>
           </div>
 
-          <div className="runs-table-wrap">
-            <table className="runs-table">
-              <thead>
-                <tr>
-                  <th>{t("runTable.name")}</th>
-                  <th>{t("runTable.model")}</th>
-                  <th>{t("runTable.generatedAt")}</th>
-                  <th>{t("runTable.artifacts")}</th>
-                  <th>{t("runTable.verifier")}</th>
-                  <th>{t("runTable.claims")}</th>
-                  <th>{t("runTable.skepticScore")}</th>
-                  <th>{t("runTable.issues")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => {
-                  const isActive = selectedRun?.name === run.name;
-                  return (
-                    <tr
-                      key={run.name}
+          <div
+            className="runs-management-toolbar"
+            role="group"
+            aria-label={t("management.toolbarLabel")}
+            data-testid="runs-management-toolbar"
+          >
+            <div className="runs-toolbar-primary">
+              <label className="runs-search-field">
+                <span className="s2s-visually-hidden">{t("management.search")}</span>
+                <input
+                  type="search"
+                  className="s2s-input runs-search-input"
+                  aria-label={t("management.search")}
+                  data-testid="runs-search-input"
+                  placeholder={t("management.searchPlaceholder")}
+                  value={runFilters.search}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      search: event.currentTarget.value,
+                    })
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-ghost runs-filter-toggle"
+                aria-expanded={filtersOpen}
+                aria-controls="runs-filter-panel"
+                data-testid="runs-filter-toggle"
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                {t("management.filters")}
+              </button>
+            </div>
+            <div
+              id="runs-filter-panel"
+              className="runs-filter-panel"
+              data-testid="runs-filter-panel"
+              hidden={!filtersOpen}
+            >
+              <label className="runs-toolbar-field">
+                <span>{t("management.groupFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.groupFilter")}
+                  value={groupFilter}
+                  onChange={(event) => setGroupFilter(event.currentTarget.value)}
+                >
+                  <option value="">{t("management.groupAll")}</option>
+                  {hasUngrouped && (
+                    <option value={UNGROUPED_FILTER}>
+                      {t("management.ungrouped")}
+                    </option>
+                  )}
+                  {groups.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.verifierFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.verifierFilter")}
+                  data-testid="runs-verifier-filter"
+                  value={runFilters.verifier}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      verifier: event.currentTarget.value as VerifierFilter,
+                    })
+                  }
+                >
+                  <option value="all">{t("management.verifierAll")}</option>
+                  <option value="pass">{t("management.verifierPass")}</option>
+                  <option value="fail">{t("management.verifierFail")}</option>
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.modelFilter")}</span>
+                <select
+                  className="s2s-select runs-filter-select"
+                  aria-label={t("management.modelFilter")}
+                  data-testid="runs-model-filter"
+                  value={runFilters.model}
+                  onChange={(event) =>
+                    setRunFilters({
+                      ...runFilters,
+                      model: event.currentTarget.value,
+                    })
+                  }
+                >
+                  <option value="">{t("management.modelAll")}</option>
+                  {models.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="runs-toolbar-field">
+                <span>{t("management.maxScore")}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  className="s2s-input runs-filter-select"
+                  aria-label={t("management.maxScore")}
+                  data-testid="runs-max-score-filter"
+                  placeholder={t("management.maxScorePlaceholder")}
+                  value={runFilters.maxSkepticScore ?? ""}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setRunFilters({
+                      ...runFilters,
+                      maxSkepticScore: value === "" ? null : Number(value),
+                    });
+                  }}
+                />
+              </label>
+              <label className="runs-toolbar-check">
+                <input
+                  type="checkbox"
+                  className="s2s-checkbox"
+                  checked={includeArchived}
+                  onChange={(event) =>
+                    onIncludeArchivedChange?.(event.currentTarget.checked)
+                  }
+                />
+                <span>{t("management.showArchived")}</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="run-list-wrap">
+            <ul className="run-list" aria-label={t("dashboard.runsList")}>
+              {filteredRuns.map((run) => {
+                const isActive = activeName === run.name;
+                return (
+                  <li key={run.name} className="run-list-row-item">
+                    <button
+                      type="button"
                       className={
                         isActive
-                          ? "run-row is-active"
+                          ? "run-item is-active"
                           : run.verifierPassed
-                            ? "run-row"
-                            : "run-row is-failed"
+                            ? "run-item"
+                            : "run-item is-failed"
                       }
                       aria-current={isActive ? "true" : undefined}
                       onClick={() => handleRowActivate(run.name)}
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          handleRowActivate(run.name);
-                        }
-                      }}
                     >
-                      <td>
-                        <div className="run-name">{run.name}</div>
-                      </td>
-                      <td>{run.model}</td>
-                      <td>
-                        <time dateTime={run.generatedAt}>
-                          {formatGeneratedAt(run.generatedAt)}
-                        </time>
-                      </td>
-                      <td>
-                        <ArtifactStatus run={run} />
-                        <ProgressBadge stage={run.progressStage} />
-                      </td>
-                      <td>
-                        <Badge pass={run.verifierPassed} />
-                      </td>
-                      <td>{run.claimCount}</td>
-                      <td>
-                        <ScorePill score={run.skepticScore} />
-                      </td>
-                      <td>
-                        <IssuePill count={run.skepticIssueCount} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <span className="run-item-body">
+                        <span className="run-item-head">
+                          <span
+                            className={`run-item-signal tone-${runQualityTone(run)}`}
+                            aria-hidden="true"
+                          />
+                          <span className="run-item-name" title={run.name}>
+                            {run.name}
+                          </span>
+                          <Badge pass={run.verifierPassed} />
+                          <ScorePill
+                            score={run.skepticScore}
+                            label={`${t("runTable.skepticScore")} ${run.skepticScore.toFixed(2)}`}
+                          />
+                        </span>
+                        <span className="run-item-meta">
+                          <span className="run-item-context">
+                            <span className="run-item-model" title={run.model}>
+                              {run.model}
+                            </span>
+                            <span className="run-item-sep" aria-hidden="true">
+                              ·
+                            </span>
+                            <time
+                              dateTime={run.generatedAt}
+                              className="run-item-time"
+                            >
+                              {formatGeneratedAtShort(run.generatedAt)}
+                            </time>
+                          </span>
+                          <span className="run-item-stats">
+                            {run.group ? (
+                              <span
+                                className="s2s-chip s2s-chip-muted run-item-group"
+                                title={run.group}
+                              >
+                                {run.group}
+                              </span>
+                            ) : null}
+                            {run.archived ? (
+                              <span
+                                className="s2s-chip s2s-chip-warning run-item-archived"
+                                title={t("management.archived")}
+                              >
+                                {t("management.archived")}
+                              </span>
+                            ) : null}
+                            <IssuePill
+                              count={run.skepticIssueCount}
+                              label={`${run.skepticIssueCount} ${t("runTable.issues")}`}
+                            />
+                            <span
+                              className={`artifact-pill artifact-${run.artifactStatus ?? "complete"}`}
+                            >
+                              {t(`artifact.${run.artifactStatus ?? "complete"}`)}
+                            </span>
+                            <span className="run-item-claims">
+                              <span className="run-item-claims-num">
+                                {run.claimCount}
+                              </span>
+                              <span className="run-item-claims-label">
+                                {t("runTable.claims")}
+                              </span>
+                            </span>
+                            <ProgressBadge stage={run.progressStage} />
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {filteredRuns.length === 0 ? (
+                <li
+                  className="run-list-empty"
+                  data-testid="run-list-empty"
+                  role="status"
+                >
+                  <strong>
+                    {runs.length === 0
+                      ? t("dashboard.noRunsTitle")
+                      : t("dashboard.noMatchesTitle")}
+                  </strong>
+                  <span>
+                    {runs.length === 0
+                      ? t("dashboard.noRunsHelp")
+                      : t("dashboard.noMatchesHelp")}
+                  </span>
+                </li>
+              ) : null}
+            </ul>
           </div>
         </section>
 
@@ -349,7 +689,11 @@ export function RunsDashboard({
           aria-label={t("dashboard.runDetail")}
         >
           {selectedRun ? (
-            <RunDetailPreview run={selectedRun} />
+            <RunDetailPreview
+              run={selectedRun}
+              management={management}
+              onOpen={() => onSelect(selectedRun.name)}
+            />
           ) : (
             <div className="runs-detail-empty" data-testid="run-detail-empty">
               {t("dashboard.detailEmpty")}
@@ -361,11 +705,56 @@ export function RunsDashboard({
   );
 }
 
-function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
+function RunDetailPreview({
+  run,
+  management,
+  onOpen,
+}: {
+  run: RunSummary;
+  management?: RunManagement;
+  onOpen: () => void;
+}): JSX.Element {
   const { t } = useLocale();
+  const [groupDraft, setGroupDraft] = useState<string>(run.group ?? "");
+
+  // Re-seed the inline group editor whenever the focused run (or its stored
+  // group) changes — e.g. after a meta patch refetches the list, or when the
+  // user selects a different row.
+  useEffect(() => {
+    setGroupDraft(run.group ?? "");
+  }, [run.name, run.group]);
+
+  const canManage = Boolean(management);
+  const metaPending = management?.metaPending ?? false;
+  const deletePending = management?.deletePending ?? false;
+  // Save is enabled only when the trimmed draft differs from the current
+  // group; clearing a non-empty group is the Clear button's job.
+  const groupChanged = groupDraft.trim() !== (run.group ?? "");
+
+  const submitGroup = (): void => {
+    const next = groupDraft.trim();
+    // Empty draft becomes null so the backend clears the label rather than
+    // storing an empty string.
+    void management?.onUpdateGroup(run.name, next.length > 0 ? next : null);
+  };
+
+  const clearGroup = (): void => {
+    setGroupDraft("");
+    void management?.onUpdateGroup(run.name, null);
+  };
+
   return (
     <div data-testid="run-detail-selected">
-      <h3 className="runs-detail-selected-title">{run.name}</h3>
+      <div className="runs-detail-heading">
+        <h3 className="runs-detail-selected-title">{run.name}</h3>
+        <button
+          type="button"
+          className="s2s-btn s2s-btn-primary runs-detail-open"
+          onClick={onOpen}
+        >
+          {t("dashboard.openAudit")}
+        </button>
+      </div>
       <dl className="runs-detail-meta-grid">
         <div>
           <dt>{t("runTable.model")}</dt>
@@ -401,7 +790,108 @@ function RunDetailPreview({ run }: { run: RunSummary }): JSX.Element {
             <IssuePill count={run.skepticIssueCount} />
           </dd>
         </div>
+        <div>
+          <dt>{t("management.group")}</dt>
+          <dd>
+            {run.group ? (
+              <span className="s2s-chip s2s-chip-muted">{run.group}</span>
+            ) : (
+              <span className="overview-muted">{t("management.noGroup")}</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{t("management.archived")}</dt>
+          <dd>
+            {run.archived ? (
+              <span className="s2s-chip s2s-chip-warning">
+                {run.archivedAt
+                  ? t("management.archivedAt", {
+                      date: formatGeneratedAt(run.archivedAt),
+                    })
+                  : t("management.archived")}
+              </span>
+            ) : (
+              <span className="overview-muted">—</span>
+            )}
+          </dd>
+        </div>
       </dl>
+      <div className="runs-detail-artifacts">
+        <ArtifactStatus run={run} />
+      </div>
+      {canManage && (
+        <div className="runs-detail-management" data-testid="run-management">
+          <div className="runs-management-group">
+            <label
+              className="runs-management-group-label"
+              htmlFor="run-group-edit"
+            >
+              <span>{t("management.group")}</span>
+            </label>
+            <div className="runs-management-group-row">
+              <input
+                id="run-group-edit"
+                className="s2s-input runs-group-input"
+                autoComplete="off"
+                value={groupDraft}
+                onChange={(event) =>
+                  setGroupDraft(event.currentTarget.value)
+                }
+                placeholder={t("management.groupPlaceholder")}
+                disabled={metaPending}
+              />
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-primary"
+                onClick={submitGroup}
+                disabled={metaPending || !groupChanged}
+              >
+                {metaPending ? t("management.saving") : t("management.saveGroup")}
+              </button>
+              <button
+                type="button"
+                className="s2s-btn s2s-btn-ghost"
+                onClick={clearGroup}
+                disabled={metaPending || !run.group}
+              >
+                {t("management.clearGroup")}
+              </button>
+            </div>
+          </div>
+          <div className="runs-management-actions">
+            <button
+              type="button"
+              className="s2s-btn s2s-btn-ghost"
+              onClick={() =>
+                void management?.onToggleArchived(run.name, !run.archived)
+              }
+              disabled={metaPending}
+            >
+              {run.archived
+                ? t("management.unarchive")
+                : t("management.archive")}
+            </button>
+            <button
+              type="button"
+              className="s2s-btn s2s-btn-danger"
+              onClick={() => void management?.onDelete(run.name)}
+              disabled={deletePending}
+            >
+              {deletePending
+                ? t("management.deletePending")
+                : t("management.delete")}
+            </button>
+          </div>
+          {management?.errorMessage && (
+            <p className="runs-management-error" role="alert">
+              {t("management.errorPrefix", {
+                message: management?.errorMessage,
+              })}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -488,12 +978,33 @@ function GenerateRunPanel({
   const [evidenceMaxItems, setEvidenceMaxItems] = useState("3000");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSessionSelection, setShowSessionSelection] = useState(false);
+  const [showLlm, setShowLlm] = useState(false);
+  const [llmPreset, setLlmPreset] = useState<string>("");
+  const [llmProvider, setLlmProvider] = useState<string>("");
+  const [llmBaseUrl, setLlmBaseUrl] = useState<string>("");
+  const [llmModel, setLlmModel] = useState<string>("");
+  const [llmApiKey, setLlmApiKey] = useState<string>("");
   const [selectedAdapter, setSelectedAdapter] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<SessionSelection[]>([]);
   const [directory, setDirectory] = useState(".");
   const pending = generateState.status === "pending" || generateState.status === "running";
+
+  const handleLlmPresetChange = (presetId: string): void => {
+    setLlmPreset(presetId);
+    const preset = LLM_PRESETS.find((p) => p.id === presetId);
+    setLlmProvider(preset?.provider ?? "");
+    setLlmBaseUrl(preset?.baseUrl ?? "");
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    const llmConfig: GenerateRunRequest["llmConfig"] = {};
+    if (llmProvider.trim()) llmConfig.provider = llmProvider.trim();
+    if (llmBaseUrl.trim()) llmConfig.baseUrl = llmBaseUrl.trim();
+    if (llmModel.trim()) llmConfig.model = llmModel.trim();
+    if (llmApiKey) llmConfig.apiKey = llmApiKey;
+    const hasLlmConfig = Object.keys(llmConfig).length > 0;
+
     const request: GenerateRunRequest = {
       name: name.trim() || undefined,
       ...(directory && directory !== "." ? { directory } : {}),
@@ -509,6 +1020,7 @@ function GenerateRunPanel({
         maxChars: Number.parseInt(evidenceMaxChars, 10) || 5000,
         maxItems: Number.parseInt(evidenceMaxItems, 10) || 3000,
       },
+      ...(hasLlmConfig ? { llmConfig } : {}),
     };
     void onGenerate(request);
   };
@@ -625,6 +1137,81 @@ function GenerateRunPanel({
             />
             <span>{t("generate.force")}</span>
           </label>
+          <button
+            type="button"
+            className="s2s-btn s2s-btn-ghost generate-advanced-toggle"
+            onClick={() => setShowLlm(!showLlm)}
+            aria-expanded={showLlm}
+            aria-controls="generate-llm-fields"
+          >
+            {showLlm ? "▾" : "▸"} {t("generate.llm")}
+          </button>
+          {showLlm && (
+            <div id="generate-llm-fields" style={{ display: "contents" }}>
+              <p className="generate-help" style={{ gridColumn: "1 / -1" }}>
+                {t("generate.llm.help")}
+              </p>
+              <label htmlFor="generate-llm-preset">
+                <span>{t("generate.llm.preset")}</span>
+                <select
+                  id="generate-llm-preset"
+                  aria-label={t("generate.llm.preset")}
+                  value={llmPreset}
+                  onChange={(event) => handleLlmPresetChange(event.currentTarget.value)}
+                >
+                  {LLM_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.id === "" ? t("generate.llm.preset.default") : preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="generate-llm-base-url">
+                <span>{t("generate.llm.baseUrl")}</span>
+                <input
+                  id="generate-llm-base-url"
+                  aria-label={t("generate.llm.baseUrl")}
+                  autoComplete="off"
+                  value={llmBaseUrl}
+                  onChange={(event) => setLlmBaseUrl(event.currentTarget.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </label>
+              <label htmlFor="generate-llm-model">
+                <span>{t("generate.llm.model")}</span>
+                <input
+                  id="generate-llm-model"
+                  aria-label={t("generate.llm.model")}
+                  autoComplete="off"
+                  value={llmModel}
+                  onChange={(event) => setLlmModel(event.currentTarget.value)}
+                  placeholder="gpt-4o"
+                />
+              </label>
+              <label htmlFor="generate-llm-provider">
+                <span>{t("generate.llm.provider")}</span>
+                <input
+                  id="generate-llm-provider"
+                  aria-label={t("generate.llm.provider")}
+                  autoComplete="off"
+                  value={llmProvider}
+                  onChange={(event) => setLlmProvider(event.currentTarget.value)}
+                  placeholder="openai-compatible"
+                />
+              </label>
+              <label htmlFor="generate-llm-api-key">
+                <span>{t("generate.llm.apiKey")}</span>
+                <input
+                  id="generate-llm-api-key"
+                  aria-label={t("generate.llm.apiKey")}
+                  type="password"
+                  autoComplete="off"
+                  value={llmApiKey}
+                  onChange={(event) => setLlmApiKey(event.currentTarget.value)}
+                />
+              </label>
+            </div>
+          )}
           <button
             type="button"
             className="s2s-btn s2s-btn-ghost generate-advanced-toggle"
@@ -797,7 +1384,7 @@ function Badge({ pass }: { pass: boolean }): JSX.Element {
   );
 }
 
-function MetricCard({
+function SummaryStat({
   label,
   value,
   tone = "neutral",
@@ -807,24 +1394,42 @@ function MetricCard({
   tone?: "neutral" | "good" | "warning" | "danger";
 }): JSX.Element {
   return (
-    <div className={`metric-card metric-${tone}`}>
-      <div className="metric-value">{value}</div>
-      <div className="metric-label">{label}</div>
+    <div className={`summary-stat summary-stat-${tone}`}>
+      <dt className="summary-stat-label">{label}</dt>
+      <dd className="summary-stat-value">{value}</dd>
     </div>
   );
 }
 
-function ScorePill({ score }: { score: number }): JSX.Element {
+function ScorePill({
+  score,
+  label,
+}: {
+  score: number;
+  label?: string;
+}): JSX.Element {
   return (
-    <span className={`score-pill score-${scoreTone(score)}`}>
+    <span
+      className={`score-pill score-${scoreTone(score)}`}
+      aria-label={label}
+    >
       {score.toFixed(2)}
     </span>
   );
 }
 
-function IssuePill({ count }: { count: number }): JSX.Element {
+function IssuePill({
+  count,
+  label,
+}: {
+  count: number;
+  label?: string;
+}): JSX.Element {
   return (
-    <span className={count > 0 ? "issue-pill has-issues" : "issue-pill"}>
+    <span
+      className={count > 0 ? "issue-pill has-issues" : "issue-pill"}
+      aria-label={label}
+    >
       {count}
     </span>
   );
@@ -849,10 +1454,60 @@ function summarizeRuns(runs: RunSummary[]): {
   };
 }
 
+// Distinct group labels in first-seen order, for the group-filter select.
+// Empty/whitespace groups are treated as ungrouped and excluded here.
+function deriveGroups(runs: RunSummary[]): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const run of runs) {
+    const group = run.group?.trim();
+    if (!group) continue;
+    if (seen.has(group)) continue;
+    seen.add(group);
+    ordered.push(group);
+  }
+  return ordered;
+}
+
+// Client-side row filter driven by the group-filter select. "" shows every
+// run; UNGROUPED_FILTER narrows to runs with no group; any other value
+// matches that exact group label.
+function filterRunsByGroup(
+  runs: RunSummary[],
+  groupFilter: string,
+): RunSummary[] {
+  if (!groupFilter) return runs;
+  if (groupFilter === UNGROUPED_FILTER) {
+    return runs.filter((run) => !run.group);
+  }
+  return runs.filter((run) => run.group === groupFilter);
+}
+
 function scoreTone(score: number): "good" | "warning" | "danger" {
   if (score >= 0.8) return "good";
   if (score >= 0.6) return "warning";
   return "danger";
+}
+
+// Overall quality tone for the run rail: a verifier failure dominates,
+// otherwise the skeptic score band decides. Drives the rail bar color so a
+// column of runs reads green / amber / red at a glance.
+function runQualityTone(run: RunSummary): "good" | "warning" | "danger" {
+  if (!run.verifierPassed) return "danger";
+  return scoreTone(run.skepticScore);
+}
+
+// Compact timestamp for the rail (the full locale string is too wide for a
+// 360px column); the detail pane still uses the full formatGeneratedAt.
+function formatGeneratedAtShort(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatGeneratedAt(value: string): string {
@@ -871,17 +1526,35 @@ function Shell({
   children,
   style,
   onShowDocs,
+  onNewRun,
+  newRunActive = false,
 }: {
   children: React.ReactNode;
   style?: React.CSSProperties;
   onShowDocs?: () => void;
+  onNewRun?: () => void;
+  newRunActive?: boolean;
 }): JSX.Element {
   const { t } = useLocale();
   return (
     <div className="app-shell" style={style}>
       <div className="app-header">
-        <h1>{t("app.title")}</h1>
+        <div className="app-brand">
+          <div className="app-kicker">{t("app.kicker")}</div>
+          <h1>{t("app.title")}</h1>
+          <p>{t("app.subtitle")}</p>
+        </div>
         <div className="app-header-actions">
+          {onNewRun && (
+            <button
+              type="button"
+              onClick={onNewRun}
+              className="s2s-btn s2s-btn-primary app-new-run"
+              aria-pressed={newRunActive}
+            >
+              {t("app.newRun")}
+            </button>
+          )}
           {onShowDocs && (
             <button
               type="button"

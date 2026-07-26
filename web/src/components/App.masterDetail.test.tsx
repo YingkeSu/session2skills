@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RunsDashboard } from "../App.js";
 import { LocaleProvider } from "../i18n/LocaleContext.js";
@@ -60,30 +60,181 @@ function renderDashboard(runs: RunSummary[]): void {
 }
 
 describe("RunsDashboard master-detail layout", () => {
-  it("renders a master list and an empty detail placeholder before any selection", () => {
+  it("presents run health as one semantic audit summary", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", verifierPassed: true, skepticIssueCount: 1 }),
+      makeRun({ name: "beta", verifierPassed: false, skepticIssueCount: 2 }),
+    ]);
+
+    const summary = screen.getByTestId("audit-summary");
+    expect(summary.tagName).toBe("DL");
+    expect(summary.textContent).toContain("Total runs");
+    expect(summary.textContent).toContain("Verifier failures");
+    expect(summary.textContent).toContain("Total issues");
+    expect(summary.textContent).toContain("Avg skeptic score");
+  });
+
+  it("renders the master list and selects the first run by default", () => {
     renderDashboard([makeRun({ name: "alpha" })]);
 
     expect(screen.getByTestId("run-dashboard")).toBeTruthy();
-    expect(screen.getByText("alpha")).toBeTruthy();
+    // alpha appears as a keyboard-activatable button in the run rail.
+    expect(
+      screen.getByRole("button", { name: /alpha/ }),
+    ).toBeTruthy();
     expect(screen.getByTestId("run-detail-pane")).toBeTruthy();
-    expect(screen.getByTestId("run-detail-empty")).toBeTruthy();
+    // A run is selected by default — the detail pane shows it, not the empty
+    // placeholder.
+    expect(screen.getByTestId("run-detail-selected")).toBeTruthy();
+    expect(screen.getByTestId("run-detail-selected").textContent).toContain(
+      "alpha",
+    );
+    expect(screen.queryByTestId("run-detail-empty")).toBeNull();
   });
 
-  it("shows the selected run's detail when a row is chosen, and swaps on a new selection", () => {
+  it("opens the default-selected run from an explicit audit action", () => {
+    storage.set("session2skills-locale", "en");
+    const onSelect = vi.fn();
+    render(
+      <LocaleProvider>
+        <RunsDashboard
+          runs={[makeRun({ name: "alpha" })]}
+          onSelect={onSelect}
+        />
+      </LocaleProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open audit" }));
+    expect(onSelect).toHaveBeenCalledWith("alpha");
+  });
+
+  it("moves the selection when a different run row is chosen", () => {
     renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
 
-    expect(screen.queryByTestId("run-detail-selected")).toBeNull();
+    // Default selection is the first run.
+    expect(screen.getByTestId("run-detail-selected").textContent).toContain(
+      "alpha",
+    );
 
-    fireEvent.click(screen.getByText("alpha"));
-    const detail = screen.getByTestId("run-detail-selected");
-    expect(detail.textContent).toContain("alpha");
-
-    fireEvent.click(screen.getByText("beta"));
+    fireEvent.click(screen.getByRole("button", { name: /beta/ }));
     expect(screen.getByTestId("run-detail-selected").textContent).toContain(
       "beta",
     );
     expect(
       screen.getByTestId("run-detail-selected").textContent,
     ).not.toContain("alpha");
+  });
+
+  it("marks the selected run as current and moves the marker on selection", () => {
+    renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
+
+    const alphaButton = screen.getByRole("button", { name: /alpha/ });
+    const betaButton = screen.getByRole("button", { name: /beta/ });
+
+    // Default-selected run carries the current marker.
+    expect(alphaButton.getAttribute("aria-current")).toBe("true");
+    expect(betaButton.getAttribute("aria-current")).toBeNull();
+
+    fireEvent.click(betaButton);
+    expect(betaButton.getAttribute("aria-current")).toBe("true");
+    expect(alphaButton.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("renders each run as a keyboard-activatable button", () => {
+    renderDashboard([makeRun({ name: "alpha" }), makeRun({ name: "beta" })]);
+
+    const alphaButton = screen.getByRole("button", { name: /alpha/ });
+    expect(alphaButton.tagName).toBe("BUTTON");
+  });
+
+  it("narrows the run list by search text across name and model", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1" }),
+      makeRun({ name: "beta", model: "claude-sonnet" }),
+      makeRun({ name: "gamma", model: "gpt-4.1" }),
+    ]);
+
+    const list = () => document.querySelector(".run-list")!;
+    expect(list().textContent).toContain("alpha");
+    expect(list().textContent).toContain("beta");
+
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "bet" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+    expect(list().textContent).not.toContain("gamma");
+
+    // Search also matches model strings.
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "claude" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+  });
+
+  it("explains an empty run list and a filter with no matches", () => {
+    storage.set("session2skills-locale", "en");
+    const { unmount } = render(
+      <LocaleProvider>
+        <RunsDashboard runs={[]} onSelect={() => undefined} />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByTestId("run-list-empty").textContent).toContain(
+      "No runs yet",
+    );
+
+    unmount();
+    renderDashboard([makeRun({ name: "alpha" })]);
+    fireEvent.change(screen.getByTestId("runs-search-input"), {
+      target: { value: "missing" },
+    });
+    expect(screen.getByTestId("run-list-empty").textContent).toContain(
+      "No runs match",
+    );
+  });
+
+  it("keeps search visible while advanced filters use an accessible disclosure", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1" }),
+      makeRun({ name: "beta", model: "claude-sonnet" }),
+    ]);
+
+    expect(screen.getByTestId("runs-search-input")).toBeTruthy();
+
+    const toggle = screen.getByTestId("runs-filter-toggle");
+    const filters = screen.getByTestId("runs-filter-panel");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(filters.hasAttribute("hidden")).toBe(true);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(filters.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("narrows the run list by verifier pass/fail and by model", () => {
+    renderDashboard([
+      makeRun({ name: "alpha", model: "gpt-4.1", verifierPassed: true }),
+      makeRun({ name: "beta", model: "claude", verifierPassed: false }),
+    ]);
+
+    const list = () => document.querySelector(".run-list")!;
+
+    fireEvent.change(screen.getByTestId("runs-verifier-filter"), {
+      target: { value: "fail" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
+
+    // Reset verifier, then filter by model.
+    fireEvent.change(screen.getByTestId("runs-verifier-filter"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByTestId("runs-model-filter"), {
+      target: { value: "claude" },
+    });
+    expect(list().textContent).not.toContain("alpha");
+    expect(list().textContent).toContain("beta");
   });
 });

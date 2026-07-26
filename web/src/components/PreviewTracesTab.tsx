@@ -2,6 +2,7 @@ import type { LLMTraceSummary } from "../runs.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
 import { VirtualList } from "./VirtualList.js";
+import { RawJsonDrawer } from "./RawJsonDrawer.js";
 
 type PreviewTracesTabProps = {
   skillMarkdown: string | null;
@@ -21,11 +22,13 @@ type WriterSectionPreview = {
   groundingClaimIds: Array<string>;
 };
 
-const stageColors: Record<string, string> = {
-  analyst: "var(--cat-blue)",
-  skeptic: "var(--cat-rose)",
-  writer: "var(--cat-violet)",
-  verifier: "var(--cat-teal)",
+// Stage → categorical badge fill. One consistent color per harness stage
+// across the trace list and the pipeline strip.
+const stageBadge: Record<string, string> = {
+  analyst: "s2s-badge-blue",
+  skeptic: "s2s-badge-rose",
+  writer: "s2s-badge-violet",
+  verifier: "s2s-badge-teal",
 };
 
 const MAX_MARKDOWN_LINES = 500;
@@ -144,6 +147,9 @@ function extractWriterSections(
   );
 }
 
+// Minimal, safe markdown rendering: every line becomes a semantic element
+// inside .s2s-prose, so the CSS owns the typography and renderMarkup stays
+// free of inline styles. Raw HTML in source text is rendered as text only.
 function renderMarkdown(md: string): JSX.Element {
   const allLines = md.split(/\r?\n/);
   const wasTruncated = allLines.length > MAX_MARKDOWN_LINES;
@@ -163,17 +169,9 @@ function renderMarkdown(md: string): JSX.Element {
     listItems = [];
     listKey += 1;
     return (
-      <ul
-        key={`list-${listKey}`}
-        style={{ margin: "4px 0", paddingLeft: "20px" }}
-      >
+      <ul key={`list-${listKey}`}>
         {items.map((item, idx) => (
-          <li
-            key={idx}
-            style={{ marginBottom: "4px", lineHeight: 1.5 }}
-          >
-            {item}
-          </li>
+          <li key={idx}>{item}</li>
         ))}
       </ul>
     );
@@ -189,18 +187,7 @@ function renderMarkdown(md: string): JSX.Element {
     inCodeBlock = false;
     codeBlockKey += 1;
     return (
-      <pre
-        key={`code-${codeBlockKey}`}
-        style={{
-          margin: "0 0 10px",
-          padding: "10px",
-          borderRadius: "4px",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border-soft)",
-          overflowX: "auto",
-          whiteSpace: "pre-wrap",
-        }}
-      >
+      <pre key={`code-${codeBlockKey}`}>
         <code>{text}</code>
       </pre>
     );
@@ -241,19 +228,8 @@ function renderMarkdown(md: string): JSX.Element {
       const level = headingMatch[1].length;
       const text = headingMatch[2].trim();
       const Tag = `h${level}` as keyof JSX.IntrinsicElements;
-      const size = level <= 2 ? "18px" : level <= 4 ? "16px" : "14px";
       elements.push(
-        <Tag
-          key={`heading-${elements.length}`}
-          style={{
-            margin: `${level === 1 ? "16" : "12"}px 0 8px`,
-            fontSize: size,
-            fontWeight: 600,
-            lineHeight: 1.4,
-          }}
-        >
-          {text}
-        </Tag>
+        <Tag key={`heading-${elements.length}`}>{text}</Tag>,
       );
       continue;
     }
@@ -271,18 +247,7 @@ function renderMarkdown(md: string): JSX.Element {
     }
 
     paragraphKey += 1;
-    elements.push(
-      <p
-        key={`p-${paragraphKey}`}
-        style={{
-          margin: "0 0 8px",
-          lineHeight: 1.6,
-          color: "var(--ink)",
-        }}
-      >
-        {line}
-      </p>
-    );
+    elements.push(<p key={`p-${paragraphKey}`}>{line}</p>);
   }
 
   const trailingList = flushList();
@@ -293,14 +258,7 @@ function renderMarkdown(md: string): JSX.Element {
 
   if (wasTruncated) {
     elements.push(
-      <p
-        key="markdown-truncated"
-        style={{
-          margin: "8px 0 0",
-          color: "var(--ink-muted)",
-          fontStyle: "italic",
-        }}
-      >
+      <p key="markdown-truncated" className="s2s-prose-truncated">
         Preview truncated after {MAX_MARKDOWN_LINES} lines.
       </p>,
     );
@@ -317,45 +275,49 @@ export function PreviewTracesTab({
   const { t, tEnum } = useLocale();
   const writerSectionPreviews = extractWriterSections(writerSections);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>{t("preview.skillTitle")}</h3>
+    <div className="s2s-stack">
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("preview.skillTitle")}</h3>
+        </div>
         {skillMarkdown == null ? (
-          <p style={{ color: "var(--ink-muted)" }}>{t("preview.noSkill")}</p>
+          <p className="s2s-empty">{t("preview.noSkill")}</p>
         ) : (
-          <div style={markdownBoxStyle}>
-            {renderMarkdown(skillMarkdown)}
-          </div>
+          <div className="s2s-prose">{renderMarkdown(skillMarkdown)}</div>
         )}
       </section>
 
       {writerSectionPreviews.length > 0 && (
-        <section style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>{t("preview.writerSectionsTitle")}</h3>
-          <div style={writerSectionsGridStyle}>
+        <section className="s2s-panel">
+          <div className="s2s-panel-head">
+            <h3 className="s2s-panel-title">
+              {t("preview.writerSectionsTitle")}
+            </h3>
+          </div>
+          <div className="s2s-writer-grid">
             {writerSectionPreviews.map((section, sectionIndex) => (
               <article
                 key={`${section.title}-${sectionIndex}`}
-                style={writerSectionCardStyle}
+                className="s2s-tile s2s-tile-muted"
               >
-                <div style={writerSectionHeaderStyle}>
+                <div className="s2s-writer-head">
                   <strong>{section.title}</strong>
                   {section.groundingClaimIds.length > 0 && (
-                    <span style={traceMetaStyle}>
+                    <span className="s2s-chip s2s-chip-muted">
                       {section.groundingClaimIds.join(", ")}
                     </span>
                   )}
                 </div>
                 {section.summary && (
-                  <p style={writerSectionSummaryStyle}>{section.summary}</p>
+                  <p className="s2s-writer-summary">{section.summary}</p>
                 )}
                 {section.directives.length > 0 && (
-                  <ul style={writerDirectiveListStyle}>
+                  <ul className="s2s-writer-list">
                     {section.directives.map((directive, directiveIndex) => (
                       <li key={`${directive.text}-${directiveIndex}`}>
                         <span>{directive.text}</span>
                         {directive.sourceClaimId && (
-                          <span style={writerClaimStyle}>
+                          <span className="s2s-writer-claim">
                             {directive.sourceClaimId}
                           </span>
                         )}
@@ -369,10 +331,12 @@ export function PreviewTracesTab({
         </section>
       )}
 
-      <section style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>{t("preview.tracesTitle")}</h3>
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("preview.tracesTitle")}</h3>
+        </div>
         {traces.length === 0 ? (
-          <p style={{ color: "var(--ink-muted)" }}>{t("preview.noTraces")}</p>
+          <p className="s2s-empty">{t("preview.noTraces")}</p>
         ) : (
           <VirtualList
             ariaLabel={t("preview.tracesTitle")}
@@ -385,62 +349,26 @@ export function PreviewTracesTab({
               return (
                 <details
                   key={`trace-${idx}`}
-                  style={traceCardStyle}
+                  className="s2s-tile s2s-disclosure"
                 >
-                  <summary
-                    style={{
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      listStyle: "none",
-                      flexWrap: "wrap",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
-                    >
+                  <summary>
+                    <span className="s2s-tag-row">
                       <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "var(--ink-on-fill)",
-                          background:
-                            stageColors[summary.stage] ?? "var(--cat-gray)",
-                        }}
+                        className={`s2s-badge s2s-badge-sm ${
+                          stageBadge[summary.stage] ?? "s2s-badge-muted"
+                        }`}
                       >
                         {tEnum("stage", summary.stage)}
                       </span>
-                      <span style={{ fontSize: "13px", fontWeight: 500 }}>
-                        {summary.model}
-                      </span>
+                      <span className="s2s-trace-model">{summary.model}</span>
                     </span>
-                    <span style={traceMetaStyle}>
+                    <span className="s2s-chip s2s-chip-muted">
                       {summary.usage.totalTokens} {t("preview.tokens")}
-                      {summary.latencyMs
-                        ? ` · ${summary.latencyMs}ms`
-                        : ""}
+                      {summary.latencyMs ? ` · ${summary.latencyMs}ms` : ""}
                     </span>
                   </summary>
 
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      fontSize: "13px",
-                      color: "var(--ink-2)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: "6px",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
+                  <div className="s2s-kv-grid">
                     <div>
                       <strong>{t("preview.provider")}</strong> {summary.provider}
                     </div>
@@ -474,6 +402,7 @@ export function PreviewTracesTab({
                           summary.requestPromptName}
                       </div>
                     )}
+                    <RawJsonDrawer value={trace} testId="raw-trace" />
                   </div>
                 </details>
               );
@@ -485,95 +414,6 @@ export function PreviewTracesTab({
   );
 }
 
-const sectionStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-  minWidth: 0,
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 var(--space-3)",
-  fontSize: "var(--text-md)",
-  fontWeight: 700,
-  color: "var(--ink)",
-};
-
-const markdownBoxStyle: React.CSSProperties = {
-  border: "1px solid var(--border-soft)",
-  borderRadius: "var(--radius-sm)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-  lineHeight: 1.6,
-  overflowWrap: "anywhere",
-  color: "var(--ink)",
-};
-
-const writerSectionsGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "var(--space-3)",
-};
-
-const writerSectionCardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-soft)",
-  borderRadius: "var(--radius-sm)",
-  padding: "var(--space-3)",
-  background: "var(--surface-2)",
-  minWidth: 0,
-};
-
-const writerSectionHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "var(--space-2)",
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-  fontSize: "var(--text-sm)",
-  color: "var(--ink)",
-  overflowWrap: "anywhere",
-};
-
-const writerSectionSummaryStyle: React.CSSProperties = {
-  margin: "var(--space-2) 0 0",
-  fontSize: "var(--text-sm)",
-  lineHeight: 1.45,
-  color: "var(--ink-2)",
-  overflowWrap: "anywhere",
-};
-
-const writerDirectiveListStyle: React.CSSProperties = {
-  margin: "var(--space-2) 0 0",
-  paddingLeft: "18px",
-  fontSize: "var(--text-sm)",
-  lineHeight: 1.5,
-  color: "var(--ink)",
-};
-
-const writerClaimStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginLeft: "var(--space-2)",
-  color: "var(--ink-muted)",
-  fontSize: "var(--text-xs)",
-  overflowWrap: "anywhere",
-};
-
-const traceCardStyle: React.CSSProperties = {
-  border: "1px solid var(--border-soft)",
-  borderRadius: "var(--radius-sm)",
-  padding: "var(--space-3)",
-  background: "var(--surface)",
-  minWidth: 0,
-  marginBottom: "10px",
-};
-
 // Collapsed trace card ≈ padding + summary line. Used only as the virtualizer's
 // estimate; expanded cards overflow their slot gracefully.
 const traceItemHeight = 56;
-
-const traceMetaStyle: React.CSSProperties = {
-  fontSize: "var(--text-xs)",
-  color: "var(--ink-muted)",
-  overflowWrap: "anywhere",
-};

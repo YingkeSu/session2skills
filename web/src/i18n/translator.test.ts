@@ -5,12 +5,12 @@ import { createTranslator } from "./translator.js";
 describe("createTranslator", () => {
   it("returns Chinese text for zh locale", () => {
     const { t } = createTranslator("zh");
-    expect(t("app.title")).toBe("测试运行记录");
+    expect(t("app.title")).toBe("证据审计工作台");
   });
 
   it("returns English text for en locale", () => {
     const { t } = createTranslator("en");
-    expect(t("app.title")).toBe("Harness Runs");
+    expect(t("app.title")).toBe("Evidence audit workspace");
   });
 
   it("falls back to the key when translation is missing", () => {

@@ -9,6 +9,7 @@ import {
   reconcileOrphanedRuns,
   isPidAlive,
 } from "../../src/server/app.js";
+import type { GenerateSkillRunInput } from "../../src/generate/service.js";
 import {
   hashArtifact,
   resumeFromStage,
@@ -109,6 +110,34 @@ describe("parseWorkerInput", () => {
 
   test("rejects missing required directories", () => {
     expect(() => parseWorkerInput(JSON.stringify({ recent: 5 }))).toThrow(/required strings/);
+  });
+
+  test("parses llmConfig when present", () => {
+    const input = parseWorkerInput(
+      JSON.stringify({
+        projectDirectory: "/p",
+        outputDirectory: "/o",
+        llmConfig: {
+          provider: "openai",
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-4o",
+          apiKey: "secret",
+        },
+      }),
+    );
+    expect(input.llmConfig).toEqual({
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      apiKey: "secret",
+    });
+  });
+
+  test("omits llmConfig when absent", () => {
+    const input = parseWorkerInput(
+      JSON.stringify({ projectDirectory: "/p", outputDirectory: "/o" }),
+    );
+    expect(input.llmConfig).toBeUndefined();
   });
 });
 
@@ -457,5 +486,200 @@ describe("progress terminal-stage helpers", () => {
       "boom",
     );
     expect(updated.stage).toBe("interrupted");
+  });
+});
+
+describe("llmConfig forwarding", () => {
+  let tempRoot: string;
+  let runsDir: string;
+
+  beforeAll(async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-llmcfg-"));
+    runsDir = join(tempRoot, "runs");
+  });
+
+  afterAll(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  test("POST /api/runs?async=true forwards llmConfig to the worker input", async () => {
+    const spawned: WorkerInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      spawnGenerateWorker: ({ workerInput }) => {
+        spawned.push(workerInput);
+        return 5555;
+      },
+    });
+
+    const res = await app.request("/api/runs?async=true", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "async-llm",
+        llmConfig: {
+          provider: "openai",
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-4o",
+          apiKey: "secret",
+        },
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.llmConfig).toEqual({
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o",
+      apiKey: "secret",
+    });
+
+    // The API key must never be written to the persisted progress file.
+    const progressRaw = await readFile(
+      join(runsDir, "async-llm", ".progress.json"),
+      "utf8",
+    );
+    expect(progressRaw).not.toContain("secret");
+    expect(progressRaw).not.toContain("apiKey");
+  });
+
+  test("POST /api/runs (sync) forwards llmConfig to the generator", async () => {
+    const captured: GenerateSkillRunInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      generateRun: async (input) => {
+        captured.push(input);
+        // Materialize a minimal run so scanRuns() can resolve it to a 201.
+        await mkdir(input.outputDirectory, { recursive: true });
+        await writeFile(join(input.outputDirectory, "SKILL.md"), "# skill\n");
+        await writeFile(
+          join(input.outputDirectory, "claim-manifest.json"),
+          JSON.stringify(validManifest()),
+        );
+        return {};
+      },
+    });
+
+    const res = await app.request("/api/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "sync-llm",
+        llmConfig: { provider: "deepseek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]!.llmConfig).toEqual({
+      provider: "deepseek",
+      baseUrl: "https://api.deepseek.com/v1",
+      model: "deepseek-chat",
+    });
+  });
+
+  test("POST /api/runs omits llmConfig from the worker input when not supplied", async () => {
+    const spawned: WorkerInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      spawnGenerateWorker: ({ workerInput }) => {
+        spawned.push(workerInput);
+        return 5556;
+      },
+    });
+
+    const res = await app.request("/api/runs?async=true", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "async-no-llm" }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(spawned[0]!.llmConfig).toBeUndefined();
+  });
+
+  test("POST /api/runs/:name/resume forwards llmConfig to the re-spawned worker", async () => {
+    const runDir = join(runsDir, "resume-llm");
+    await mkdir(runDir, { recursive: true });
+    const manifestJson = JSON.stringify(validManifest());
+    await writeFile(join(runDir, "claim-manifest.json"), manifestJson);
+    await writeProgressFile(
+      runDir,
+      markProgressResumable(
+        {
+          stage: "interrupted",
+          completedStages: ["analyst"],
+          startedAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:02.000Z",
+          completedStageCheckpoints: { analyst: hashArtifact(manifestJson) },
+        },
+        "interrupted earlier",
+      ),
+    );
+
+    const spawned: WorkerInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      spawnGenerateWorker: ({ workerInput }) => {
+        spawned.push(workerInput);
+        return 7777;
+      },
+    });
+
+    const res = await app.request("/api/runs/resume-llm/resume", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        llmConfig: { provider: "ollama", baseUrl: "http://localhost:11434/v1", model: "llama3" },
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.llmConfig).toEqual({
+      provider: "ollama",
+      baseUrl: "http://localhost:11434/v1",
+      model: "llama3",
+    });
+  });
+
+  test("POST /api/runs/:name/resume omits llmConfig when not supplied", async () => {
+    const runDir = join(runsDir, "resume-no-llm");
+    await mkdir(runDir, { recursive: true });
+    const manifestJson = JSON.stringify(validManifest());
+    await writeFile(join(runDir, "claim-manifest.json"), manifestJson);
+    await writeProgressFile(
+      runDir,
+      markProgressResumable(
+        {
+          stage: "interrupted",
+          completedStages: ["analyst"],
+          startedAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:02.000Z",
+          completedStageCheckpoints: { analyst: hashArtifact(manifestJson) },
+        },
+        "interrupted earlier",
+      ),
+    );
+
+    const spawned: WorkerInput[] = [];
+    const app = createServer(runsDir, {
+      projectDirectory: tempRoot,
+      spawnGenerateWorker: ({ workerInput }) => {
+        spawned.push(workerInput);
+        return 7778;
+      },
+    });
+
+    const res = await app.request("/api/runs/resume-no-llm/resume", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(202);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.llmConfig).toBeUndefined();
   });
 });

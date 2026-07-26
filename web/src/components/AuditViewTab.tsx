@@ -8,6 +8,7 @@ import { EvidencePanel } from "./EvidencePanel.js";
 import { VirtualList } from "./VirtualList.js";
 import type { JSX } from "react";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { confidenceTier } from "../lib/confidence.js";
 
 type AuditViewTabProps = {
   manifest: ClaimManifest;
@@ -16,10 +17,16 @@ type AuditViewTabProps = {
   runName: string;
 };
 
-const trustColors: Record<string, string> = {
-  verified: "var(--success)",
-  unreferenced: "var(--warning)",
-  fabricated: "var(--danger)",
+const trustBadge: Record<string, string> = {
+  verified: "s2s-badge-success",
+  unreferenced: "s2s-badge-warning",
+  fabricated: "s2s-badge-danger",
+};
+
+const sourceBadge: Record<string, string> = {
+  message: "s2s-badge-blue",
+  tool: "s2s-badge-teal",
+  step: "s2s-badge-violet",
 };
 
 function buildTrustMap(
@@ -74,22 +81,22 @@ export function AuditViewTab({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <section style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <h3 style={sectionTitleStyle}>{t("audit.evidenceSummary")}</h3>
-          <span style={metaBadgeStyle}>
+    <div className="s2s-stack">
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("audit.evidenceSummary")}</h3>
+          <span className="s2s-chip s2s-chip-muted">
             {t("audit.claimCount", { count: manifest.claims.length })}
           </span>
         </div>
-        <p style={{ color: "var(--ink-2)", lineHeight: 1.6, margin: 0 }}>
-          {manifest.evidenceSummary}
-        </p>
+        <p className="s2s-lede">{manifest.evidenceSummary}</p>
       </section>
 
       {manifest.evidence && manifest.evidence.length > 0 && (
-        <section style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>{t("audit.evidenceExcerpts")}</h3>
+        <section className="s2s-panel">
+          <div className="s2s-panel-head">
+            <h3 className="s2s-panel-title">{t("audit.evidenceExcerpts")}</h3>
+          </div>
           <VirtualList
             ariaLabel={t("audit.evidenceExcerpts")}
             itemHeight={evidenceItemHeight}
@@ -97,189 +104,115 @@ export function AuditViewTab({
             viewportHeight="none"
             items={manifest.evidence}
             renderItem={(excerpt) => (
-              <details key={excerpt.evidenceID} style={detailsStyle}>
-                <summary style={summaryStyle}>
-                  <strong style={{ overflowWrap: "anywhere", minWidth: 0 }}>
-                    {excerpt.evidenceID}
-                  </strong>
-                  <span
-                    style={{
-                      marginLeft: "var(--space-2)",
-                      padding: "2px var(--space-2)",
-                      borderRadius: "var(--radius-sm)",
-                      background: "var(--surface-3)",
-                      fontSize: "var(--text-xs)",
-                      color: "var(--ink-2)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {tEnum("sourceType", excerpt.sourceType)}
+              <details
+                key={excerpt.evidenceID}
+                className="s2s-tile s2s-disclosure"
+              >
+                <summary>
+                  <span className="s2s-tag-row">
+                    <span
+                      className={`s2s-badge s2s-badge-sm ${
+                        sourceBadge[excerpt.sourceType] ?? "s2s-badge-muted"
+                      }`}
+                    >
+                      {tEnum("sourceType", excerpt.sourceType)}
+                    </span>
+                    <span className="s2s-code-id">{excerpt.evidenceID}</span>
                   </span>
                 </summary>
-                <pre
-                  style={{
-                    margin: "8px 0 0",
-                    padding: "10px",
-                    background: "var(--surface-2)",
-                    borderRadius: "4px",
-                    fontSize: "13px",
-                    lineHeight: 1.5,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {excerpt.excerpt}
-                </pre>
+                <pre className="s2s-excerpt">{excerpt.excerpt}</pre>
               </details>
             )}
           />
         </section>
       )}
 
-      <section style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <h3 style={sectionTitleStyle}>{t("audit.claims")}</h3>
-          <span style={metaBadgeStyle}>
+      <section className="s2s-panel">
+        <div className="s2s-panel-head">
+          <h3 className="s2s-panel-title">{t("audit.claims")}</h3>
+          <span className="s2s-chip s2s-chip-muted">
             {t("audit.dimensionCount", {
               count: manifest.dimensionsCovered.length,
             })}
           </span>
         </div>
         {manifest.dimensionsCovered.length === 0 && (
-          <p style={{ color: "var(--ink-muted)" }}>{t("audit.noClaims")}</p>
+          <p className="s2s-empty">{t("audit.noClaims")}</p>
         )}
-        <div
-          style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-        >
+        <div className="s2s-stack s2s-stack-tight">
           {manifest.dimensionsCovered.map((dimension) => {
             const claims = claimsByDimension.get(dimension);
             if (!claims || claims.length === 0) return null;
             return (
-              <div key={dimension} style={dimensionStyle}>
-                <div style={sectionHeaderStyle}>
-                  <h4 style={dimensionTitleStyle}>{dimension}</h4>
-                  <span style={metaBadgeStyle}>
+              <div key={dimension} className="s2s-tile">
+                <div className="s2s-panel-head">
+                  <h4 className="s2s-eyebrow">{dimension}</h4>
+                  <span className="s2s-chip s2s-chip-muted">
                     {t("audit.claimsInDimension", { count: claims.length })}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                  }}
-                >
+                <div className="s2s-stack s2s-stack-tight">
                   {claims.map((claim) => {
                     const trustStatus = trustMap.get(claim.id);
                     const issueCount = skepticMap.get(claim.id) ?? 0;
+                    const tier = confidenceTier(claim.confidence);
                     return (
-                      <div
-                        key={claim.id}
-                        style={{
-                          border: "1px solid var(--border-soft)",
-                          borderRadius: "4px",
-                          padding: "10px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <strong style={{ fontSize: "14px" }}>
+                      <div key={claim.id} className="s2s-tile s2s-tile-muted">
+                        <div className="s2s-claim-head">
+                          <strong className="s2s-claim-label">
                             {claim.label}
                           </strong>
-                          <span style={confidenceBadgeStyle}>
+                          <span
+                            className="s2s-chip"
+                            data-testid="claim-confidence-badge"
+                            title={t("audit.confidenceTooltip", {
+                              refs: claim.evidenceRefs.length,
+                            })}
+                          >
                             {Math.round(claim.confidence * 100)}%
                           </span>
                           {trustStatus && (
                             <span
-                              style={{
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontSize: "12px",
-                                color: "var(--ink-on-fill)",
-                                background:
-                                  trustColors[trustStatus] ?? "var(--cat-gray)",
-                              }}
+                              className={`s2s-badge s2s-badge-sm ${
+                                trustBadge[trustStatus] ?? "s2s-badge-muted"
+                              }`}
                             >
                               {tEnum("status", trustStatus)}
                             </span>
                           )}
                           {issueCount > 0 && (
-                            <span
-                              style={{
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontSize: "12px",
-                                background: "var(--warning-soft)",
-                                color: "var(--warning-ink)",
-                              }}
-                            >
+                            <span className="s2s-chip s2s-chip-warning">
                               {t("audit.skepticIssue", { count: issueCount })}
                             </span>
                           )}
                         </div>
 
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            marginTop: "6px",
-                            fontSize: "12px",
-                            color: "var(--ink-2)",
-                          }}
-                        >
-                          <span>{t("audit.confidence")}</span>
-                          <div
-                            style={{
-                              flex: 1,
-                              height: "6px",
-                              background: "var(--surface-3)",
-                              borderRadius: "4px",
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
+                        <div className="s2s-meter-row">
+                          <span className="s2s-meter-label">
+                            {t("audit.confidence")}
+                          </span>
+                          <span className="s2s-meter">
+                            <span
+                              className={`s2s-meter-fill s2s-meter-fill-${tier}`}
                               style={{
-                                height: "100%",
                                 width: `${Math.round(claim.confidence * 100)}%`,
-                                background: "var(--accent)",
                               }}
-                              />
-                            </div>
+                            />
+                          </span>
                         </div>
 
-                        <p
-                          style={{
-                            margin: "6px 0 0",
-                            fontSize: "13px",
-                            color: "var(--ink)",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {claim.rationale}
-                        </p>
+                        <p className="s2s-claim-rationale">{claim.rationale}</p>
 
                         {claim.evidenceRefs.length > 0 && (
-                          <div
-                            style={{
-                              marginTop: "6px",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "4px",
-                              flexWrap: "wrap",
-                            }}
-                          >
+                          <div className="s2s-stack s2s-stack-tighter">
                             {claim.evidenceRefs.map((ref) => {
                               const evidence = evidenceByEvidenceId.get(ref);
                               if (!evidence) {
                                 return (
-                                  <span key={ref} style={missingEvidenceStyle}>
+                                  <span
+                                    key={ref}
+                                    className="s2s-chip s2s-chip-warning"
+                                  >
                                     {t("audit.missingEvidence", { ref })}
                                   </span>
                                 );
@@ -309,90 +242,6 @@ export function AuditViewTab({
   );
 }
 
-const sectionStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-4)",
-  background: "var(--surface)",
-};
-
-const dimensionStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius)",
-  padding: "var(--space-3)",
-  background: "var(--surface)",
-};
-
-const sectionHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--space-3)",
-  marginBottom: "var(--space-3)",
-  flexWrap: "wrap",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-md)",
-  fontWeight: 700,
-  color: "var(--ink)",
-};
-
-const dimensionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-xs)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  fontWeight: 600,
-  color: "var(--ink-2)",
-};
-
-const metaBadgeStyle: React.CSSProperties = {
-  padding: "2px var(--space-2)",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--surface-3)",
-  color: "var(--ink-2)",
-  fontSize: "var(--text-xs)",
-  whiteSpace: "nowrap",
-};
-
-const confidenceBadgeStyle: React.CSSProperties = {
-  padding: "2px var(--space-2)",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--accent-soft)",
-  color: "var(--accent-ink)",
-  fontSize: "var(--text-xs)",
-  whiteSpace: "nowrap",
-};
-
-const missingEvidenceStyle: React.CSSProperties = {
-  padding: "2px var(--space-2)",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--warning-soft)",
-  color: "var(--warning-ink)",
-  fontSize: "var(--text-xs)",
-  whiteSpace: "nowrap",
-};
-
-const detailsStyle: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-sm)",
-  padding: "var(--space-2) var(--space-3)",
-  background: "var(--surface)",
-};
-
 // Collapsed evidence <details> ≈ padding + one-line summary. Estimate only;
 // expanded entries overflow their slot without clipping.
 const evidenceItemHeight = 44;
-
-const summaryStyle: React.CSSProperties = {
-  cursor: "pointer",
-  listStyle: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--space-2)",
-  minWidth: 0,
-  overflowWrap: "anywhere",
-};

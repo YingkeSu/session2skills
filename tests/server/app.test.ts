@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -87,6 +87,10 @@ describe("scanRuns", () => {
       artifactStatus: "legacy",
       skillAvailable: true,
       summaryAvailable: false,
+      group: null,
+      archived: false,
+      archivedAt: null,
+      updatedAt: "",
     });
   });
 
@@ -112,6 +116,10 @@ describe("scanRuns", () => {
       artifactStatus: "partial",
       skillAvailable: false,
       summaryAvailable: false,
+      group: null,
+      archived: false,
+      archivedAt: null,
+      updatedAt: "",
     });
   });
 
@@ -134,6 +142,10 @@ describe("scanRuns", () => {
       artifactStatus: "partial",
       skillAvailable: false,
       summaryAvailable: true,
+      group: null,
+      archived: false,
+      archivedAt: null,
+      updatedAt: "",
     });
   });
 
@@ -587,5 +599,459 @@ describe("createServer startup reconciliation (issue #73)", () => {
     const progress = await progressRes.json();
     expect(progress.stage).toBe("error");
     expect(progress.error).toBe("pre-existing failure");
+  });
+});
+
+describe("skill management: group / archive / delete", () => {
+  let tempRoot: string;
+  let runsDir: string;
+  const testToken = "test-api-token-management";
+
+  beforeAll(async () => {
+    process.env["SESSION2SKILLS_API_TOKEN"] = testToken;
+    tempRoot = await mkdtemp(join(tmpdir(), "s2k-mgmt-"));
+    runsDir = join(tempRoot, "runs");
+    await mkdir(runsDir, { recursive: true });
+  });
+
+  afterAll(async () => {
+    delete process.env["SESSION2SKILLS_API_TOKEN"];
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+
+  async function seedRun(name: string, base: string = runsDir): Promise<string> {
+    const runDir = join(base, name);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, "claim-manifest.json"), JSON.stringify(validManifest()));
+    await writeFile(
+      join(runDir, "SKILL.md"),
+      `---\nname: ${name}\ndescription: Test generated skill.\n---\n\n# ${name}\n`,
+    );
+    return runDir;
+  }
+
+  async function readMetaFile(name: string): Promise<Record<string, unknown>> {
+    const raw = await readFile(join(runsDir, name, ".skill-meta.json"), "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  }
+
+  async function writeMetaFile(name: string, meta: Record<string, unknown>): Promise<void> {
+    await writeFile(join(runsDir, name, ".skill-meta.json"), JSON.stringify(meta));
+  }
+
+  function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    return { Authorization: `Bearer ${testToken}`, ...extra };
+  }
+
+  describe("scanRuns metadata + archive filtering", () => {
+    test("excludes archived runs by default and includes them with includeArchived", async () => {
+      const caseDir = join(tempRoot, "case-filter");
+      await mkdir(caseDir, { recursive: true });
+      await seedRun("scan-active", caseDir);
+      await seedRun("scan-archived", caseDir);
+      await writeFile(
+        join(caseDir, "scan-archived", ".skill-meta.json"),
+        JSON.stringify({
+          schemaVersion: "skill-run-meta/v1",
+          group: null,
+          archived: true,
+          archivedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+        }),
+      );
+
+      const visible = await scanRuns(caseDir);
+      expect(visible.map((r) => r.name)).toEqual(["scan-active"]);
+
+      const all = await scanRuns(caseDir, { includeArchived: true });
+      expect(all.map((r) => r.name).sort()).toEqual(["scan-active", "scan-archived"]);
+      const archived = all.find((r) => r.name === "scan-archived")!;
+      expect(archived.archived).toBe(true);
+      expect(archived.archivedAt).toBe("2026-03-01T00:00:00.000Z");
+    });
+
+    test("emits group from .skill-meta.json", async () => {
+      const caseDir = join(tempRoot, "case-group");
+      await mkdir(caseDir, { recursive: true });
+      await seedRun("scan-grouped", caseDir);
+      await writeFile(
+        join(caseDir, "scan-grouped", ".skill-meta.json"),
+        JSON.stringify({
+          schemaVersion: "skill-run-meta/v1",
+          group: "Payments",
+          archived: false,
+          archivedAt: null,
+          updatedAt: "2026-03-02T00:00:00.000Z",
+        }),
+      );
+
+      const [run] = await scanRuns(caseDir);
+      expect(run.name).toBe("scan-grouped");
+      expect(run.group).toBe("Payments");
+      expect(run.archived).toBe(false);
+      expect(run.updatedAt).toBe("2026-03-02T00:00:00.000Z");
+    });
+
+    test("treats malformed .skill-meta.json as unarchived with group null", async () => {
+      const caseDir = join(tempRoot, "case-malformed");
+      await mkdir(caseDir, { recursive: true });
+      await seedRun("scan-malformed", caseDir);
+      await writeFile(join(caseDir, "scan-malformed", ".skill-meta.json"), "{ not valid json");
+
+      const [run] = await scanRuns(caseDir);
+      expect(run.name).toBe("scan-malformed");
+      expect(run.group).toBeNull();
+      expect(run.archived).toBe(false);
+      expect(run.archivedAt).toBeNull();
+    });
+  });
+
+  describe("PATCH /api/runs/:name/meta", () => {
+    test("sets a trimmed group and returns the updated summary", async () => {
+      await seedRun("patch-group");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-group/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: "  Payments Team  " }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body["group"]).toBe("Payments Team");
+      expect(body["archived"]).toBe(false);
+
+      const meta = await readMetaFile("patch-group");
+      expect(meta["schemaVersion"]).toBe("skill-run-meta/v1");
+      expect(meta["group"]).toBe("Payments Team");
+      expect(typeof meta["updatedAt"]).toBe("string");
+      expect(meta["updatedAt"]).not.toBe("");
+    });
+
+    test("normalizes empty/whitespace group to null", async () => {
+      await seedRun("patch-empty-group");
+      await writeMetaFile("patch-empty-group", {
+        schemaVersion: "skill-run-meta/v1",
+        group: "Existing",
+        archived: false,
+        archivedAt: null,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-empty-group/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: "   " }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body["group"]).toBeNull();
+    });
+
+    test("explicit group: null clears an existing group", async () => {
+      await seedRun("patch-clear-group");
+      await writeMetaFile("patch-clear-group", {
+        schemaVersion: "skill-run-meta/v1",
+        group: "Before",
+        archived: false,
+        archivedAt: null,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      });
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-clear-group/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: null }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Record<string, unknown>)["group"]).toBeNull();
+    });
+
+    test("archiving stamps archivedAt and updatedAt", async () => {
+      await seedRun("patch-archive");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-archive/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: true }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body["archived"]).toBe(true);
+      expect(typeof body["archivedAt"]).toBe("string");
+      expect((body["archivedAt"] as string).length).toBeGreaterThan(0);
+
+      const meta = await readMetaFile("patch-archive");
+      expect(meta["archived"]).toBe(true);
+      expect(meta["archivedAt"]).toBe(body["archivedAt"]);
+    });
+
+    test("unarchiving clears archivedAt", async () => {
+      await seedRun("patch-unarchive");
+      await writeMetaFile("patch-unarchive", {
+        schemaVersion: "skill-run-meta/v1",
+        group: null,
+        archived: true,
+        archivedAt: "2026-03-01T00:00:00.000Z",
+        updatedAt: "2026-03-01T00:00:00.000Z",
+      });
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-unarchive/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: false }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body["archived"]).toBe(false);
+      expect(body["archivedAt"]).toBeNull();
+    });
+
+    test("is visible in GET /api/runs only with includeArchived=true", async () => {
+      await seedRun("patch-visibility");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const patchRes = await app.request("/api/runs/patch-visibility/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: true }),
+      });
+      expect(patchRes.status).toBe(200);
+
+      const defaultRes = await app.request("/api/runs");
+      const defaultBody = (await defaultRes.json()) as Array<{ name: string }>;
+      expect(defaultBody.map((r) => r.name)).not.toContain("patch-visibility");
+
+      const allRes = await app.request("/api/runs?includeArchived=true");
+      const allBody = (await allRes.json()) as Array<{ name: string }>;
+      expect(allBody.map((r) => r.name)).toContain("patch-visibility");
+    });
+  });
+
+  describe("PATCH /api/runs/:name/meta validation", () => {
+    test("rejects non-string group (number) with 400", async () => {
+      await seedRun("patch-bad-group-num");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-bad-group-num/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: 42 }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "group must be a string or null" });
+    });
+
+    test("rejects array group with 400", async () => {
+      await seedRun("patch-bad-group-arr");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-bad-group-arr/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: ["x"] }),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    test("rejects non-boolean archived with 400", async () => {
+      await seedRun("patch-bad-archived");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-bad-archived/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: "true" }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "archived must be a boolean" });
+    });
+
+    test("rejects non-object body (array) with 400", async () => {
+      await seedRun("patch-bad-body");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-bad-body/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify([{ group: "x" }]),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Request body must be a JSON object" });
+    });
+
+    test("rejects malformed JSON body with 400", async () => {
+      await seedRun("patch-bad-json");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-bad-json/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: "not json",
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    test("returns 404 for a missing run", async () => {
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/no-such-run/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: "x" }),
+      });
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "Run not found: no-such-run" });
+    });
+
+    test("returns 400 for an invalid run name", async () => {
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/..%2Fetc/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ group: "x" }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Invalid run name" });
+    });
+
+    test("returns 401 without a bearer token", async () => {
+      await seedRun("patch-auth");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-auth/meta", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group: "x" }),
+      });
+
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "Unauthorized" });
+    });
+
+    test("returns 409 when generation is still running", async () => {
+      await seedRun("patch-running");
+      await writeFile(
+        join(runsDir, "patch-running", ".progress.json"),
+        JSON.stringify({
+          stage: "analyst",
+          completedStages: [],
+          startedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+          pid: process.pid,
+        }),
+      );
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/patch-running/meta", {
+        method: "PATCH",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ archived: true }),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: `Generation already running (pid ${process.pid})`,
+      });
+    });
+  });
+
+  describe("DELETE /api/runs/:name", () => {
+    test("removes the run directory and returns { deleted, name }", async () => {
+      await seedRun("delete-me");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/delete-me", {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ deleted: true, name: "delete-me" });
+
+      const runDirStat = await stat(join(runsDir, "delete-me")).catch(() => null);
+      expect(runDirStat).toBeNull();
+    });
+
+    test("returns 404 for a missing run", async () => {
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/never-existed", {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "Run not found: never-existed" });
+    });
+
+    test("returns 400 for an invalid run name", async () => {
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/..%2Fetc%2Fpasswd", {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Invalid run name" });
+    });
+
+    test("returns 401 without a bearer token", async () => {
+      await seedRun("delete-auth");
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/delete-auth", { method: "DELETE" });
+
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "Unauthorized" });
+      // The run must still exist when auth fails.
+      const stillThere = await stat(join(runsDir, "delete-auth")).catch(() => null);
+      expect(stillThere?.isDirectory()).toBe(true);
+    });
+
+    test("returns 409 and leaves the run in place when generation is still running", async () => {
+      await seedRun("delete-running");
+      await writeFile(
+        join(runsDir, "delete-running", ".progress.json"),
+        JSON.stringify({
+          stage: "writer",
+          completedStages: ["analyst", "skeptic"],
+          startedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+          pid: process.pid,
+        }),
+      );
+      const app = createServer(runsDir, { projectDirectory: tempRoot });
+
+      const res = await app.request("/api/runs/delete-running", {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: `Generation already running (pid ${process.pid})`,
+      });
+      const stillThere = await stat(join(runsDir, "delete-running")).catch(() => null);
+      expect(stillThere?.isDirectory()).toBe(true);
+    });
   });
 });

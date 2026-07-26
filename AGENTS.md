@@ -199,3 +199,11 @@ Five canonical roles mapped to default label strings (`needs-triage`, `needs-inf
 ### Domain docs
 
 Single-context repo: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Review guidelines
+
+- Prioritize correctness regressions, missing tests, and review-blocking UX issues.
+- Check that generated skill claims remain evidence-grounded and that the Writer does not invent directives.
+- For web changes, verify responsive layout, accessibility, empty/loading/error states, and text fit.
+- For CLI and harness changes, verify the documented commands still work and avoid unsafe filesystem or git behavior.
+- Treat changes to `.session2skills/`, `generated-skills/`, and `dist/` as suspicious unless they are explicitly intended outputs.

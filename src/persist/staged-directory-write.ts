@@ -55,7 +55,11 @@ export async function writeDirectoryArtifacts(input: {
         throw new CliUsageError(`Output path is not a directory: ${input.outputDirectory}`);
       }
       const existingEntries = await readdir(input.outputDirectory);
-      if (!input.force && existingEntries.length > 0) {
+      // Transient bookkeeping files (e.g. the async-generation `.progress.json`
+      // written before the harness commits artifacts) are owned by the runtime,
+      // not prior run output, so they must not trip the overwrite guard.
+      const significantEntries = existingEntries.filter((entry) => !entry.startsWith("."));
+      if (!input.force && significantEntries.length > 0) {
         throw new CliUsageError(`Refusing to overwrite existing output directory without --force: ${input.outputDirectory}`);
       }
 

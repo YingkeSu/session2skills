@@ -344,13 +344,25 @@ function extractMessageText(content: string | Array<{ type?: string; text?: stri
 
 function parseJson(text: string, provider: string): unknown {
   try {
-    return JSON.parse(text);
+    return JSON.parse(stripCodeFences(text));
   } catch (error) {
     throw new LlmProviderError("LLM provider returned invalid JSON.", {
       provider,
       cause: error,
     });
   }
+}
+
+/**
+ * Some OpenAI-compatible providers (e.g. Zhipu GLM) wrap JSON output in markdown
+ * code fences (```json ... ```) even when a json_schema/json_object response
+ * format is requested. Strip a single surrounding fence so the payload still
+ * parses; leave anything else untouched.
+ */
+function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const fenceMatch = /^```[^\n]*\n([\s\S]*?)\n?```[ \t]*$/.exec(trimmed);
+  return fenceMatch ? fenceMatch[1].trim() : trimmed;
 }
 
 function findConfiguredModel(

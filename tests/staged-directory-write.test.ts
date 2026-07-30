@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -123,6 +123,43 @@ describe("writeDirectoryArtifacts", () => {
     });
 
     await expect(readFile(path.join(outputDirectory, "file.txt"), "utf8")).resolves.toBe("second");
+  });
+
+  it("allows write when existing dir holds only a transient progress file", async () => {
+    // Regression: the async web generation path writes .progress.json into the
+    // output directory before the harness commits artifacts. That bookkeeping
+    // file must not trip the overwrite guard.
+    const root = await mkdtemp(path.join(os.tmpdir(), "session2skills-progress-only-"));
+    const outputDirectory = path.join(root, "output");
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(path.join(outputDirectory, ".progress.json"), '{"stage":"analyst"}');
+
+    const resultPaths = await writeDirectoryArtifacts({
+      outputDirectory,
+      force: false,
+      files: { "SKILL.md": "# skill" },
+    });
+
+    await expect(readFile(resultPaths["SKILL.md"]!, "utf8")).resolves.toBe("# skill");
+  });
+
+  it("still refuses overwrite when real artifacts sit alongside the progress file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "session2skills-progress-plus-"));
+    const outputDirectory = path.join(root, "output");
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(path.join(outputDirectory, ".progress.json"), '{"stage":"analyst"}');
+    await writeFile(path.join(outputDirectory, "SKILL.md"), "# old");
+
+    await expect(
+      writeDirectoryArtifacts({
+        outputDirectory,
+        force: false,
+        files: { "SKILL.md": "# new" },
+      }),
+    ).rejects.toBeInstanceOf(CliUsageError);
+
+    // Prior real output is left untouched.
+    await expect(readFile(path.join(outputDirectory, "SKILL.md"), "utf8")).resolves.toBe("# old");
   });
 
   it("writes expanded hybrid artifact set", async () => {

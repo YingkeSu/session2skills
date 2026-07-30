@@ -237,6 +237,41 @@ describe("OpenAiCompatibleProvider.generateStructured", () => {
     expect(result.rawText).toBe(JSON.stringify(responseObject));
   });
 
+  it("parses JSON wrapped in markdown code fences", async () => {
+    // Regression: some providers (e.g. Zhipu GLM) wrap structured JSON output in
+    // ```json fences even when a json_schema response_format is requested.
+    // parseJson must strip the fence or the whole harness stage fails.
+    const responseObject = { claims: [{ id: "c1", text: "claim" }] };
+    const fenced = "```json\n" + JSON.stringify(responseObject) + "\n```";
+    const provider = createProvider(() =>
+      Promise.resolve(mockResponse(200, chatCompletionResponse(fenced))),
+    );
+
+    const result = await provider.generateStructured({
+      model: { model: "test-model" },
+      messages: [{ role: "user", content: "test" }],
+      schema: { name: "test_schema", parse: (input: unknown) => input },
+    });
+
+    expect(result.object).toEqual(responseObject);
+  });
+
+  it("parses JSON wrapped in a bare code fence", async () => {
+    const responseObject = { ok: true };
+    const fenced = "```\n" + JSON.stringify(responseObject) + "\n```";
+    const provider = createProvider(() =>
+      Promise.resolve(mockResponse(200, chatCompletionResponse(fenced))),
+    );
+
+    const result = await provider.generateStructured({
+      model: { model: "test-model" },
+      messages: [{ role: "user", content: "test" }],
+      schema: { name: "test_schema", parse: (input: unknown) => input },
+    });
+
+    expect(result.object).toEqual(responseObject);
+  });
+
   it("throws LlmProviderError for invalid JSON in structured response", async () => {
     const provider = createProvider(() =>
       Promise.resolve(mockResponse(200, chatCompletionResponse("not valid json"))),
